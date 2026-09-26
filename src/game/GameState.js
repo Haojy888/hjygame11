@@ -1,5 +1,6 @@
 import { FISH, fishValue, fishLengthCm } from './FishTable.js';
 import { defaultUpgrades, gearStats, nextLevel, UPGRADES, FUEL_PRICE } from './Gear.js';
+import { ORDERS, matchesOrder } from './Orders.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -18,6 +19,7 @@ export class GameState {
 		this.lastCatch = null;
 		this.upgrades = defaultUpgrades();
 		this.fuel = null; // litres left (null = full tank)
+		this.orderIndex = 0;
 		this._nextId = 1;
 		this.listeners = new Set();
 
@@ -26,6 +28,12 @@ export class GameState {
 	get stats() {
 
 		return gearStats( this.upgrades );
+
+	}
+
+	get currentOrder() {
+
+		return ORDERS[ this.orderIndex % ORDERS.length ];
 
 	}
 
@@ -96,11 +104,24 @@ export class GameState {
 		for ( const f of this.inventory ) ( ids === null || ids.includes( f.id ) ? sold : keep ).push( f );
 		let total = 0;
 		for ( const f of sold ) total += f.value;
+		let bonus = 0;
+		const completedOrders = [], used = new Set();
+		while ( used.size < sold.length ) {
+
+			const order = this.currentOrder;
+			const match = sold.findIndex( ( fish, i ) => ! used.has( i ) && matchesOrder( order, fish ) );
+			if ( match < 0 ) break;
+			used.add( match );
+			completedOrders.push( order );
+			bonus += order.reward;
+			this.orderIndex ++;
+
+		}
 		this.inventory = keep;
-		this.money += total;
+		this.money += total + bonus;
 		this.save();
 		this.emit();
-		return { total, count: sold.length };
+		return { total, count: sold.length, bonus, completedOrders };
 
 	}
 
@@ -188,7 +209,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 1, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId };
+		return { v: 1, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex };
 
 	}
 
@@ -203,6 +224,7 @@ export class GameState {
 		for ( const [ k, v ] of Object.entries( this.log ) ) if ( FISH[ k ] && v && v.bestKg > 0 && ! Number.isFinite( v.bestCm ) ) v.bestCm = Math.round( fishLengthCm( k, v.bestKg ) );
 		this.upgrades = { ...defaultUpgrades(), ...( d.upgrades || {} ) };
 		this.fuel = Number.isFinite( d.fuel ) ? d.fuel : null;
+		this.orderIndex = Number.isSafeInteger( d.orderIndex ) && d.orderIndex >= 0 ? d.orderIndex : 0;
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
 
@@ -242,6 +264,7 @@ export class GameState {
 		this.log = {};
 		this.upgrades = defaultUpgrades();
 		this.fuel = null;
+		this.orderIndex = 0;
 		this.save();
 		this.emit();
 

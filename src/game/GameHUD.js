@@ -1,6 +1,7 @@
 import { FISH, fishLengthCm } from './FishTable.js';
 import { UPGRADES, nextLevel, FUEL_PRICE } from './Gear.js';
 import { FishPortrait } from './FishPortrait.js';
+import { matchesOrder } from './Orders.js';
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -17,6 +18,16 @@ const CSS = /* css */`
 .tw-root.is-photo .gm-panel { display: none; }
 .gm-purse.is-bump { animation: gm-bump 420ms var(--tw-ease); }
 @keyframes gm-bump { 30% { transform: scale(1.08); } }
+.gm-order { width: calc(228 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); padding: var(--tw-2) var(--tw-3);
+	border-radius: var(--tw-r-md); font: 500 var(--tw-fs-sm) var(--tw-font); line-height: 1.4; pointer-events: none; }
+.gm-order-head, .gm-order-line { display: flex; align-items: baseline; justify-content: space-between; gap: var(--tw-2); }
+.gm-order-head { color: var(--tw-ink-3); font-size: var(--tw-fs-xs); }
+.gm-order-head b, .gm-order-line b { flex: none; color: var(--tw-sun); font-family: var(--tw-mono); font-weight: 600; }
+.gm-order-line { margin-top: var(--tw-1); color: var(--tw-ink); font-weight: 600; }
+.gm-order-line span { min-width: 0; }
+.gm-order-hint, .gm-order-status { margin-top: 2px; color: var(--tw-ink-3); font-size: var(--tw-fs-xs); overflow-wrap: anywhere; }
+.gm-order-status.is-ready { color: var(--tw-aqua); }
+.tw-root:has(.gm-catch.is-on) .gm-order { opacity: 0; }
 .gm-money { font-family: var(--tw-mono); color: var(--tw-sun); font-weight: 600; }
 .gm-cooler { display: flex; align-items: center; gap: var(--tw-2); color: var(--tw-ink-2); font-size: var(--tw-fs-md); }
 .gm-cooler-bar { width: calc(64 * var(--tw-u)); height: calc(5 * var(--tw-u)); border-radius: 99px; background: var(--tw-fill-2); overflow: hidden; }
@@ -55,7 +66,7 @@ const CSS = /* css */`
 .gm-panel.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
 .gm-panel h2 { margin: 0 0 var(--tw-1); font-size: calc(17 * var(--tw-u)); font-weight: 600; }
 .gm-panel p.gm-sub { margin: 0 0 var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); }
-.gm-list { overflow: auto; margin: 0 calc(-1 * var(--tw-2)); padding: 0 var(--tw-2); }
+.gm-list { min-height: 0; overflow: auto; margin: 0 calc(-1 * var(--tw-2)); padding: 0 var(--tw-2); }
 .gm-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: var(--tw-3); align-items: center; padding: var(--tw-2) 0; border-bottom: 1px solid var(--tw-line); }
 .gm-row .gm-kg, .gm-row .gm-val { font-family: var(--tw-mono); color: var(--tw-ink-2); }
 .gm-row .gm-val { color: var(--tw-sun); }
@@ -76,6 +87,12 @@ const CSS = /* css */`
 .gm-shop-row small { display: block; color: var(--tw-ink-3); font-size: var(--tw-fs-sm); margin-top: 2px; }
 .gm-shop-row .gm-have { color: var(--tw-ink-3); font-size: var(--tw-fs-sm); }
 .gm-log { margin-top: var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); line-height: 1.5; }
+.gm-order-offer { padding: var(--tw-3); margin-bottom: var(--tw-2); border: 1px solid var(--tw-line-2); border-radius: var(--tw-r-md); background: var(--tw-fill); }
+.gm-order-offer .gm-order-head { color: var(--tw-ink-2); }
+.gm-order-offer .gm-order-line { margin-top: var(--tw-2); }
+.gm-order-offer .gm-order-hint, .gm-order-offer .gm-order-status { margin-top: var(--tw-1); }
+.gm-row.is-order-match > span:first-child { color: var(--tw-aqua); }
+.gm-row.is-order-match small { white-space: nowrap; }
 .gm-row .gm-cm { font-family: var(--tw-mono); color: var(--tw-ink-3); }
 .gm-row.has-cm { grid-template-columns: 1fr auto auto auto auto; }
 
@@ -87,9 +104,13 @@ const CSS = /* css */`
 	}
 }
 @media (min-width: 900px) and (max-width: 1124px) {
+	.tw-root[data-panel='open'] .gm-order { display: none; }
 	.tw-root[data-panel='open'] .gm-panel {
 		left: calc((100vw - var(--tw-panel-w) - var(--tw-3)) / 2);
 	}
+}
+@media (max-width: 920px) {
+	.tw-root:has(.gm-panel.is-open) .gm-order { display: none; }
 }
 
 /* catch card: full screen. The world dims and blurs; the fish lies side-on in its own studio light
@@ -221,6 +242,8 @@ export class GameHUD {
 		this.catchOpen = false;
 		const hud = ui.hud || ui.root;
 		hud.append( this.catchScrim, this.purse, this.fight, this.bite, this.cast, this.dot, this.catchCard );
+		this.orderCard = h( 'div', 'gm-order tw-glass' );
+		( hud.querySelector( '.tw-tl' ) || hud ).append( this.orderCard );
 
 		// panels (interactive)
 		this.inv = h( 'div', 'gm-panel tw-glass tw-interactive' );
@@ -259,8 +282,28 @@ export class GameHUD {
 		}
 
 		this._last.money = s.money;
+		this.renderOrderCard();
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
+
+	}
+
+	renderOrderCard() {
+
+		const s = this.game.state, order = s.currentOrder;
+		if ( ! order ) {
+
+			this.orderCard.innerHTML = '<div class="gm-order-line">乔的委托已完成</div>';
+			return;
+
+		}
+
+		const ready = s.inventory.some( ( fish ) => matchesOrder( order, fish ) );
+		this.orderCard.innerHTML = `
+			<div class="gm-order-head"><span>乔的委托 · 第 ${ s.orderIndex + 1 } 单</span><b>+$${ order.reward }</b></div>
+			<div class="gm-order-line"><span>${ FISH[ order.species ].name }</span><b>≥ ${ order.minKg } kg</b></div>
+			<div class="gm-order-hint">${ order.hint }</div>
+			<div class="gm-order-status ${ ready ? 'is-ready' : '' }">${ ready ? '已有合格渔获 · 找乔出售' : '暂无合格渔获' }</div>`;
 
 	}
 
@@ -439,12 +482,25 @@ export class GameHUD {
 
 		const s = this.game.state;
 		const v = this.vendor || { name: '鱼贩' };
-		const rows = s.inventory.map( ( f ) => `<div class="gm-row has-cm"><span>${ FISH[ f.species ].name }</span><span class="gm-cm">${ f.cm ?? Math.round( fishLengthCm( f.species, f.kg ) ) } cm</span><span class="gm-kg">${ f.kg.toFixed( 2 ) } kg</span><span class="gm-val">$${ f.value }</span><button class="gm-mini" data-sell="${ f.id }">出售</button></div>` ).join( '' );
+		const order = s.currentOrder;
+		const ready = order && s.inventory.some( ( fish ) => matchesOrder( order, fish ) );
+		const orderBox = order ? `<div class="gm-order-offer">
+			<div class="gm-order-head"><span>当前委托 · 第 ${ s.orderIndex + 1 } 单</span><b>额外 +$${ order.reward }</b></div>
+			<div class="gm-order-line"><span>${ FISH[ order.species ].name }</span><b>≥ ${ order.minKg } kg</b></div>
+			<div class="gm-order-hint">${ order.hint }</div>
+			<div class="gm-order-status ${ ready ? 'is-ready' : '' }">${ ready ? '已有合格渔获，出售时自动领取奖金' : '钓到符合条件的鱼，出售时自动领取奖金' }</div>
+		</div>` : '<div class="gm-order-offer">本轮委托已完成。</div>';
+		const rows = s.inventory.map( ( f ) => {
+
+			const matched = order && matchesOrder( order, f );
+			return `<div class="gm-row has-cm ${ matched ? 'is-order-match' : '' }"><span>${ FISH[ f.species ].name }${ matched ? '<small>符合委托</small>' : '' }</span><span class="gm-cm">${ f.cm ?? Math.round( fishLengthCm( f.species, f.kg ) ) } cm</span><span class="gm-kg">${ f.kg.toFixed( 2 ) } kg</span><span class="gm-val">$${ f.value }</span><button class="gm-mini" data-sell="${ f.id }">出售</button></div>`;
+
+		} ).join( '' );
 		this.stand.innerHTML = `
 			<h2>${ v.name }</h2>
 			<p class="gm-sub">${ s.inventory.length ? v.greeting || '让我看看你钓到了什么。' : v.idle || '钓到鱼再来吧。' }</p>
-			<div class="gm-list">${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }</div>
-			<div class="gm-foot"><button class="gm-btn is-ghost" data-close>离开 (E)</button><button class="gm-btn" data-all ${ s.inventory.length ? '' : 'disabled' }>全部出售 · $${ s.holdValue }</button></div>`;
+			<div class="gm-list">${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }</div>
+			<div class="gm-foot"><button class="gm-btn is-ghost" data-close>离开 (E)</button><button class="gm-btn" data-all ${ s.inventory.length ? '' : 'disabled' }>全部出售 · 鱼价 $${ s.holdValue }</button></div>`;
 		this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 		this.stand.querySelector( '[data-all]' ).onclick = () => this.game.sellAll();
 		for ( const b of this.stand.querySelectorAll( '[data-sell]' ) ) b.onclick = () => this.game.sell( [ Number( b.dataset.sell ) ] );

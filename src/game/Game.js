@@ -377,7 +377,7 @@ export class Game {
 	sellAll() {
 
 		const r = this.state.sell();
-		if ( r.count ) this.toast( `卖出 ${ r.count } 条鱼，收入 $${ r.total }` );
+		if ( r.count ) this.toast( `卖出 ${ r.count } 条鱼，鱼款 $${ r.total }${ r.bonus ? ` · 委托奖金 $${ r.bonus }（完成 ${ r.completedOrders.length } 单）` : '' }` );
 		if ( this.app.audio && this.app.audio.coin ) this.app.audio.coin();
 		return r;
 
@@ -386,7 +386,7 @@ export class Game {
 	sell( ids ) {
 
 		const r = this.state.sell( ids );
-		if ( r.count ) this.toast( `卖鱼收入 $${ r.total }` );
+		if ( r.count ) this.toast( `卖鱼款 $${ r.total }${ r.bonus ? ` · 委托奖金 $${ r.bonus }（完成 ${ r.completedOrders.length } 单）` : '' }` );
 		return r;
 
 	}

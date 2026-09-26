@@ -3,6 +3,7 @@ import { FISH, FISH_IDS, fishValue, fishLengthCm } from '../src/game/FishTable.j
 import { habitatAt, pickSpecies, rollWeight, biteDelay } from '../src/game/Bites.js';
 import { CatchMinigame } from '../src/game/CatchMinigame.js';
 import { GameState } from '../src/game/GameState.js';
+import { ORDERS, matchesOrder } from '../src/game/Orders.js';
 import { gearStats, defaultUpgrades, UPGRADES } from '../src/game/Gear.js';
 
 let fails = 0;
@@ -115,12 +116,47 @@ ok( a && b && s.inventory.length === 2, 'fish go into the cooler' );
 ok( s.addFish( 'tarpon', 40, 22 ) === null && s.log.tarpon.count === 1, 'a fish too big for the hold is logged but not kept' );
 const value = s.holdValue;
 const sale = s.sell( [ a.id ] );
-ok( sale.count === 1 && s.money === a.value && s.inventory.length === 1, 'selling one fish pays for it' );
+ok( sale.count === 1 && sale.total === a.value && sale.bonus === ORDERS[ 0 ].reward && s.money === a.value + sale.bonus && s.inventory.length === 1, 'selling a matching fish pays its base price and request bonus' );
 s.upgrades.hold = 1;
 const s2 = new GameState( storage );
 s.save();
 ok( s2.load() && s2.money === s.money && s2.inventory.length === 1 && s2.log.grunt.bestKg === 0.84 && s2.stats.holdKg === 70, 'save / load round trip' );
 ok( s2.addFish( 'grunt', 0.5 ).id > b.id, 'ids keep counting after a load' );
+// ---- Joe's rotating fish requests
+{
+
+	const requestStore = new Map();
+	const requestStorage = { getItem: ( k ) => requestStore.get( k ) ?? null, setItem: ( k, v ) => requestStore.set( k, v ) };
+	const requests = new GameState( requestStorage );
+	ok( ORDERS.length === 6 && requests.currentOrder === ORDERS[ 0 ] && matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.5 } ) && ! matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.49 } ) && ! matchesOrder( ORDERS[ 0 ], { species: 'yellowtail', kg: 1 } ), 'requests match species and minimum weight' );
+	const small = requests.addFish( 'grunt', 0.49 );
+	const other = requests.addFish( 'yellowtail', 0.7 );
+	const wrong = requests.sell( [ small.id, other.id ] );
+	ok( wrong.count === 2 && wrong.total === small.value + other.value && wrong.bonus === 0 && wrong.completedOrders.length === 0 && requests.orderIndex === 0, 'undersized or wrong-species fish sell without completing a request' );
+	const first = requests.addFish( 'grunt', 0.5 );
+	const delivered = requests.sell( [ first.id ] );
+	ok( delivered.count === 1 && delivered.total === first.value && delivered.bonus === 35 && delivered.completedOrders[ 0 ] === ORDERS[ 0 ] && requests.money === small.value + other.value + first.value + 35 && requests.orderIndex === 1, 'a single qualifying sale pays the base price and one bonus' );
+	const repeat = requests.sell( [ first.id ] );
+	ok( repeat.count === 0 && repeat.bonus === 0 && repeat.completedOrders.length === 0 && requests.orderIndex === 1, 'a sold fish cannot earn its bonus twice' );
+	const loadedRequests = new GameState( requestStorage );
+	ok( loadedRequests.load() && loadedRequests.orderIndex === 1 && loadedRequests.currentOrder === ORDERS[ 1 ], 'request progress survives save and load' );
+	loadedRequests.reset();
+	const resetRequests = new GameState( requestStorage );
+	ok( loadedRequests.orderIndex === 0 && resetRequests.load() && resetRequests.currentOrder === ORDERS[ 0 ], 'reset clears request progress' );
+
+	let writes = 0, changes = 0;
+	const batch = new GameState( { setItem: () => { writes ++; } } );
+	const fish = [ [ 'tarpon', 12 ], [ 'tuna', 6 ], [ 'redSnapper', 3 ], [ 'parrot', 1.2 ], [ 'yellowtail', 0.7 ], [ 'grunt', 0.5 ] ].map( ( [ species, kg ] ) => batch.addFish( species, kg ) );
+	const base = fish.reduce( ( sum, f ) => sum + f.value, 0 );
+	const writesBeforeSale = writes;
+	batch.onChange( () => { changes ++; } );
+	const all = batch.sell();
+	ok( all.count === 6 && all.total === base && all.bonus === 870 && all.completedOrders.every( ( order, i ) => order === ORDERS[ i ] ) && batch.money === base + 870 && batch.orderIndex === 6 && writes === writesBeforeSale + 1 && changes === 1, 'sell all completes successive requests in one save and event, even with fish stored in reverse order' );
+	const next = batch.addFish( 'grunt', 0.5 );
+	const cycle = batch.sell( [ next.id ] );
+	ok( cycle.bonus === 35 && cycle.completedOrders[ 0 ] === ORDERS[ 0 ] && batch.orderIndex === 7 && batch.currentOrder === ORDERS[ 1 ], 'requests rotate after the sixth completion' );
+
+}
 // ---- lengths and the catch card's record logic
 {
 
@@ -150,7 +186,7 @@ ok( s2.addFish( 'grunt', 0.5 ).id > b.id, 'ids keep counting after a load' );
 	// a save from before lengths: inventory and log get lengths on load
 	const old = { v: 1, money: 5, inventory: [ { id: 1, species: 'grunt', kg: 0.84, value: 6, caughtAt: 9 } ], log: { grunt: { count: 1, bestKg: 0.84 } }, upgrades: {}, fuel: null, nextId: 2 };
 	const st2 = new GameState( { getItem: () => JSON.stringify( old ), setItem: () => {} } );
-	ok( st2.load() && st2.inventory[ 0 ].cm === 36 && st2.log.grunt.bestCm === 36, 'old saves load with lengths filled in' );
+	ok( st2.load() && st2.inventory[ 0 ].cm === 36 && st2.log.grunt.bestCm === 36 && st2.orderIndex === 0, 'old saves load with lengths and the first request' );
 
 }
 ok( new GameState( { getItem: () => { throw new Error( 'blocked' ); }, setItem: () => { throw new Error( 'blocked' ); } } ).load() === false, 'blocked storage does not throw' );
