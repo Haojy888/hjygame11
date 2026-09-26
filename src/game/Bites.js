@@ -18,6 +18,16 @@ export function habitatAt( { depth, reefDist, pierDist } ) {
 
 }
 
+// Keep the pier accessible even where its water overlaps the reef or offshore shelf.
+export function fishGround( habitat ) {
+
+	if ( habitat.pier > 0.1 ) return 'coast';
+	if ( habitat.reef > 0.1 ) return 'reef';
+	if ( habitat.deep > 0 ) return 'deep';
+	return 'coast';
+
+}
+
 // 1 at the species' favourite time, less at others; hour 0..24
 export function activity( pref, hour ) {
 

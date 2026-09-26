@@ -1,7 +1,8 @@
 import { Vector3, Color } from '../engine/index.js';
 import { WORLD } from '../world/WorldLayout.js';
 import { FISH } from './FishTable.js';
-import { habitatAt, pickSpecies, rollWeight, biteDelay } from './Bites.js';
+import { habitatAt, fishGround, pickSpecies, rollWeight, biteDelay } from './Bites.js';
+import { GROUNDS, CHAPTERS } from './Orders.js';
 import { CatchMinigame } from './CatchMinigame.js';
 import { GameState } from './GameState.js';
 import { FishingRod } from './FishingRod.js';
@@ -343,7 +344,7 @@ export class Game {
 				const depth = Math.max( 0, - app.terrainData.heightAt( x, z ) );
 				const h = this.habitatAtPoint( x, z, depth );
 				let rich = 0;
-				for ( const k in h ) rich += h[ k ];
+				if ( s.canFishAt( h ) ) for ( const k in h ) rich += h[ k ];
 				this._sonar = { depth, fish: Math.min( 1, rich / 1.4 ) };
 
 			}
@@ -376,17 +377,20 @@ export class Game {
 
 	sellAll() {
 
-		const r = this.state.sell();
-		if ( r.count ) this.toast( `卖出 ${ r.count } 条鱼，鱼款 $${ r.total }${ r.bonus ? ` · 委托奖金 $${ r.bonus }（完成 ${ r.completedOrders.length } 单）` : '' }` );
-		if ( this.app.audio && this.app.audio.coin ) this.app.audio.coin();
-		return r;
+		return this.sell();
 
 	}
 
 	sell( ids ) {
 
 		const r = this.state.sell( ids );
-		if ( r.count ) this.toast( `卖鱼款 $${ r.total }${ r.bonus ? ` · 委托奖金 $${ r.bonus }（完成 ${ r.completedOrders.length } 单）` : '' }` );
+		if ( r.count ) {
+
+			this.toast( `卖出 ${ r.count } 条鱼，鱼款 $${ r.total }${ r.bonus ? ` · 任务奖金 $${ r.bonus }（完成 ${ r.completedOrders.length } 项）` : '' }` );
+			if ( this.app.audio?.coin ) this.app.audio.coin();
+			for ( const chapter of r.completedChapters ) this.toast( `${ chapter.name }完成！${ chapter.rewardText }`, 6500 );
+
+		}
 		return r;
 
 	}
@@ -394,7 +398,9 @@ export class Game {
 	// ---- bites
 	habitat() {
 
-		return this.habitatAtPoint( this.rod.bobber.x, this.rod.bobber.z, this.rod.depth );
+		const { x, z } = this.rod.bobber;
+		// Use the same seabed as the map and sonar; wave crests must not change fishing access.
+		return this.habitatAtPoint( x, z, Math.max( 0, - this.app.terrainData.heightAt( x, z ) ) );
 
 	}
 
@@ -417,6 +423,18 @@ export class Game {
 
 	}
 
+	checkFishingAccess( habitat ) {
+
+		if ( this.state.canFishAt( habitat ) ) return true;
+		const ground = GROUNDS[ fishGround( habitat ) ];
+		const chapter = CHAPTERS.find( ( c ) => c.end === ground.unlockAfter );
+		this.bite = null;
+		this.rod.retrieve();
+		this.toast( `${ ground.name }尚未开放垂钓 · 完成「${ chapter.name }」后解锁，按I查看航程`, 4500 );
+		return false;
+
+	}
+
 	onBobberLanded( where ) {
 
 		if ( where !== 'water' ) {
@@ -426,7 +444,9 @@ export class Game {
 
 		}
 
-		this.bite = { phase: 'wait', t: biteDelay( this.habitat(), this.hour ) };
+		const habitat = this.habitat();
+		if ( ! this.checkFishingAccess( habitat ) ) return;
+		this.bite = { phase: 'wait', t: biteDelay( habitat, this.hour ) };
 
 	}
 
@@ -435,6 +455,7 @@ export class Game {
 		const rod = this.rod;
 		const b = this.bite;
 		if ( ! b ) return;
+		if ( ! this.checkFishingAccess( this.habitat() ) ) return;
 		b.t -= dt;
 		// bobber motion for the cues
 		if ( b.phase === 'nibble' ) rod.dip = Math.max( 0, Math.sin( Math.min( 1, ( b.pulse || 0 ) ) * Math.PI ) * 0.45 );
@@ -495,6 +516,7 @@ export class Game {
 
 		}
 
+		if ( ! this.checkFishingAccess( this.habitat() ) ) return;
 		const g = this.state.stats;
 		this.fight = new CatchMinigame( { species: b.species, kg: b.kg, lineKg: g.lineKg, reelSpeed: g.reelSpeed, distance: Math.max( 3, this.rod.lineOut ) } );
 		this.bite = null;

@@ -1,6 +1,7 @@
 import { WORLD } from '../world/WorldLayout.js';
 import { STAND } from './FishStand.js';
 import { CHANDLERY } from './Chandlery.js';
+import { matchesOrder } from './Orders.js';
 
 // Minimap, lower right: the island baked once from the terrain data into a 2D canvas (depth-tinted
 // sea, reef and seagrass, sand, grass and forest by height, rock, paths, village pads, the pier,
@@ -37,6 +38,9 @@ const CSS = /* css */`
 .gm-mk.is-joe > i { background: var(--tw-sun); }
 .gm-mk.is-marta > i { background: var(--tw-aqua); }
 .gm-mk.is-boat > i { background: #f2efe6; }
+.gm-mk.is-task > i { background: var(--tw-sun); border-radius: 4px; font-size: calc(16 * var(--tw-u)); }
+.gm-map-goal { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); max-width: 230px;
+	padding: 4px 8px; border-radius: 6px; text-align: center; white-space: nowrap; color: var(--tw-sun); font: 500 var(--tw-fs-xs) var(--tw-font); }
 .gm-mk > b { position: absolute; left: 0; top: 0; width: 0; height: 0; border-left: calc(5 * var(--tw-u)) solid transparent; border-right: calc(5 * var(--tw-u)) solid transparent;
 	border-bottom: calc(7 * var(--tw-u)) solid rgba(255,255,255,0.9); margin: calc(-19 * var(--tw-u)) 0 0 calc(-5 * var(--tw-u)); transform-origin: calc(5 * var(--tw-u)) calc(19 * var(--tw-u)); display: none; }
 .gm-mk.is-edge > b { display: block; }
@@ -136,7 +140,12 @@ export class Minimap {
 				return p.mode === 'boat' || p.mode === 'deck';
 
 			} },
+			{ id: 'task', ...mk( 'task', '◇' ), pos: () => this._goalPos },
 		];
+		this.goalLabel = h( 'div', 'gm-map-goal tw-glass' );
+		this.el.append( this.goalLabel );
+		this.updateGoal();
+		game.state.onChange( () => this.updateGoal() );
 		this.north = h( 'div', 'gm-map-n', '北' );
 		this.marks.append( this.north );
 		this.fish = [ h( 'div', 'gm-map-fish', '<i></i><i></i>' ), h( 'div', 'gm-map-fish', '<i></i><i></i>' ) ];
@@ -163,6 +172,28 @@ export class Minimap {
 			this._ro.observe( this.view );
 
 		}
+
+	}
+
+	updateGoal() {
+
+		const state = this.game.state, order = state.currentOrder;
+		this._goalPos = null;
+		this.goalLabel.hidden = ! order;
+		if ( ! order ) return;
+		const ready = state.orderDelivered + state.inventory.filter( ( f ) => matchesOrder( order, f ) ).length >= order.count;
+		// These water points have been checked against the island's terrain and fish habitats.
+		const spots = {
+			pier: { x: WORLD.pier.x, z: WORLD.pier.zEnd + 3 },
+			shallows: { x: 20, z: - 15 },
+			reef: { x: WORLD.reef.center.x, z: WORLD.reef.center.z },
+			deep: { x: 55, z: 450 },
+		};
+		const spot = order.species === 'mullet' ? spots.shallows
+			: order.chapter === 1 ? spots.reef
+				: [ 'redSnapper', 'tuna', 'mahi' ].includes( order.species ) ? spots.deep : spots.pier;
+		this._goalPos = ready ? { x: STAND.x, z: STAND.z } : spot;
+		this.goalLabel.textContent = ready ? '◇ 渔获已齐 · 返回乔的鱼摊' : '◇ 当前任务 · 推荐钓点';
 
 	}
 
@@ -406,6 +437,7 @@ export class Minimap {
 			const depth = - T.heightAt( px, pz );
 			if ( depth < 1 ) continue;
 			const hab = g.habitatAtPoint( px, pz, depth );
+			if ( ! g.state.canFishAt( hab ) ) continue;
 			let rich = 0;
 			for ( const k in hab ) rich += hab[ k ];
 			if ( rich > 0.7 ) pts.push( { x: px, z: pz, rich } );

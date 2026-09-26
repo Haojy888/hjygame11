@@ -9,15 +9,22 @@
 <script type="module">
 // Dev page: the fishing game's HUD in every state, over a flat sky / sea backdrop.
 // ?view=fight | inv | stand | shop | cast | bite | catch | record | newspecies | full
+// Campaign fixtures: ?view=stand&chapter=1..4 or &order=1..8, &complete, &delivered=1, &stock=2, &fullLog, &journey, &legacy
 import '../src/ui/ui.css';
 import { GameHUD } from '../src/game/GameHUD.js';
 import { GameState } from '../src/game/GameState.js';
+import { FISH } from '../src/game/FishTable.js';
+import { ORDERS, CHAPTERS } from '../src/game/Orders.js';
 
-const view = new URLSearchParams( location.search ).get( 'view' ) || 'fight';
+const params = new URLSearchParams( location.search );
+const view = params.get( 'view' ) || 'fight';
 const root = document.createElement( 'div' );
 root.className = 'tw-root';
 const hud = document.createElement( 'div' );
 hud.className = 'tw-hud';
+const topLeft = document.createElement( 'div' );
+topLeft.className = 'tw-tl';
+hud.append( topLeft );
 const toasts = document.createElement( 'div' );
 toasts.className = 'tw-toasts';
 hud.append( toasts );
@@ -30,11 +37,32 @@ state.addFish( 'yellowtail', 1.31, 9 );
 state.addFish( 'grunt', 0.84, 9.5 );
 state.addFish( 'jack', 4.6, 10 );
 state.addFish( 'barracuda', 3.2, 11 );
-const game = { state, sellAll() { state.sell(); }, sell( ids ) { state.sell( ids ); } };
+const chapter = Math.max( 0, Math.min( CHAPTERS.length - 1, ( Math.trunc( Number( params.get( 'chapter' ) ) ) || 1 ) - 1 ) );
+state.orderIndex = params.has( 'complete' ) ? ORDERS.length : params.has( 'order' )
+	? Math.max( 0, Math.min( ORDERS.length - 1, ( Math.trunc( Number( params.get( 'order' ) ) ) || 1 ) - 1 ) )
+	: CHAPTERS[ chapter ].start;
+state.legacyAccess = params.has( 'legacy' );
+state.orderDelivered = Math.max( 0, Math.min( ( state.currentOrder?.count || 1 ) - 1, Math.trunc( Number( params.get( 'delivered' ) ) ) || 0 ) );
+for ( const completed of CHAPTERS ) {
+
+	if ( state.orderIndex >= completed.end ) for ( const [ key, level ] of Object.entries( completed.gear ) ) state.upgrades[ key ] = Math.max( state.upgrades[ key ], level );
+
+}
+
+if ( params.has( 'stock' ) && state.currentOrder ) {
+
+	const order = state.currentOrder;
+	for ( let i = 0; i < Math.min( 10, Number( params.get( 'stock' ) ) || 0 ); i ++ ) state.addFish( order.species, order.minKg );
+
+}
+
+if ( params.has( 'fullLog' ) ) for ( const species of Object.keys( FISH ) ) state.log[ species ] = { count: 12, bestKg: 10, bestCm: 85 };
+const game = { state, sellAll() { state.sell(); }, sell( ids ) { state.sell( ids ); }, buy( key ) { state.buy( key ); }, refuel() { state.refuel(); } };
 const h = new GameHUD( ui, game );
 const fight = { tension: 0.62, band: [ 0.35, 0.8 ], stamina: 0.55, distance: 11.4, surge: 0.1 };
 h.update( { fuel: { litres: 23, tank: 40 }, sonar: { depth: 12.4, fish: 0.5 }, fight: view === 'fight' ? fight : null, casting: view === 'cast', power: 0.7, bite: view === 'bite', aiming: true } );
 if ( view === 'inv' ) h.toggleInventory( true );
+if ( params.has( 'journey' ) ) h.inv.querySelector( '.gm-journey' )?.setAttribute( 'open', '' );
 if ( view === 'shop' ) { state.buy( 'reel' ); h.openStand( { kind: 'shop', name: '玛尔塔 · 船具店', greeting: '鱼线、渔轮、扩容鱼舱和柴油。你需要什么？' } ); }
 if ( view === 'stand' ) h.openStand( { name: '乔 · 收鱼铺', greeting: '让我看看你钓到了什么。公平收购，现金结算。' } );
 if ( view === 'fight' ) ui.toast( '鱼上钩了！' );

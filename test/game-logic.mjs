@@ -1,9 +1,9 @@
 // Plain-node tests of the fishing game logic (no GPU): bites, the catch fight, inventory, save.
 import { FISH, FISH_IDS, fishValue, fishLengthCm } from '../src/game/FishTable.js';
-import { habitatAt, pickSpecies, rollWeight, biteDelay } from '../src/game/Bites.js';
+import { habitatAt, fishGround, pickSpecies, rollWeight, biteDelay } from '../src/game/Bites.js';
 import { CatchMinigame } from '../src/game/CatchMinigame.js';
 import { GameState } from '../src/game/GameState.js';
-import { ORDERS, matchesOrder } from '../src/game/Orders.js';
+import { ORDERS, CHAPTERS, matchesOrder } from '../src/game/Orders.js';
 import { gearStats, defaultUpgrades, UPGRADES } from '../src/game/Gear.js';
 
 let fails = 0;
@@ -40,6 +40,7 @@ for ( const [ name, s ] of Object.entries( spots ) ) {
 }
 ok( pickSpecies( habitatAt( spots.sand ), 12, rng ) === null, 'nothing bites on dry sand' );
 ok( biteDelay( habitatAt( spots.sand ), 12, rng ) === Infinity, 'no bite delay on sand' );
+ok( fishGround( habitatAt( spots.pier ) ) === 'coast' && fishGround( habitatAt( spots.reef ) ) === 'reef' && fishGround( habitatAt( spots.deep ) ) === 'deep', 'pier, reef, and deep water map to campaign grounds' );
 {
 
 	let deepOnly = 0;
@@ -122,39 +123,94 @@ const s2 = new GameState( storage );
 s.save();
 ok( s2.load() && s2.money === s.money && s2.inventory.length === 1 && s2.log.grunt.bestKg === 0.84 && s2.stats.holdKg === 70, 'save / load round trip' );
 ok( s2.addFish( 'grunt', 0.5 ).id > b.id, 'ids keep counting after a load' );
-// ---- Joe's rotating fish requests
+// ---- Joe's chapter campaign
 {
 
 	const requestStore = new Map();
 	const requestStorage = { getItem: ( k ) => requestStore.get( k ) ?? null, setItem: ( k, v ) => requestStore.set( k, v ) };
 	const requests = new GameState( requestStorage );
-	ok( ORDERS.length === 6 && requests.currentOrder === ORDERS[ 0 ] && matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.5 } ) && ! matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.49 } ) && ! matchesOrder( ORDERS[ 0 ], { species: 'yellowtail', kg: 1 } ), 'requests match species and minimum weight' );
+	ok( ORDERS.length === 8 && CHAPTERS.length === 4 && ORDERS.map( ( order ) => order.count ).join( ',' ) === '1,2,2,1,2,1,1,1'
+		&& CHAPTERS.map( ( chapter ) => `${ chapter.start }-${ chapter.end }` ).join( ',' ) === '0-2,2-4,4-6,6-8'
+		&& requests.currentOrder === ORDERS[ 0 ] && matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.5 } )
+		&& ! matchesOrder( ORDERS[ 0 ], { species: 'grunt', kg: 0.49 } ) && ! matchesOrder( ORDERS[ 0 ], { species: 'yellowtail', kg: 1 } ), 'campaign data and fish eligibility' );
+	ok( requests.currentChapter === CHAPTERS[ 0 ] && ! requests.legacyAccess && requests.canFishAt( habitatAt( spots.pier ) )
+		&& ! requests.canFishAt( habitatAt( spots.reef ) ) && ! requests.canFishAt( habitatAt( spots.deep ) ), 'a new player begins with only coastal fishing unlocked' );
 	const small = requests.addFish( 'grunt', 0.49 );
-	const other = requests.addFish( 'yellowtail', 0.7 );
+	const other = requests.addFish( 'mullet', 0.4 );
 	const wrong = requests.sell( [ small.id, other.id ] );
-	ok( wrong.count === 2 && wrong.total === small.value + other.value && wrong.bonus === 0 && wrong.completedOrders.length === 0 && requests.orderIndex === 0, 'undersized or wrong-species fish sell without completing a request' );
+	ok( wrong.count === 2 && wrong.total === small.value + other.value && wrong.bonus === 0 && wrong.completedOrders.length === 0
+		&& wrong.completedChapters.length === 0 && requests.orderIndex === 0 && requests.orderDelivered === 0, 'undersized or wrong-species fish sell without campaign progress' );
 	const first = requests.addFish( 'grunt', 0.5 );
 	const delivered = requests.sell( [ first.id ] );
-	ok( delivered.count === 1 && delivered.total === first.value && delivered.bonus === 35 && delivered.completedOrders[ 0 ] === ORDERS[ 0 ] && requests.money === small.value + other.value + first.value + 35 && requests.orderIndex === 1, 'a single qualifying sale pays the base price and one bonus' );
-	const repeat = requests.sell( [ first.id ] );
-	ok( repeat.count === 0 && repeat.bonus === 0 && repeat.completedOrders.length === 0 && requests.orderIndex === 1, 'a sold fish cannot earn its bonus twice' );
+	ok( delivered.count === 1 && delivered.total === first.value && delivered.bonus === 35 && delivered.completedOrders[ 0 ] === ORDERS[ 0 ]
+		&& delivered.completedChapters.length === 0 && requests.money === small.value + other.value + first.value + 35
+		&& requests.orderIndex === 1 && requests.orderDelivered === 0, 'selling the first qualifying fish pays base price and advances the campaign' );
+	const partial = requests.addFish( 'mullet', 0.4 );
+	const partSale = requests.sell( [ partial.id ] );
+	ok( partSale.count === 1 && partSale.bonus === 0 && partSale.completedOrders.length === 0 && requests.orderIndex === 1
+		&& requests.orderDelivered === 1 && ! requests.canFishAt( habitatAt( spots.reef ) ), 'quantity task records a partial delivery without awarding money or unlocking the reef' );
+	const moneyAfterPart = requests.money;
+	const repeat = requests.sell( [ partial.id ] );
+	ok( repeat.count === 0 && repeat.bonus === 0 && repeat.completedOrders.length === 0 && requests.money === moneyAfterPart
+		&& requests.orderIndex === 1 && requests.orderDelivered === 1, 'selling the same fish again cannot count it twice' );
 	const loadedRequests = new GameState( requestStorage );
-	ok( loadedRequests.load() && loadedRequests.orderIndex === 1 && loadedRequests.currentOrder === ORDERS[ 1 ], 'request progress survives save and load' );
-	loadedRequests.reset();
+	ok( loadedRequests.load() && loadedRequests.orderIndex === 1 && loadedRequests.orderDelivered === 1
+		&& loadedRequests.currentOrder === ORDERS[ 1 ] && loadedRequests.currentChapter === CHAPTERS[ 0 ] && ! loadedRequests.legacyAccess,
+		'partial campaign progress survives save and load' );
+	const second = loadedRequests.addFish( 'mullet', 0.5 );
+	const chapter1 = loadedRequests.sell( [ second.id ] );
+	ok( chapter1.bonus === 45 && chapter1.completedOrders[ 0 ] === ORDERS[ 1 ] && chapter1.completedChapters[ 0 ] === CHAPTERS[ 0 ]
+		&& loadedRequests.orderIndex === 2 && loadedRequests.orderDelivered === 0 && loadedRequests.upgrades.line >= 1
+		&& loadedRequests.canFishAt( habitatAt( spots.reef ) ) && ! loadedRequests.canFishAt( habitatAt( spots.deep ) ),
+		'completing chapter one awards line gear once and unlocks the reef' );
+	const extra = loadedRequests.addFish( 'mullet', 0.4 );
+	const extraSale = loadedRequests.sell( [ extra.id ] );
+	ok( extraSale.bonus === 0 && extraSale.completedChapters.length === 0 && loadedRequests.upgrades.line === 1
+		&& loadedRequests.orderIndex === 2, 'repeating the previous task cannot claim its chapter reward again' );
+	const chapter2Fish = [ [ 'parrot', 1.2 ], [ 'yellowtail', 0.7 ], [ 'yellowtail', 0.8 ] ].map( ( [ species, kg ] ) => loadedRequests.addFish( species, kg ) );
+	const chapter2 = loadedRequests.sell( chapter2Fish.map( ( fish ) => fish.id ) );
+	ok( chapter2.completedOrders.length === 2 && chapter2.completedOrders[ 0 ] === ORDERS[ 2 ] && chapter2.completedOrders[ 1 ] === ORDERS[ 3 ]
+		&& chapter2.bonus === 55 + 80 && chapter2.completedChapters[ 0 ] === CHAPTERS[ 1 ] && loadedRequests.orderIndex === 4
+		&& loadedRequests.upgrades.fishFinder >= 1 && loadedRequests.canFishAt( habitatAt( spots.deep ) ),
+		'batch sale completes two tasks in order, awards chapter two gear, and unlocks deep water' );
+	const chapter3Fish = [ [ 'tuna', 6 ], [ 'redSnapper', 3 ], [ 'redSnapper', 3.5 ] ].map( ( [ species, kg ] ) => loadedRequests.addFish( species, kg ) );
+	const chapter3 = loadedRequests.sell( chapter3Fish.map( ( fish ) => fish.id ) );
+	ok( chapter3.completedOrders.length === 2 && chapter3.completedChapters[ 0 ] === CHAPTERS[ 2 ] && loadedRequests.orderIndex === 6
+		&& loadedRequests.upgrades.lights >= 1 && loadedRequests.upgrades.hold >= 1, 'chapter three awards deck lights and a larger hold' );
+	const chapter4Fish = [ [ 'tarpon', 12 ], [ 'mahi', 8 ] ].map( ( [ species, kg ] ) => loadedRequests.addFish( species, kg ) );
+	const chapter4 = loadedRequests.sell( chapter4Fish.map( ( fish ) => fish.id ) );
+	ok( chapter4.completedOrders.length === 2 && chapter4.completedChapters[ 0 ] === CHAPTERS[ 3 ] && loadedRequests.orderIndex === 8
+		&& loadedRequests.upgrades.engine >= 1 && loadedRequests.campaignComplete && loadedRequests.currentOrder === null,
+		'chapter four awards the engine and the campaign ends without looping' );
+	const finalSave = new GameState( requestStorage );
+	ok( finalSave.load() && finalSave.orderIndex === 8 && finalSave.orderDelivered === 0 && finalSave.campaignComplete
+		&& finalSave.currentOrder === null && finalSave.upgrades.engine >= 1 && ! finalSave.legacyAccess, 'completed campaign survives save and load' );
+	const afterFinish = finalSave.addFish( 'grunt', 0.5 );
+	const finishedSale = finalSave.sell( [ afterFinish.id ] );
+	ok( finishedSale.bonus === 0 && finishedSale.completedOrders.length === 0 && finishedSale.completedChapters.length === 0
+		&& finalSave.orderIndex === 8, 'post-campaign fish sell at base price without starting a new cycle' );
+	finalSave.reset();
 	const resetRequests = new GameState( requestStorage );
-	ok( loadedRequests.orderIndex === 0 && resetRequests.load() && resetRequests.currentOrder === ORDERS[ 0 ], 'reset clears request progress' );
+	ok( resetRequests.load() && resetRequests.money === 0 && resetRequests.orderIndex === 0 && resetRequests.orderDelivered === 0
+		&& resetRequests.currentOrder === ORDERS[ 0 ] && ! resetRequests.legacyAccess && resetRequests.upgrades.line === 0
+		&& resetRequests.canFishAt( habitatAt( spots.pier ) ) && ! resetRequests.canFishAt( habitatAt( spots.reef ) )
+		&& ! resetRequests.canFishAt( habitatAt( spots.deep ) ), 'reset starts a new coastal campaign with no inherited rewards' );
 
 	let writes = 0, changes = 0;
 	const batch = new GameState( { setItem: () => { writes ++; } } );
-	const fish = [ [ 'tarpon', 12 ], [ 'tuna', 6 ], [ 'redSnapper', 3 ], [ 'parrot', 1.2 ], [ 'yellowtail', 0.7 ], [ 'grunt', 0.5 ] ].map( ( [ species, kg ] ) => batch.addFish( species, kg ) );
+	batch.upgrades.hold = 1; // keep the complete test haul in one sale
+	const fish = [ [ 'tarpon', 12 ], [ 'mahi', 8 ], [ 'tuna', 6 ], [ 'redSnapper', 3 ], [ 'redSnapper', 3 ],
+		[ 'parrot', 1.2 ], [ 'yellowtail', 0.7 ], [ 'yellowtail', 0.7 ], [ 'mullet', 0.4 ], [ 'mullet', 0.4 ], [ 'grunt', 0.5 ] ]
+		.map( ( [ species, kg ] ) => batch.addFish( species, kg ) );
 	const base = fish.reduce( ( sum, f ) => sum + f.value, 0 );
 	const writesBeforeSale = writes;
 	batch.onChange( () => { changes ++; } );
 	const all = batch.sell();
-	ok( all.count === 6 && all.total === base && all.bonus === 870 && all.completedOrders.every( ( order, i ) => order === ORDERS[ i ] ) && batch.money === base + 870 && batch.orderIndex === 6 && writes === writesBeforeSale + 1 && changes === 1, 'sell all completes successive requests in one save and event, even with fish stored in reverse order' );
-	const next = batch.addFish( 'grunt', 0.5 );
-	const cycle = batch.sell( [ next.id ] );
-	ok( cycle.bonus === 35 && cycle.completedOrders[ 0 ] === ORDERS[ 0 ] && batch.orderIndex === 7 && batch.currentOrder === ORDERS[ 1 ], 'requests rotate after the sixth completion' );
+	ok( fish.every( Boolean ) && all.count === fish.length && all.total === base && all.bonus === ORDERS.reduce( ( sum, order ) => sum + order.reward, 0 )
+		&& all.completedOrders.every( ( order, i ) => order === ORDERS[ i ] ) && all.completedChapters.every( ( chapter, i ) => chapter === CHAPTERS[ i ] )
+		&& all.completedOrders.length === 8 && all.completedChapters.length === 4 && batch.money === base + all.bonus
+		&& batch.orderIndex === 8 && batch.campaignComplete && writes === writesBeforeSale + 1 && changes === 1,
+		'sell all completes every task and chapter in one save and event, even with fish stored in reverse order' );
 
 }
 // ---- lengths and the catch card's record logic
@@ -186,7 +242,35 @@ ok( s2.addFish( 'grunt', 0.5 ).id > b.id, 'ids keep counting after a load' );
 	// a save from before lengths: inventory and log get lengths on load
 	const old = { v: 1, money: 5, inventory: [ { id: 1, species: 'grunt', kg: 0.84, value: 6, caughtAt: 9 } ], log: { grunt: { count: 1, bestKg: 0.84 } }, upgrades: {}, fuel: null, nextId: 2 };
 	const st2 = new GameState( { getItem: () => JSON.stringify( old ), setItem: () => {} } );
-	ok( st2.load() && st2.inventory[ 0 ].cm === 36 && st2.log.grunt.bestCm === 36 && st2.orderIndex === 0, 'old saves load with lengths and the first request' );
+	ok( st2.load() && st2.inventory[ 0 ].cm === 36 && st2.log.grunt.bestCm === 36 && st2.orderIndex === 0
+		&& st2.legacyAccess && st2.canFishAt( habitatAt( spots.reef ) ) && st2.canFishAt( habitatAt( spots.deep ) ),
+		'old saves load with lengths and keep unrestricted fishing access' );
+	const migration = [ [ 0, 0 ], [ 1, 2 ], [ 2, 3 ], [ 3, 4 ], [ 4, 5 ], [ 5, 7 ], [ 6, 8 ], [ 20, 8 ] ];
+	for ( const [ oldIndex, newIndex ] of migration ) {
+
+		const oldProgress = { ...old, orderIndex: oldIndex, inventory: [], money: 123 };
+		const migrated = new GameState( { getItem: () => JSON.stringify( oldProgress ), setItem: () => {} } );
+		ok( migrated.load() && migrated.orderIndex === newIndex && migrated.orderDelivered === 0 && migrated.money === 123
+			&& migrated.legacyAccess && migrated.canFishAt( habitatAt( spots.reef ) ) && migrated.canFishAt( habitatAt( spots.deep ) )
+			&& migrated.currentOrder === ( ORDERS[ newIndex ] ?? null ), `old save request ${ oldIndex } migrates without losing money or water access` );
+
+	}
+	const carried = new Map();
+	const carriedStorage = { getItem: ( key ) => carried.get( key ) ?? null, setItem: ( key, value ) => carried.set( key, value ) };
+	carriedStorage.setItem( 'tidewater.save.v1', JSON.stringify( { ...old, orderIndex: 5, inventory: [], money: 123 } ) );
+	const migrated = new GameState( carriedStorage );
+	ok( migrated.load() && migrated.orderIndex === 7 && migrated.upgrades.line >= 1 && migrated.upgrades.fishFinder >= 1
+		&& migrated.upgrades.lights >= 1 && migrated.upgrades.hold >= 1 && migrated.money === 123,
+		'completed chapters on an old save recover missing chapter gear without extra cash' );
+	migrated.save();
+	const persistedLegacy = new GameState( carriedStorage );
+	ok( persistedLegacy.load() && persistedLegacy.legacyAccess && persistedLegacy.canFishAt( habitatAt( spots.deep ) )
+		&& persistedLegacy.orderIndex === 7 && JSON.parse( carriedStorage.getItem( 'tidewater.save.v1' ) ).v === 2,
+		'legacy water access survives conversion to the v2 save format' );
+	persistedLegacy.reset();
+	ok( ! persistedLegacy.legacyAccess && ! persistedLegacy.canFishAt( habitatAt( spots.reef ) )
+		&& ! persistedLegacy.canFishAt( habitatAt( spots.deep ) ) && persistedLegacy.orderIndex === 0,
+		'reset of an old profile starts the new coastal campaign' );
 
 }
 ok( new GameState( { getItem: () => { throw new Error( 'blocked' ); }, setItem: () => { throw new Error( 'blocked' ); } } ).load() === false, 'blocked storage does not throw' );

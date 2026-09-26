@@ -1,7 +1,7 @@
 import { FISH, fishLengthCm } from './FishTable.js';
 import { UPGRADES, nextLevel, FUEL_PRICE } from './Gear.js';
 import { FishPortrait } from './FishPortrait.js';
-import { matchesOrder } from './Orders.js';
+import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -60,13 +60,14 @@ const CSS = /* css */`
 .gm-cast > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--tw-aqua), var(--tw-sun)); }
 .gm-dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255,255,255,0.7); box-shadow: 0 0 3px rgba(0,0,0,0.6); opacity: 0; pointer-events: none; }
 .gm-dot.is-on { opacity: 1; }
-.gm-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -48%); width: calc(420 * var(--tw-u)); max-height: 70vh; display: flex; flex-direction: column;
+.gm-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -48%); width: calc(460 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); max-height: 76vh; display: flex; flex-direction: column;
 	padding: var(--tw-4) var(--tw-5); border-radius: var(--tw-r-lg); font: 500 var(--tw-fs-md) var(--tw-font); color: var(--tw-ink);
 	opacity: 0; pointer-events: none; transition: opacity var(--tw-med) var(--tw-ease), transform var(--tw-slow) var(--tw-ease); }
 .gm-panel.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
 .gm-panel h2 { margin: 0 0 var(--tw-1); font-size: calc(17 * var(--tw-u)); font-weight: 600; }
 .gm-panel p.gm-sub { margin: 0 0 var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); }
-.gm-list { min-height: 0; overflow: auto; margin: 0 calc(-1 * var(--tw-2)); padding: 0 var(--tw-2); }
+.gm-panel > h2, .gm-panel > .gm-sub, .gm-foot { flex-shrink: 0; }
+.gm-list { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; margin: 0 calc(-1 * var(--tw-2)); padding: 0 var(--tw-2); }
 .gm-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: var(--tw-3); align-items: center; padding: var(--tw-2) 0; border-bottom: 1px solid var(--tw-line); }
 .gm-row .gm-kg, .gm-row .gm-val { font-family: var(--tw-mono); color: var(--tw-ink-2); }
 .gm-row .gm-val { color: var(--tw-sun); }
@@ -91,6 +92,20 @@ const CSS = /* css */`
 .gm-order-offer .gm-order-head { color: var(--tw-ink-2); }
 .gm-order-offer .gm-order-line { margin-top: var(--tw-2); }
 .gm-order-offer .gm-order-hint, .gm-order-offer .gm-order-status { margin-top: var(--tw-1); }
+.gm-order-goal { margin-top: var(--tw-1); color: var(--tw-ink-2); font-size: var(--tw-fs-sm); }
+.gm-order-reward { margin-top: var(--tw-2); color: var(--tw-sun); font-size: var(--tw-fs-xs); line-height: 1.5; }
+.gm-journey { margin: var(--tw-3) 0; padding: var(--tw-3); border: 1px solid var(--tw-line); border-radius: var(--tw-r-md); font-size: var(--tw-fs-sm); line-height: 1.5; }
+.gm-journey > summary { cursor: pointer; color: var(--tw-ink); font-weight: 600; }
+.gm-journey h3 { margin: 0 0 var(--tw-2); font-size: var(--tw-fs-md); }
+.gm-chapter { padding: var(--tw-2) 0; border-bottom: 1px solid var(--tw-line); color: var(--tw-ink-3); }
+.gm-chapter-head { display: flex; justify-content: space-between; gap: var(--tw-2); }
+.gm-chapter-head span { flex: none; }
+.gm-chapter small { display: block; margin-top: 2px; font-size: var(--tw-fs-xs); }
+.gm-chapter.is-current { color: var(--tw-sun); }
+.gm-chapter.is-complete { color: var(--tw-aqua); }
+.gm-grounds { margin-top: var(--tw-2); color: var(--tw-ink-2); }
+.gm-grounds > div { display: flex; justify-content: space-between; gap: var(--tw-2); padding-top: var(--tw-1); }
+.gm-grounds .is-open { color: var(--tw-aqua); }
 .gm-row.is-order-match > span:first-child { color: var(--tw-aqua); }
 .gm-row.is-order-match small { white-space: nowrap; }
 .gm-row .gm-cm { font-family: var(--tw-mono); color: var(--tw-ink-3); }
@@ -290,20 +305,60 @@ export class GameHUD {
 
 	renderOrderCard() {
 
+		this.orderCard.innerHTML = this.orderMarkup( true );
+
+	}
+
+	orderMarkup( compact = false ) {
+
 		const s = this.game.state, order = s.currentOrder;
 		if ( ! order ) {
 
-			this.orderCard.innerHTML = '<div class="gm-order-line">乔的委托已完成</div>';
-			return;
+			return `<div class="gm-order-head"><span>航程 ${ ORDERS.length } / ${ ORDERS.length }</span><b>全部完成</b></div>
+				<div class="gm-order-line">潮汐大师 · 全部完成</div>
+				<div class="gm-order-hint">所有钓场已开放。继续钓鱼、出售渔获，挑战图鉴纪录吧！</div>`;
 
 		}
 
-		const ready = s.inventory.some( ( fish ) => matchesOrder( order, fish ) );
-		this.orderCard.innerHTML = `
-			<div class="gm-order-head"><span>乔的委托 · 第 ${ s.orderIndex + 1 } 单</span><b>+$${ order.reward }</b></div>
-			<div class="gm-order-line"><span>${ FISH[ order.species ].name }</span><b>≥ ${ order.minKg } kg</b></div>
+		const chapter = CHAPTERS[ order.chapter ];
+		const stock = s.inventory.filter( ( fish ) => matchesOrder( order, fish ) ).length;
+		return `
+			<div class="gm-order-head"><span>第 ${ order.chapter + 1 } 章 · ${ chapter.name }</span><b>${ s.orderIndex + 1 } / ${ ORDERS.length }</b></div>
+			<div class="gm-order-line"><span>${ order.title }</span><b>+$${ order.reward }</b></div>
+			<div class="gm-order-goal">${ FISH[ order.species ].name } ≥ ${ order.minKg } kg · ${ order.count } 条</div>
+			<div class="gm-order-status ${ stock ? 'is-ready' : '' }">已交付 ${ s.orderDelivered } / ${ order.count } 条 · 仓内合格 ${ stock } 条</div>
 			<div class="gm-order-hint">${ order.hint }</div>
-			<div class="gm-order-status ${ ready ? 'is-ready' : '' }">${ ready ? '已有合格渔获 · 找乔出售' : '暂无合格渔获' }</div>`;
+			${ compact ? '' : `<div class="gm-order-hint">可分批卖给乔，交齐后领取任务奖金；每条鱼只计入一个任务。</div>
+			<div class="gm-order-reward">本章完成奖励：${ chapter.rewardText }</div>` }`;
+
+	}
+
+	journeyMarkup( collapsible = false ) {
+
+		const s = this.game.state;
+		const chapters = CHAPTERS.map( ( chapter, i ) => {
+
+			const count = chapter.end - chapter.start;
+			const done = Math.max( 0, Math.min( count, s.orderIndex - chapter.start ) );
+			const complete = done === count;
+			const current = s.orderIndex >= chapter.start && ! complete;
+			return `<div class="gm-chapter ${ complete ? 'is-complete' : current ? 'is-current' : '' }">
+				<div class="gm-chapter-head"><b>第 ${ i + 1 } 章 · ${ chapter.name }</b><span>${ complete ? '已完成' : current ? `进行中 ${ done } / ${ count }` : '待开启' }</span></div>
+				<small>${ chapter.rewardText }</small></div>`;
+
+		} ).join( '' );
+		const grounds = Object.entries( GROUNDS ).map( ( [ id, ground ] ) => {
+
+			const open = s.isGroundUnlocked( id );
+			const chapter = CHAPTERS.findIndex( ( c ) => c.end === ground.unlockAfter );
+			return `<div><span>${ ground.name }</span><span class="${ open ? 'is-open' : '' }">${ open ? '已开放' : `完成第 ${ chapter + 1 } 章解锁` }</span></div>`;
+
+		} ).join( '' );
+		const content = `${ chapters }<div class="gm-grounds"><b>钓场通行</b>${ grounds }</div>${ s.legacyAccess ? '<div class="gm-order-hint">已保留旧存档钓场权限。</div>' : '' }`;
+		const heading = `任务航程 · ${ s.orderIndex } / ${ ORDERS.length } 已完成`;
+		return collapsible
+			? `<details class="gm-journey"><summary>${ heading }</summary>${ content }</details>`
+			: `<section class="gm-journey"><h3>${ heading }</h3>${ content }</section>`;
 
 	}
 
@@ -450,8 +505,12 @@ export class GameHUD {
 		this.inv.innerHTML = `
 			<h2>${ s.upgrades.hold > 0 ? '鱼舱' : '保温箱' }</h2>
 			<p class="gm-sub">共 ${ s.inventory.length } 条鱼 · 已装 ${ s.holdKg.toFixed( 1 ) } / ${ s.stats.holdKg } kg · 总价值 $${ s.holdValue }</p>
-			<div class="gm-list">${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }</div>
-			${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
+			<div class="gm-list">
+				<div class="gm-order-offer">${ this.orderMarkup() }</div>
+				${ this.journeyMarkup( true ) }
+				${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }
+				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
+			</div>
 			<div class="gm-foot"><span class="gm-sub">去码头旁的鱼摊出售渔获</span><button class="gm-btn is-ghost" data-close>关闭 (I)</button></div>`;
 		this.inv.querySelector( '[data-close]' ).onclick = () => this.toggleInventory( false );
 		for ( const b of this.inv.querySelectorAll( '[data-release]' ) ) b.onclick = () => s.release( Number( b.dataset.release ) );
@@ -483,13 +542,7 @@ export class GameHUD {
 		const s = this.game.state;
 		const v = this.vendor || { name: '鱼贩' };
 		const order = s.currentOrder;
-		const ready = order && s.inventory.some( ( fish ) => matchesOrder( order, fish ) );
-		const orderBox = order ? `<div class="gm-order-offer">
-			<div class="gm-order-head"><span>当前委托 · 第 ${ s.orderIndex + 1 } 单</span><b>额外 +$${ order.reward }</b></div>
-			<div class="gm-order-line"><span>${ FISH[ order.species ].name }</span><b>≥ ${ order.minKg } kg</b></div>
-			<div class="gm-order-hint">${ order.hint }</div>
-			<div class="gm-order-status ${ ready ? 'is-ready' : '' }">${ ready ? '已有合格渔获，出售时自动领取奖金' : '钓到符合条件的鱼，出售时自动领取奖金' }</div>
-		</div>` : '<div class="gm-order-offer">本轮委托已完成。</div>';
+		const orderBox = `<div class="gm-order-offer">${ this.orderMarkup() }</div>`;
 		const rows = s.inventory.map( ( f ) => {
 
 			const matched = order && matchesOrder( order, f );
@@ -499,7 +552,7 @@ export class GameHUD {
 		this.stand.innerHTML = `
 			<h2>${ v.name }</h2>
 			<p class="gm-sub">${ s.inventory.length ? v.greeting || '让我看看你钓到了什么。' : v.idle || '钓到鱼再来吧。' }</p>
-			<div class="gm-list">${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }</div>
+			<div class="gm-list">${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }${ this.journeyMarkup() }</div>
 			<div class="gm-foot"><button class="gm-btn is-ghost" data-close>离开 (E)</button><button class="gm-btn" data-all ${ s.inventory.length ? '' : 'disabled' }>全部出售 · 鱼价 $${ s.holdValue }</button></div>`;
 		this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 		this.stand.querySelector( '[data-all]' ).onclick = () => this.game.sellAll();

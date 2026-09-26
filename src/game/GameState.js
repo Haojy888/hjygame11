@@ -1,6 +1,7 @@
 import { FISH, fishValue, fishLengthCm } from './FishTable.js';
 import { defaultUpgrades, gearStats, nextLevel, UPGRADES, FUEL_PRICE } from './Gear.js';
-import { ORDERS, matchesOrder } from './Orders.js';
+import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
+import { fishGround } from './Bites.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -21,6 +22,8 @@ export class GameState {
 		this.fuel = null; // litres left (null = full tank)
 		this.orderIndex = 0;
 		this._nextId = 1;
+		this.orderDelivered = 0;
+		this.legacyAccess = false;
 		this.listeners = new Set();
 
 	}
@@ -33,7 +36,37 @@ export class GameState {
 
 	get currentOrder() {
 
-		return ORDERS[ this.orderIndex % ORDERS.length ];
+		return ORDERS[ this.orderIndex ] || null;
+
+	}
+
+	get campaignComplete() {
+
+		return this.orderIndex >= ORDERS.length;
+
+	}
+
+	get currentChapter() {
+
+		return CHAPTERS[ this.currentOrder?.chapter ?? CHAPTERS.length - 1 ];
+
+	}
+
+	isGroundUnlocked( id ) {
+
+		return !! GROUNDS[ id ] && ( this.legacyAccess || this.orderIndex >= GROUNDS[ id ].unlockAfter );
+
+	}
+
+	canFishAt( habitat ) {
+
+		return this.isGroundUnlocked( fishGround( habitat ) );
+
+	}
+
+	awardChapter( chapter ) {
+
+		for ( const [ key, level ] of Object.entries( chapter.gear ) ) this.upgrades[ key ] = Math.max( this.upgrades[ key ], level );
 
 	}
 
@@ -105,23 +138,33 @@ export class GameState {
 		let total = 0;
 		for ( const f of sold ) total += f.value;
 		let bonus = 0;
-		const completedOrders = [], used = new Set();
-		while ( used.size < sold.length ) {
+		const completedOrders = [], completedChapters = [], used = new Set();
+		while ( this.currentOrder && used.size < sold.length ) {
 
 			const order = this.currentOrder;
 			const match = sold.findIndex( ( fish, i ) => ! used.has( i ) && matchesOrder( order, fish ) );
 			if ( match < 0 ) break;
 			used.add( match );
+			this.orderDelivered ++;
+			if ( this.orderDelivered < order.count ) continue;
 			completedOrders.push( order );
 			bonus += order.reward;
 			this.orderIndex ++;
+			this.orderDelivered = 0;
+			const chapter = CHAPTERS[ order.chapter ];
+			if ( this.orderIndex === chapter.end ) {
+
+				this.awardChapter( chapter );
+				completedChapters.push( chapter );
+
+			}
 
 		}
 		this.inventory = keep;
 		this.money += total + bonus;
 		this.save();
 		this.emit();
-		return { total, count: sold.length, bonus, completedOrders };
+		return { total, count: sold.length, bonus, completedOrders, completedChapters };
 
 	}
 
@@ -209,13 +252,13 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 1, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess };
 
 	}
 
 	fromJSON( d ) {
 
-		if ( ! d || d.v !== 1 ) return false;
+		if ( ! d || ! [ 1, 2 ].includes( d.v ) ) return false;
 		this.money = Number.isFinite( d.money ) ? d.money : 0;
 		this.inventory = Array.isArray( d.inventory ) ? d.inventory.filter( ( f ) => f && FISH[ f.species ] && Number.isFinite( f.kg ) ) : [];
 		// saves from before lengths were recorded
@@ -224,7 +267,13 @@ export class GameState {
 		for ( const [ k, v ] of Object.entries( this.log ) ) if ( FISH[ k ] && v && v.bestKg > 0 && ! Number.isFinite( v.bestCm ) ) v.bestCm = Math.round( fishLengthCm( k, v.bestKg ) );
 		this.upgrades = { ...defaultUpgrades(), ...( d.upgrades || {} ) };
 		this.fuel = Number.isFinite( d.fuel ) ? d.fuel : null;
-		this.orderIndex = Number.isSafeInteger( d.orderIndex ) && d.orderIndex >= 0 ? d.orderIndex : 0;
+		const savedIndex = Number.isSafeInteger( d.orderIndex ) && d.orderIndex >= 0 ? d.orderIndex : 0;
+		// Old requests had six single-fish steps and no locked water. Keep earned access and money.
+		this.orderIndex = d.v === 1 ? [ 0, 2, 3, 4, 5, 7, 8 ][ Math.min( 6, savedIndex ) ] : Math.min( ORDERS.length, savedIndex );
+		this.orderDelivered = d.v === 2 && Number.isSafeInteger( d.orderDelivered ) && d.orderDelivered >= 0 && this.currentOrder
+			? Math.min( this.currentOrder.count - 1, d.orderDelivered ) : 0;
+		this.legacyAccess = d.v === 1 || d.legacyAccess === true;
+		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
 
@@ -265,6 +314,8 @@ export class GameState {
 		this.upgrades = defaultUpgrades();
 		this.fuel = null;
 		this.orderIndex = 0;
+		this.orderDelivered = 0;
+		this.legacyAccess = false;
 		this.save();
 		this.emit();
 
