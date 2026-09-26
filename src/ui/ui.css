@@ -2590,6 +2590,24 @@ body {
 
 }
 
+@media (min-width: 1024px) and (max-width: 1850px) {
+
+	.tw-toasts {
+		top: calc(var(--tw-edge) + 52px);
+	}
+
+}
+
+@media (min-width: 900px) and (max-width: 1360px) {
+
+	.tw-root[data-panel='open'] .tw-toasts {
+		top: calc(var(--tw-edge) + 110px);
+		left: calc(50% - (var(--tw-panel-w) + var(--tw-3)) / 2 + 120px);
+		max-width: min(calc(100vw - var(--tw-panel-w) - 2 * var(--tw-3) - 240px), calc(520 * var(--tw-u)));
+	}
+
+}
+
 @media (max-width: 560px) {
 
 	.tw-help-grid {

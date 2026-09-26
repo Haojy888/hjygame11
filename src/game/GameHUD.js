@@ -79,6 +79,19 @@ const CSS = /* css */`
 .gm-row .gm-cm { font-family: var(--tw-mono); color: var(--tw-ink-3); }
 .gm-row.has-cm { grid-template-columns: 1fr auto auto auto auto; }
 
+@media (min-width: 900px) and (max-width: 1240px) {
+	.tw-root[data-panel='open'] .gm-purse {
+		max-width: calc(100vw - var(--tw-panel-w) - 2 * var(--tw-3) - 240px);
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
+}
+@media (min-width: 900px) and (max-width: 1124px) {
+	.tw-root[data-panel='open'] .gm-panel {
+		left: calc((100vw - var(--tw-panel-w) - var(--tw-3)) / 2);
+	}
+}
+
 /* catch card: full screen. The world dims and blurs; the fish lies side-on in its own studio light
    (FishPortrait, a WebGPU canvas) between the name above and the numbers below */
 .gm-catch-scrim { position: absolute; inset: 0; pointer-events: none; opacity: 0; visibility: hidden;
@@ -150,6 +163,10 @@ const CSS = /* css */`
 	.gm-catch-stage { width: 96vw; }
 	.gm-catch-stats { gap: 6px; }
 	.gm-stat { min-width: 0; padding: 8px 10px; }
+}
+@media (max-height: 700px) {
+	.gm-catch { gap: 6px; padding-block: var(--tw-3); }
+	.gm-catch-stage { width: min(94vw, 1400px, calc(36vh * 2.4)); }
 }
 `;
 
