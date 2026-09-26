@@ -27,9 +27,9 @@ export const GPU = {
 
 	async init( { canvas = null, requiredLimits = {}, headless = false } = {} ) {
 
-		if ( ! navigator.gpu ) throw new Error( 'WebGPU is not available in this browser.' );
+		if ( ! navigator.gpu ) throw new Error( '当前浏览器不支持 WebGPU，请使用最新版 Chrome 或 Edge。' );
 		const adapter = await navigator.gpu.requestAdapter( { powerPreference: 'high-performance' } );
-		if ( ! adapter ) throw new Error( 'No WebGPU adapter found.' );
+		if ( ! adapter ) throw new Error( '未找到可用的 WebGPU 图形适配器，请检查显卡和浏览器设置。' );
 		this.adapter = adapter;
 
 		const L = adapter.limits;

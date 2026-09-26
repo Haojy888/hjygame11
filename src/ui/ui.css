@@ -23,8 +23,8 @@
 	--tw-line: rgba(170, 215, 235, 0.12);
 	--tw-line-2: rgba(170, 215, 235, 0.2);
 
-	--tw-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-	--tw-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	--tw-font: 'Inter', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', system-ui, sans-serif;
+	--tw-mono: 'JetBrains Mono', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', ui-monospace, monospace;
 
 	--tw-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 	--tw-ease-io: cubic-bezier(0.65, 0, 0.35, 1);
@@ -147,19 +147,18 @@ body {
 	margin: 0 0 calc(10 * var(--tw-u));
 	font-size: clamp(10px, 1vw, 13px);
 	font-weight: 600;
-	letter-spacing: 0.34em;
+	letter-spacing: 0.12em;
 	text-transform: uppercase;
 	color: var(--tw-sun);
 	text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
 }
 
 .loader-title {
-	margin: 0 -0.3em 0 -0.04em; /* optical: the trailing tracking and the T's side bearing */
-	/* always fits its column: 9 letters at 0.3em tracking are ~9.2em wide, trailing tracking included */
+	margin: 0;
 	font-size: min(136px, 10.4cqi);
 	white-space: nowrap;
 	font-weight: 600;
-	letter-spacing: 0.3em;
+	letter-spacing: 0.12em;
 	line-height: 0.95;
 	color: transparent;
 	background: linear-gradient(180deg, #ffffff 20%, #fff0dc 70%, #ffd7a8 100%);
@@ -295,7 +294,7 @@ body {
 	border-radius: calc(4 * var(--tw-u));
 	font-size: clamp(9.5px, 0.8vw, 11px);
 	font-weight: 600;
-	letter-spacing: 0.16em;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	color: var(--tw-aqua);
 }
@@ -372,8 +371,8 @@ body {
 	}
 
 	.loader-title {
-		letter-spacing: 0.22em;
-		margin-right: -0.22em;
+		letter-spacing: 0.08em;
+		margin-right: 0;
 		font-size: min(136px, 11.2cqi);
 	}
 
@@ -643,7 +642,7 @@ body {
 .tw-brand-name {
 	font-size: var(--tw-fs-sm);
 	font-weight: 600;
-	letter-spacing: 0.34em;
+	letter-spacing: 0.1em;
 	color: rgba(255, 255, 255, 0.94);
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 14px rgba(0, 0, 0, 0.3);
 }
@@ -988,7 +987,7 @@ body {
 
 .tw-dial-rpm {
 	font-family: var(--tw-mono);
-	font-size: 8.5px;
+	font-size: 10px;
 	fill: rgba(200, 222, 232, 0.6);
 	text-anchor: middle;
 }
@@ -1318,7 +1317,7 @@ body {
 }
 
 .tw-page:empty::before {
-	content: 'No settings in this section yet.';
+	content: '此分类暂无设置。';
 	display: block;
 	padding: var(--tw-6) var(--tw-4);
 	font-size: var(--tw-fs-sm);
@@ -2463,10 +2462,10 @@ body {
 }
 
 .tw-start-title {
-	margin-right: -0.42em;
+	margin-right: 0;
 	font-size: clamp(30px, 4.6vw, 64px);
 	font-weight: 600;
-	letter-spacing: 0.42em;
+	letter-spacing: 0.12em;
 	line-height: 1.05;
 	text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
 }

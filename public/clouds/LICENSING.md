@@ -1,23 +1,23 @@
-# Texture Licenses
+# 纹理许可说明
 
-Third-party textures bundled with the demo. These are not covered by the Three.js Sky Pro license and retain the terms below.
+本演示项目包含以下第三方纹理。这些纹理不受 Three.js Sky Pro 许可证覆盖，仍分别遵循下列许可条款。
 
-## Terrain
+## 地形
 
-From [ambientCG](https://ambientcg.com), licensed under [CC0 1.0 Universal (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/) — no rights reserved, free to copy, modify, distribute, and use for any purpose:
+来自 [ambientCG](https://ambientcg.com)，采用 [CC0 1.0 Universal（公共领域）](https://creativecommons.org/publicdomain/zero/1.0/) 授权：不保留任何权利，可为任何目的复制、修改、分发和使用。
 
 - `Ground003_1K-JPG/` — https://ambientcg.com/a/Ground003
 - `Ground033_1K-JPG/` — https://ambientcg.com/a/Ground033
 - `Ground086_1K-JPG/` — https://ambientcg.com/a/Ground086
 
-From [Poly Haven](https://polyhaven.com), licensed under [CC0 1.0 Universal (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/):
+来自 [Poly Haven](https://polyhaven.com)，采用 [CC0 1.0 Universal（公共领域）](https://creativecommons.org/publicdomain/zero/1.0/) 授权：
 
 - `Rocks/rocks_ground_09_*` — https://polyhaven.com/a/rocks_ground_09
 
-## Sky
+## 天空
 
-- `sky/starmap_4k.jpg` — Tycho Catalog Skymap v2.0, courtesy of NASA/Goddard Space Flight Center Scientific Visualization Studio. https://svs.gsfc.nasa.gov/3895. Public domain (NASA imagery is not copyrighted); credit NASA/Goddard SVS.
+- `sky/starmap_4k.jpg` — Tycho Catalog Skymap v2.0，由 NASA/Goddard Space Flight Center Scientific Visualization Studio 提供。来源：https://svs.gsfc.nasa.gov/3895。该图属于公共领域（NASA 影像不受版权保护）；请注明 NASA/Goddard SVS。
 
-## Clouds
+## 云
 
-- `clouds/cirrus.jpg` — AI generated; no third-party attribution required.
+- `clouds/cirrus.jpg` — AI 生成，无须为第三方素材署名。

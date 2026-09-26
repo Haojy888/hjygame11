@@ -116,7 +116,7 @@ export class Game {
 		if ( l > 0 ) {
 
 			this._fuelOut = false;
-			this.toast( `Filled up · ${ l.toFixed( 0 ) } L` );
+			this.toast( `已加油 · ${ l.toFixed( 0 ) } 升` );
 
 		}
 
@@ -159,7 +159,7 @@ export class Game {
 
 			rod.equip( ! rod.equipped );
 			if ( ! rod.equipped ) this.cancelLine();
-			this.toast( rod.equipped ? 'Rod out · hold left mouse to cast' : 'Rod away', 1600 );
+			this.toast( rod.equipped ? '已取出鱼竿 · 按住鼠标左键蓄力抛竿' : '已收起鱼竿', 1600 );
 
 		}
 
@@ -290,24 +290,24 @@ export class Game {
 
 			// by the water (boat deck, pier, the wet beach, wading): suggest the rod
 			const byWater = p.mode === 'deck' || ( p.mode === 'walk' && [ 'wood', 'wetsand', 'water' ].includes( p.surface ) );
-			return byWater ? { key: 'R', text: 'Take out the rod' } : null;
+			return byWater ? { key: 'R', text: '取出鱼竿' } : null;
 
 		}
 
 		const b = this.bite;
 		switch ( rod.state ) {
 
-			case 'idle': return { key: 'LMB', text: 'Hold to wind up, release to cast   ·   R  put the rod away' };
-			case 'windup': return { key: 'LMB', text: 'Release to cast (hold longer to cast farther)' };
+			case 'idle': return { key: '左键', text: '按住蓄力，松开抛竿   ·   R 收起鱼竿' };
+			case 'windup': return { key: '左键', text: '松开抛竿（蓄力越久，抛得越远）' };
 			case 'flying': return null;
 			case 'floating':
-				if ( b && b.phase === 'take' ) return { key: 'LMB', text: 'Strike now!' };
-				if ( b && b.phase === 'nibble' ) return { key: '…', text: 'Something\'s nibbling · wait until the bobber is pulled under' };
-				return { key: 'RMB', text: 'Waiting for a bite · right-click to reel the line in' };
-			case 'retrieving': return { key: 'RMB', text: 'Reeling in' };
+				if ( b && b.phase === 'take' ) return { key: '左键', text: '快提竿！' };
+				if ( b && b.phase === 'nibble' ) return { key: '…', text: '鱼在试探鱼饵 · 等浮漂被拉入水中再提竿' };
+				return { key: '右键', text: '等待鱼咬钩 · 点击鼠标右键收线' };
+			case 'retrieving': return { key: '右键', text: '正在收线' };
 			case 'fighting': return this.fight && this.fight.tension > this.fight.band[ 1 ]
-				? { key: 'LMB', text: 'Too much tension · let go!' }
-				: { key: 'LMB', text: 'Hold to reel · let go when the tension goes red' };
+				? { key: '左键', text: '鱼线张力过大 · 快松手！' }
+				: { key: '左键', text: '按住收线 · 张力变红时松手' };
 			case 'landing': return null;
 			default: return null;
 
@@ -325,7 +325,7 @@ export class Game {
 			if ( left <= 0 ) {
 
 				b.throttle = 0;
-				if ( ! this._fuelOut ) this.toast( 'Out of fuel · buy diesel at the chandlery by the boathouse', 4000 );
+				if ( ! this._fuelOut ) this.toast( '燃油耗尽 · 请到船屋旁的船具店购买柴油', 4000 );
 				this._fuelOut = true;
 
 			}
@@ -360,7 +360,7 @@ export class Game {
 		for ( const v of this.vendors ) v.talking = !! ( hud && hud.standOpen && hud.vendor === v );
 		if ( hud && hud.standOpen && ( ! near || near !== hud.vendor ) ) hud.closeStand();
 		if ( ! near || this.fight || this._cardDismissed || ( hud && hud.catchOpen ) ) return;
-		if ( ! p.prompt ) p.prompt = { key: 'E', text: hud && hud.standOpen ? 'Leave' : `Talk to ${ near.name.split( ' ·' )[ 0 ] }` };
+		if ( ! p.prompt ) p.prompt = { key: 'E', text: hud && hud.standOpen ? '离开' : `与${ near.name.split( ' ·' )[ 0 ] }交谈` };
 		if ( inp.hit( 'KeyE' ) ) {
 
 			if ( ! hud ) {
@@ -377,7 +377,7 @@ export class Game {
 	sellAll() {
 
 		const r = this.state.sell();
-		if ( r.count ) this.toast( `Sold ${ r.count } fish for $${ r.total }` );
+		if ( r.count ) this.toast( `卖出 ${ r.count } 条鱼，收入 $${ r.total }` );
 		if ( this.app.audio && this.app.audio.coin ) this.app.audio.coin();
 		return r;
 
@@ -386,7 +386,7 @@ export class Game {
 	sell( ids ) {
 
 		const r = this.state.sell( ids );
-		if ( r.count ) this.toast( `Sold for $${ r.total }` );
+		if ( r.count ) this.toast( `卖鱼收入 $${ r.total }` );
 		return r;
 
 	}
@@ -421,7 +421,7 @@ export class Game {
 
 		if ( where !== 'water' ) {
 
-			this.toast( 'Landed on the sand', 1400 );
+			this.toast( '鱼饵落在沙地上了', 1400 );
 			return;
 
 		}
@@ -477,7 +477,7 @@ export class Game {
 
 		} else if ( b.phase === 'take' ) {
 
-			this.toast( 'It took the bait and ran', 1800 );
+			this.toast( '鱼咬钩后逃走了', 1800 );
 			this.bite = { phase: 'wait', t: biteDelay( this.habitat(), this.hour ) };
 
 		}
@@ -490,7 +490,7 @@ export class Game {
 		if ( ! b || b.phase === 'wait' || b.phase === 'nibble' ) {
 
 			// too early: a nibbling fish isn't hooked yet; it keeps nibbling (a hint, no penalty)
-			if ( b && b.phase === 'nibble' ) this.toast( 'Not yet · wait for it to pull under', 1500 );
+			if ( b && b.phase === 'nibble' ) this.toast( '还没到时候 · 等浮漂被拉入水中', 1500 );
 			return;
 
 		}
@@ -499,7 +499,7 @@ export class Game {
 		this.fight = new CatchMinigame( { species: b.species, kg: b.kg, lineKg: g.lineKg, reelSpeed: g.reelSpeed, distance: Math.max( 3, this.rod.lineOut ) } );
 		this.bite = null;
 		this.rod.hook();
-		this.toast( 'Fish on!', 1200 );
+		this.toast( '鱼上钩了！', 1200 );
 
 	}
 
@@ -525,8 +525,8 @@ export class Game {
 			if ( this.hud ) this.landing = { species: f.species, kg: f.kg, card: info, cardT: 0 };
 			else {
 
-				if ( entry ) this.toast( `${ info.record ? 'New record! ' : '' }${ name } · ${ entry.kg.toFixed( 2 ) } kg · $${ entry.value }`, 3600 );
-				else this.toast( `${ name } · ${ f.kg.toFixed( 1 ) } kg · no room in the ${ this.state.upgrades.hold > 0 ? 'hold' : 'cooler' }, let it go`, 3600 );
+				if ( entry ) this.toast( `${ info.record ? '刷新纪录！' : '' }${ name } · ${ entry.kg.toFixed( 2 ) } kg · $${ entry.value }`, 3600 );
+				else this.toast( `${ name } · ${ f.kg.toFixed( 1 ) } 公斤 · ${ this.state.upgrades.hold > 0 ? '鱼舱' : '保温箱' }已满，已放生`, 3600 );
 				this.landing = { species: f.species, kg: f.kg };
 
 			}
@@ -535,13 +535,13 @@ export class Game {
 
 		} else if ( st === 'snapped' ) {
 
-			this.toast( 'Snap! The line broke', 2400 );
+			this.toast( '啪！鱼线断了', 2400 );
 			if ( au && au.lineSnap ) au.lineSnap();
 			this.rod.setState( 'idle' );
 
 		} else {
 
-			this.toast( 'It threw the hook', 2000 );
+			this.toast( '鱼脱钩了', 2000 );
 			this.rod.endFight();
 
 		}
@@ -561,7 +561,7 @@ export class Game {
 	// line in at once (mode change)
 	cancelLine( silent = false ) {
 
-		if ( this.fight && ! silent ) this.toast( 'Lost it', 1400 );
+		if ( this.fight && ! silent ) this.toast( '鱼跑了', 1400 );
 		this.fight = null;
 		this.bite = null;
 		if ( this.rod.state !== 'stowed' ) this.rod.setState( this.rod.equipped ? 'idle' : 'stowed' );

@@ -1,8 +1,6 @@
-name: Deploy to GitHub Pages
+name: 手动部署到 GitHub Pages
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:

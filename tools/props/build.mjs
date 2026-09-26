@@ -170,6 +170,7 @@ fs.writeFileSync( path.join( OUT, 'props.json' ), JSON.stringify( { vertexFloats
 console.log( 'props', Object.keys( props ).length, 'layers', layers.length, 'vertices', vb.length / 9, 'triangles', ib.length / 3 );
 
 // ---------------------------------------------------------------- signs (2048 x 1024, RGBA)
+// 中文版：完整重建后运行 build-signs-zh.ps1，覆盖下方生成的英文原版招牌。
 //   rows: [0, 256) "JOE'S FRESH FISH", [256, 512) "MARTA'S CHANDLERY" + "BAIT · TACKLE · FUEL",
 //   [512, 1024) left: chalk prices (1024 x 512), right: the scale dial (512 x 512) + spare
 const FONT = path.join( HERE, 'fonts' );

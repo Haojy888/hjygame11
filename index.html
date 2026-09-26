@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Tidewater</title>
-	<link rel="preload" as="image" href="ui/keyart-720.jpg" imagesrcset="ui/keyart-720.jpg 1280w, ui/keyart.jpg 2560w" imagesizes="100vw" />
+	<title>潮汐海岸</title>
+	<link rel="preload" as="image" href="ui/keyart-zh.png" />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Caveat+Brush&family=Kalam:wght@400;700&display=swap" rel="stylesheet" />
@@ -12,41 +12,41 @@
 	<style>
 		html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
 		#app, #app canvas { display: block; }
-		#fps { position: fixed; top: 10px; left: 12px; z-index: 50; font: 500 12px/1.2 'JetBrains Mono', ui-monospace, monospace;
+		#fps { position: fixed; top: 10px; left: 12px; z-index: 50; font: 500 12px/1.2 'JetBrains Mono', 'Microsoft YaHei', 'PingFang SC', ui-monospace, monospace;
 			color: #e8f6ff; background: rgba(8, 14, 22, 0.55); padding: 5px 9px; border-radius: 6px; pointer-events: none;
 			backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); letter-spacing: 0.02em; }
 	</style>
 </head>
 <body>
 	<div id="app"></div>
-	<div id="fps">-- fps</div>
-	<div id="loader" role="status" aria-live="polite" aria-label="Loading Tidewater">
-		<img class="loader-art" src="ui/keyart-720.jpg" srcset="ui/keyart-720.jpg 1280w, ui/keyart.jpg 2560w" sizes="100vw" alt="" decoding="async" fetchpriority="high" onload="this.classList.add('is-in')" />
+	<div id="fps">-- 帧/秒</div>
+	<div id="loader" role="status" aria-live="polite" aria-label="正在加载潮汐海岸">
+		<img class="loader-art" src="ui/keyart-zh.png" alt="" decoding="async" fetchpriority="high" onload="this.classList.add('is-in')" />
 		<div class="loader-scrim"></div>
 		<div class="loader-inner">
 			<div class="loader-brand">
-				<p class="loader-kicker">An island fishing game</p>
-				<h1 class="loader-title">TIDEWATER</h1>
-				<p class="loader-tagline">Take the boat out, work the reef and the deep water, and sell your catch to Joe before dark.</p>
+				<p class="loader-kicker">海岛钓鱼游戏</p>
+				<h1 class="loader-title">潮汐海岸</h1>
+				<p class="loader-tagline">驾船探索礁石与深海，趁天黑前把渔获卖给乔。</p>
 			</div>
 			<div class="loader-panel">
 				<div class="loader-row">
-					<span class="loader-status">Starting…</span>
+					<span class="loader-status">正在启动…</span>
 					<span class="loader-meta"><span class="loader-pct">0%</span><span class="loader-time">0:00</span></span>
 				</div>
 				<div class="loader-bar"><div class="loader-fill"></div><div class="loader-glint"></div></div>
-				<div class="loader-note">The first launch compiles the shaders and can take a minute or two. Later visits load much faster.</div>
+				<div class="loader-note">首次启动需要编译着色器，可能要等待一两分钟；再次进入会快得多。</div>
 				<div class="loader-tips">
-					<span class="loader-tip-label">Tip</span>
+					<span class="loader-tip-label">小贴士</span>
 					<div class="loader-tip-list">
-						<p class="loader-tip">Press <kbd>R</kbd> for the rod. Hold the left mouse button to wind up, release to cast: the longer you hold, the farther it goes.</p>
-						<p class="loader-tip">Watch the bobber. A few nibbles, then it's pulled under: click the left mouse button that moment to set the hook.</p>
-						<p class="loader-tip">In a fight, hold to reel but keep the line tension in the green. Ease off when the fish runs, or the line snaps.</p>
-						<p class="loader-tip">What bites depends on where you fish: the shallows, the reef, the deep water past the drop-off, and the time of day.</p>
-						<p class="loader-tip">Joe at the fish stand by the pier buys your catch. Fish are worth more by weight, so bring the big ones in.</p>
-						<p class="loader-tip">Marta at the boathouse sells upgrades: stronger line, a faster reel, a bigger hold, more fuel and a fish finder.</p>
-						<p class="loader-tip">Press <kbd>E</kbd> at the boat to board, at the wheel to take the helm, and again to step away and walk the deck.</p>
-						<p class="loader-tip">Press <kbd>I</kbd> for your cooler and the fish log. Deck lights from Marta let you fish after dark.</p>
+						<p class="loader-tip">按 <kbd>R</kbd> 取出鱼竿。按住鼠标左键蓄力，松开抛竿；蓄力越久，抛得越远。</p>
+						<p class="loader-tip">盯紧浮漂。鱼儿轻咬几次后会把浮漂拉入水中，此时单击鼠标左键刺鱼。</p>
+						<p class="loader-tip">遛鱼时按住鼠标左键收线，并让鱼线张力保持在绿色区域。鱼发力时要松手，否则会断线。</p>
+						<p class="loader-tip">鱼种取决于垂钓地点和时间：浅滩、礁区、陡坡外的深水区各有不同。</p>
+						<p class="loader-tip">码头旁鱼摊的乔会收购渔获。鱼越重，卖价越高，别让大鱼跑了。</p>
+						<p class="loader-tip">船屋里的玛尔塔出售升级装备：更结实的鱼线、更快的渔轮、更大的鱼舱、更多燃油和探鱼器。</p>
+						<p class="loader-tip">在船边按 <kbd>E</kbd> 登船，在驾驶位按 <kbd>E</kbd> 掌舵；再次按下可离开驾驶位，在甲板上行走。</p>
+						<p class="loader-tip">按 <kbd>I</kbd> 查看鱼箱和鱼类图鉴。向玛尔塔购买甲板灯，就能在天黑后钓鱼。</p>
 					</div>
 				</div>
 			</div>

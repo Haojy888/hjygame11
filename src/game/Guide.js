@@ -67,48 +67,48 @@ const row = ( keys, text ) => `<div class="gm-guide-row"><span class="k">${ keys
 
 const CARDS = [
 	{
-		eyebrow: 'Welcome to Tidewater',
-		title: 'Fish the island, sell your catch',
-		body: `<p>Catch fish from the <b>beach</b>, the <b>pier</b> or your <b>boat</b>. Different fish bite in the shallows, around the pier, over the reef and out in deep water, and they change with the time of day.</p>
-			<p>Sell your catch to <b>Joe</b> at the fish stand by the pier, then spend the money on upgrades from <b>Marta</b> at the chandlery by the boathouse: stronger line, a faster reel, a bigger hold, a fish finder and lights for fishing at night.</p>`,
+		eyebrow: '欢迎来到潮汐海岸',
+		title: '环岛垂钓，出售渔获',
+		body: `<p>你可以在<b>海滩</b>、<b>码头</b>或<b>船上</b>钓鱼。浅滩、码头、礁石和深海生活着不同的鱼，鱼群活跃的时间也各不相同。</p>
+			<p>把鱼卖给码头旁鱼摊的<b>乔</b>，再去船屋旁找<b>玛尔塔</b>购买升级：更结实的鱼线、更快的渔轮、更大的鱼舱、探鱼器，以及夜钓用的照明灯。</p>`,
 	},
 	{
-		eyebrow: 'Fishing',
-		title: 'Cast, strike, reel',
+		eyebrow: '钓鱼指南',
+		title: '抛竿、提竿、收线',
 		body: `<div class="gm-guide-list">
-			${ row( k( 'R' ), 'Take out the rod (by the water or on the boat)' ) }
-			${ row( k( 'Hold', 'LMB' ), 'Wind up, release to cast. Hold longer to cast farther' ) }
-			${ row( k( 'LMB' ), 'Strike when the bobber is <b>pulled under</b> (dips are only nibbles)' ) }
-			${ row( k( 'Hold', 'LMB' ), 'Reel in. <b>Let go when the tension turns red</b>, or the line snaps' ) }
-			${ row( k( 'RMB' ), 'Reel an empty line back in' ) }
-			${ row( k( 'I' ), 'Your cooler and fish log' ) }
+			${ row( k( 'R' ), '在岸边或船上取出鱼竿' ) }
+			${ row( k( '按住', '鼠标左键' ), '按住蓄力，松开抛竿；蓄力越久，抛得越远' ) }
+			${ row( k( '鼠标左键' ), '浮漂被<b>拉入水中</b>时提竿；轻微下沉只是鱼在试探' ) }
+			${ row( k( '按住', '鼠标左键' ), '收线；<b>张力变红时松手</b>，否则鱼线会断' ) }
+			${ row( k( '鼠标右键' ), '收回空钩鱼线' ) }
+			${ row( k( 'I' ), '查看保温箱和鱼类图鉴' ) }
 		</div>`,
 	},
 	{
-		eyebrow: 'Getting around',
-		title: 'Joe and Marta',
+		eyebrow: '四处探索',
+		title: '寻找乔和玛尔塔',
 		body: `<div class="gm-guide-list">
-			${ row( k( 'W', 'A', 'S', 'D' ), 'Move, mouse to look, <kbd>Shift</kbd> to run' ) }
-			${ row( k( 'E' ), 'Board the boat, take the helm, talk to Joe and Marta' ) }
-			${ row( k( 'F1' ), 'All controls, and this guide again' ) }
+			${ row( k( 'W', 'A', 'S', 'D' ), '移动；鼠标控制视角；按 <kbd>Shift</kbd> 奔跑' ) }
+			${ row( k( 'E' ), '登船、掌舵，或与乔和玛尔塔交谈' ) }
+			${ row( k( 'F1' ), '查看全部操作，或重看本指南' ) }
 		</div>
 		<div class="gm-guide-where">
-			<div class="is-joe"><i></i><span><b>Joe</b> · fish stand by the pier</span><em data-where="joe"></em></div>
-			<div class="is-marta"><i></i><span><b>Marta</b> · chandlery by the boathouse</span><em data-where="marta"></em></div>
+			<div class="is-joe"><i></i><span><b>乔</b> · 码头旁的鱼摊</span><em data-where="joe"></em></div>
+			<div class="is-marta"><i></i><span><b>玛尔塔</b> · 船屋旁的船具店</span><em data-where="marta"></em></div>
 		</div>
-		<p style="margin:0;color:var(--tw-ink-3);font-size:var(--tw-fs-sm)">Both are marked on the map in the lower right.</p>`,
+		<p style="margin:0;color:var(--tw-ink-3);font-size:var(--tw-fs-sm)">右下角地图上标有两人的位置。</p>`,
 	},
 ];
 
 const TIPS = {
-	rodOut: 'Hold the <b>left mouse button</b> to wind up and release to cast. Try deeper water, around the pier or over the reef.',
-	nibble: 'The bobber is dipping: something is <b>nibbling</b>. Wait until it is <b>pulled under</b>, then click to strike.',
-	fishOn: '<b>Hold the left mouse button</b> to reel. When the tension needle nears the <b>red</b>, let go until it settles, then reel again.',
-	caught: 'Into the cooler (<kbd>I</kbd>). Sell your catch to <b>Joe</b> at the fish stand by the pier: he is on the map.',
-	full: 'Your cooler is <b>full</b>. Sell to Joe, or buy a bigger hold from Marta at the chandlery.',
-	boat: 'Your boat. <kbd>E</kbd> to board, <kbd>E</kbd> again at the wheel to drive (<kbd>W</kbd><kbd>S</kbd> throttle, <kbd>A</kbd><kbd>D</kbd> steer). Diesel is sold by Marta.',
-	joe: '<b>Joe</b> buys your fish. <kbd>E</kbd> to see what he will pay.',
-	marta: '<b>Marta</b> sells upgrades and diesel. <kbd>E</kbd> to see her stock.',
+	rodOut: '按住<b>鼠标左键</b>蓄力，松开抛竿。试试码头周围、礁石上方或更深的水域。',
+	nibble: '浮漂轻轻下沉，说明鱼正在<b>试探鱼饵</b>。等它被<b>拉入水中</b>，再点击鼠标提竿。',
+	fishOn: '<b>按住鼠标左键</b>收线。张力指针接近<b>红色区域</b>时松手，等张力下降后再收线。',
+	caught: '渔获已收好（按 <kbd>I</kbd> 查看）。去码头旁找<b>乔</b>卖鱼，地图上标有他的位置。',
+	full: '储鱼空间<b>装满了</b>。去找乔卖鱼，或到玛尔塔的船具店升级鱼舱。',
+	boat: '这是你的船。按 <kbd>E</kbd> 登船，在船舵处再按 <kbd>E</kbd> 开船；<kbd>W</kbd><kbd>S</kbd> 控制油门，<kbd>A</kbd><kbd>D</kbd> 转向。玛尔塔有柴油出售。',
+	joe: '<b>乔</b>收购渔获。按 <kbd>E</kbd> 查看收购价格。',
+	marta: '<b>玛尔塔</b>出售装备升级和柴油。按 <kbd>E</kbd> 查看商品。',
 };
 
 const h = ( tag, cls, html ) => {
@@ -124,7 +124,7 @@ const h = ( tag, cls, html ) => {
 export function compassWord( x, z, tx, tz ) {
 
 	const a = Math.atan2( tx - x, - ( tz - z ) ); // 0 north, clockwise
-	const W = [ 'north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west' ];
+	const W = [ '北', '东北', '东', '东南', '南', '西南', '西', '西北' ];
 	return W[ ( ( Math.round( a / ( Math.PI / 4 ) ) % 8 ) + 8 ) % 8 ];
 
 }
@@ -144,7 +144,7 @@ export class Guide {
 		this.el = h( 'div', 'gm-guide tw-interactive', `<div class="gm-guide-card tw-glass" role="dialog" aria-modal="true" aria-live="polite">
 			<div class="gm-guide-eyebrow"></div><h2></h2><div class="gm-guide-body"></div>
 			<div class="gm-guide-foot"><div class="gm-guide-dots">${ CARDS.map( () => '<span></span>' ).join( '' ) }</div>
-			<div class="gm-guide-btns"><span class="gm-guide-hint">Enter · Esc to skip</span><button type="button" class="gm-btn is-ghost gm-guide-skip">Skip</button><button type="button" class="gm-btn gm-guide-next">Next</button></div></div></div>` );
+			<div class="gm-guide-btns"><span class="gm-guide-hint">按 Enter 继续 · Esc 跳过</span><button type="button" class="gm-btn is-ghost gm-guide-skip">跳过</button><button type="button" class="gm-btn gm-guide-next">下一步</button></div></div></div>` );
 		this.card = this.el.firstChild;
 		this.eyebrow = this.el.querySelector( '.gm-guide-eyebrow' );
 		this.title = this.el.querySelector( 'h2' );
@@ -165,7 +165,7 @@ export class Guide {
 		} );
 		ui.root.append( this.el );
 
-		this.coach = h( 'div', 'gm-coach tw-glass', '<span class="gm-coach-eyebrow">Tip</span><span class="gm-coach-text"></span>' );
+		this.coach = h( 'div', 'gm-coach tw-glass', '<span class="gm-coach-eyebrow">提示</span><span class="gm-coach-text"></span>' );
 		this.coachText = this.coach.lastChild;
 		( ui.hud || ui.root ).append( this.coach );
 
@@ -238,7 +238,7 @@ export class Guide {
 		this.title.textContent = c.title;
 		this.body.innerHTML = c.body;
 		this.dots.forEach( ( d, j ) => d.classList.toggle( 'is-on', j === i ) );
-		this.nextBtn.textContent = i === CARDS.length - 1 ? 'Let\'s fish' : 'Next';
+		this.nextBtn.textContent = i === CARDS.length - 1 ? '开始钓鱼' : '下一步';
 		if ( this.minimap ) this.minimap.highlight( i === CARDS.length - 1 ? [ 'joe', 'marta' ] : [] );
 		this._whereT = 0;
 		if ( ! this.open ) {
@@ -317,7 +317,7 @@ export class Guide {
 				for ( const [ id, t ] of [ [ 'joe', STAND ], [ 'marta', CHANDLERY ] ] ) {
 
 					const el = this.body.querySelector( `[data-where="${ id }"]` );
-					if ( el ) el.textContent = `${ Math.round( Math.hypot( t.x - x, t.z - z ) ) } m ${ compassWord( x, z, t.x, t.z ) }`;
+					if ( el ) el.textContent = `${ compassWord( x, z, t.x, t.z ) }方 · ${ Math.round( Math.hypot( t.x - x, t.z - z ) ) } 米`;
 
 				}
 

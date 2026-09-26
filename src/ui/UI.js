@@ -123,13 +123,13 @@ function skyAt( hour ) {
 
 }
 
-const PHASES = [ [ 4.8, 'Night' ], [ 5.6, 'Dawn' ], [ 6.4, 'Sunrise' ], [ 7.2, 'Golden hour' ], [ 10.5, 'Morning' ],
-	[ 13.5, 'Midday' ], [ 16.8, 'Afternoon' ], [ 17.6, 'Golden hour' ], [ 18.4, 'Sunset' ], [ 19.3, 'Dusk' ], [ 24, 'Night' ] ];
+const PHASES = [ [ 4.8, '深夜' ], [ 5.6, '黎明' ], [ 6.4, '日出' ], [ 7.2, '晨光' ], [ 10.5, '上午' ],
+	[ 13.5, '正午' ], [ 16.8, '下午' ], [ 17.6, '夕照' ], [ 18.4, '日落' ], [ 19.3, '黄昏' ], [ 24, '夜晚' ] ];
 
 const phaseAt = ( hh ) => {
 
 	for ( const [ end, name ] of PHASES ) if ( hh < end ) return name;
-	return 'Night';
+	return '夜晚';
 
 };
 
@@ -142,17 +142,17 @@ const fmtClock = ( hours ) => {
 
 // ── HUD helpers ─────────────────────────────────────────────────────────────
 
-const CARDINALS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
+const CARDINALS = [ '北', '东北', '东', '东南', '南', '西南', '西', '西北' ];
 
 function modeIcon( label ) {
 
 	const s = String( label || '' ).toLowerCase();
-	if ( s.includes( 'boat' ) ) return 'boat';
-	if ( s.includes( 'div' ) ) return 'dive';
-	if ( s.includes( 'swim' ) ) return 'swim';
-	if ( s.includes( 'free' ) || s.includes( 'fly' ) ) return 'move';
-	if ( s.includes( 'photo' ) ) return 'viewfinder';
-	if ( s.includes( 'walk' ) || s.includes( 'run' ) ) return 'walk';
+	if ( s.includes( 'boat' ) || s.includes( '船' ) || s.includes( '驾' ) || s.includes( '甲板' ) ) return 'boat';
+	if ( s.includes( 'div' ) || s.includes( '潜水' ) ) return 'dive';
+	if ( s.includes( 'swim' ) || s.includes( '游泳' ) ) return 'swim';
+	if ( s.includes( 'free' ) || s.includes( 'fly' ) || s.includes( '自由' ) ) return 'move';
+	if ( s.includes( 'photo' ) || s.includes( '拍照' ) ) return 'viewfinder';
+	if ( s.includes( 'walk' ) || s.includes( 'run' ) || s.includes( '步行' ) || s.includes( '奔跑' ) ) return 'walk';
 	return 'dot';
 
 }
@@ -333,11 +333,11 @@ class Control {
 		if ( tooltip ) {
 
 			txt.dataset.tip = tooltip;
-			txt.dataset.tipHint = 'Double-click to reset';
+			txt.dataset.tipHint = '双击恢复默认值';
 
 		}
 
-		const rst = h( 'button', 'tw-reset', { type: 'button', tabindex: '-1', 'aria-label': `Reset ${ text }`, 'data-tip': 'Reset to default', html: icon( 'reset' ) } );
+		const rst = h( 'button', 'tw-reset', { type: 'button', tabindex: '-1', 'aria-label': `重置${ text }`, 'data-tip': '恢复默认值', html: icon( 'reset' ) } );
 		rst.addEventListener( 'click', ( e ) => {
 
 			e.stopPropagation();
@@ -398,7 +398,7 @@ class SliderControl extends Control {
 
 		const head = h( 'div', 'tw-row' );
 		head.append( this._makeLabel( this.label, o.tooltip ) );
-		this.valueEl = h( 'button', 'tw-value', { type: 'button', tabindex: '-1', 'data-tip': 'Click to type a value' } );
+		this.valueEl = h( 'button', 'tw-value', { type: 'button', tabindex: '-1', 'data-tip': '点击输入数值' } );
 		head.append( this.valueEl );
 
 		this.track = h( 'div', 'tw-slider', { role: 'slider', tabindex: '0', 'aria-label': this.label, 'aria-valuemin': min, 'aria-valuemax': max } );
@@ -1099,7 +1099,7 @@ class PresetsControl extends Control {
 
 		}
 
-		const grid = h( 'div', 'tw-presets', { role: 'radiogroup', 'aria-label': o.label || 'Presets' } );
+		const grid = h( 'div', 'tw-presets', { role: 'radiogroup', 'aria-label': o.label || '预设' } );
 		grid.style.setProperty( '--n', Math.min( 4, Math.max( 1, this.presets.length ) ) );
 		this.chips = this.presets.map( ( p, i ) => {
 
@@ -1251,7 +1251,7 @@ class InfoControl extends Control {
 
 		}
 
-		if ( typeof v === 'number' ) v = Number.isInteger( v ) ? v.toLocaleString( 'en-US' ) : v.toFixed( 2 );
+		if ( typeof v === 'number' ) v = Number.isInteger( v ) ? v.toLocaleString( 'zh-CN' ) : v.toFixed( 2 );
 		const s = v == null || v === '' ? '—' : String( v );
 		if ( s !== this._s ) {
 
@@ -1313,7 +1313,7 @@ function todSVG( id ) {
 	const labels = [ [ '06', cx - rx, cy + 13 ], [ '12', cx, cy - up - 7 ], [ '18', cx + rx, cy + 13 ], [ '00', cx, cy + down + 11 ] ]
 		.map( ( [ t, x, y ] ) => `<text x="${ x }" y="${ y }">${ t }</text>` ).join( '' );
 
-	return `<svg class="tw-tod-svg" viewBox="0 0 ${ w } ${ h }" role="slider" tabindex="0" aria-label="Time of day" aria-valuemin="0" aria-valuemax="24">
+	return `<svg class="tw-tod-svg" viewBox="0 0 ${ w } ${ h }" role="slider" tabindex="0" aria-label="时段" aria-valuemin="0" aria-valuemax="24">
 		<defs>
 			<linearGradient id="${ id }-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c74c6"/><stop offset="1" stop-color="#c2e4f6"/></linearGradient>
 			<linearGradient id="${ id }-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d2a3a"/><stop offset="1" stop-color="#03101a"/></linearGradient>
@@ -1360,14 +1360,14 @@ class TimeOfDayControl extends Control {
 
 	constructor( parent, o ) {
 
-		super( parent, Object.assign( {}, o, { label: o.label ?? 'Time of day' } ), 'time' );
+		super( parent, Object.assign( {}, o, { label: o.label ?? '时段' } ), 'time' );
 		this._default = Number( this.value ) || 0;
 		this.onFinishChange = o.onFinishChange || null;
 		const id = uid( 'tw-tod' );
 
 		const head = h( 'div', 'tw-row' );
 		head.append( this._makeLabel( this.label, o.tooltip ) );
-		this.valueEl = h( 'button', 'tw-value tw-clock', { type: 'button', tabindex: '-1', 'data-tip': 'Click to type a time' } );
+		this.valueEl = h( 'button', 'tw-value tw-clock', { type: 'button', tabindex: '-1', 'data-tip': '点击输入时间' } );
 		head.append( this.valueEl );
 
 		const dial = h( 'div', 'tw-tod' );
@@ -1925,11 +1925,11 @@ export class UI {
 		const tl = h( 'div', 'tw-tl' );
 		const stats = this.statsEl = h( 'div', 'tw-stats tw-glass', { 'data-level': 'good', 'aria-hidden': 'true' } );
 		stats.innerHTML = `
-			<div class="tw-stats-main"><span class="tw-fps">--</span><span class="tw-fps-unit">fps</span></div>
+			<div class="tw-stats-main"><span class="tw-fps">--</span><span class="tw-fps-unit">帧/秒</span></div>
 			<canvas class="tw-spark"></canvas>
 			<div class="tw-stats-sub">
-				<span class="tw-kv"><span class="tw-k">frame</span><span class="tw-v tw-ms">--</span></span>
-				<span class="tw-kv tw-kv-gpu" hidden><span class="tw-k">gpu</span><span class="tw-v tw-gpu">--</span></span>
+				<span class="tw-kv"><span class="tw-k">每帧</span><span class="tw-v tw-ms">--</span></span>
+				<span class="tw-kv tw-kv-gpu" hidden><span class="tw-k">显卡</span><span class="tw-v tw-gpu">--</span></span>
 			</div>`;
 		this.fpsEl = stats.querySelector( '.tw-fps' );
 		this.msEl = stats.querySelector( '.tw-ms' );
@@ -1938,7 +1938,7 @@ export class UI {
 		this.sparkEl = stats.querySelector( '.tw-spark' );
 
 		const brand = h( 'div', 'tw-brand' );
-		brand.innerHTML = `${ brandMark() }<span class="tw-brand-name">TIDEWATER</span>`;
+		brand.innerHTML = `${ brandMark() }<span class="tw-brand-name">潮汐海岸</span>`;
 		this.modeEl = h( 'div', 'tw-mode is-empty', { role: 'status' } );
 		this.modeIco = h( 'span', 'tw-mode-ico' );
 		this.modeText = h( 'span', 'tw-mode-text' );
@@ -1964,8 +1964,8 @@ export class UI {
 			<canvas class="tw-depth-tape"></canvas>
 			<span class="tw-depth-mark"></span>
 			<div class="tw-depth-read">
-				<div class="tw-depth-line"><span class="tw-depth-num">0.0</span><span class="tw-unit">m</span></div>
-				<span class="tw-g-lab">Depth</span>
+				<div class="tw-depth-line"><span class="tw-depth-num">0.0</span><span class="tw-unit">米</span></div>
+				<span class="tw-g-lab">水深</span>
 			</div>`;
 		this.depthCanvas = this.depthEl.querySelector( '.tw-depth-tape' );
 		this.depthNum = this.depthEl.querySelector( '.tw-depth-num' );
@@ -1974,7 +1974,7 @@ export class UI {
 
 		// the one element that survives photo mode
 		this.photoHint = h( 'div', 'tw-photo-hint' );
-		this.photoHint.innerHTML = '<kbd>P</kbd><span>Exit photo mode</span>';
+		this.photoHint.innerHTML = '<kbd>P</kbd><span>退出拍照模式</span>';
 
 		this.root.append( hud, this.photoHint );
 
@@ -2013,10 +2013,10 @@ export class UI {
 
 		}
 
-		for ( const [ t, d ] of [ [ 'N', 0 ], [ 'E', 90 ], [ 'S', 180 ], [ 'W', 270 ] ] ) {
+		for ( const [ t, d ] of [ [ '北', 0 ], [ '东', 90 ], [ '南', 180 ], [ '西', 270 ] ] ) {
 
 			const [ x, y ] = P( 50, 29, d - 90 );
-			card += `<text class="${ t === 'N' ? 'is-n' : '' }" x="${ x }" y="${ y }" transform="rotate(${ d } ${ x } ${ y })">${ t }</text>`;
+			card += `<text class="${ t === '北' ? 'is-n' : '' }" x="${ x }" y="${ y }" transform="rotate(${ d } ${ x } ${ y })">${ t }</text>`;
 
 		}
 
@@ -2034,9 +2034,9 @@ export class UI {
 					<path class="tw-dial-val" d="${ ARC }" pathLength="100" stroke-dasharray="0 100" stroke="url(#${ gid })"/>
 					<g class="tw-dial-ticks">${ ticks }</g>
 					<circle class="tw-dial-head" r="3" cx="24.64" cy="95.36"/>
-					<text class="tw-dial-rpm" x="60" y="105">rpm 0%</text>
+					<text class="tw-dial-rpm" x="60" y="105">转速 0%</text>
 				</svg>
-				<div class="tw-dial-center"><span class="tw-speed">0.0</span><span class="tw-g-unit">knots</span></div>
+				<div class="tw-dial-center"><span class="tw-speed">0.0</span><span class="tw-g-unit">节</span></div>
 			</div>
 			<div class="tw-compass">
 				<svg viewBox="0 0 100 100">
@@ -2044,7 +2044,7 @@ export class UI {
 					<g class="tw-compass-card">${ card }</g>
 					<path class="tw-lubber" d="M45.5 1.5h9L50 8.5z"/>
 				</svg>
-				<div class="tw-hdg"><span class="tw-hdg-num">000°</span><span class="tw-hdg-card">N</span></div>
+				<div class="tw-hdg"><span class="tw-hdg-num">000°</span><span class="tw-hdg-card">北</span></div>
 			</div>`;
 		this.bThrPos = el.querySelector( '.tw-thr-pos' );
 		this.bThrNeg = el.querySelector( '.tw-thr-neg' );
@@ -2062,11 +2062,11 @@ export class UI {
 
 	_buildPanel() {
 
-		const panel = this.panel = h( 'aside', 'tw-panel tw-glass tw-interactive', { 'aria-label': 'Settings' } );
+		const panel = this.panel = h( 'aside', 'tw-panel tw-glass tw-interactive', { 'aria-label': '设置' } );
 		panel.inert = true;
 
 		const head = h( 'header', 'tw-panel-head' );
-		head.append( h( 'div', 'tw-panel-title', { text: 'Settings' } ) );
+		head.append( h( 'div', 'tw-panel-title', { text: '设置' } ) );
 		const actions = h( 'div', 'tw-panel-actions' );
 		const action = ( name, tip, fn ) => {
 
@@ -2076,12 +2076,12 @@ export class UI {
 
 		};
 
-		action( 'viewfinder', 'Photo mode (P)', () => this.setPhotoMode( true ) );
-		action( 'help', 'Controls (F1)', () => this.toggleHelp() );
-		action( 'chevrons-right', 'Collapse (H)', () => this.togglePanel( false ) );
+		action( 'viewfinder', '拍照模式 (P)', () => this.setPhotoMode( true ) );
+		action( 'help', '操作说明 (F1)', () => this.toggleHelp() );
+		action( 'chevrons-right', '收起设置 (H)', () => this.togglePanel( false ) );
 		head.append( actions );
 
-		this.tabBar = h( 'div', 'tw-tabs', { role: 'tablist', 'aria-label': 'Settings sections' } );
+		this.tabBar = h( 'div', 'tw-tabs', { role: 'tablist', 'aria-label': '设置分类' } );
 		this.tabBar.addEventListener( 'keydown', ( e ) => {
 
 			const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? - 1 : 0;
@@ -2103,15 +2103,15 @@ export class UI {
 		this.pages = h( 'div', 'tw-pages' );
 
 		const foot = h( 'footer', 'tw-panel-foot' );
-		foot.innerHTML = '<span><kbd>H</kbd>Hide</span><span><kbd>F1</kbd>Controls</span><span><kbd>P</kbd>Photo mode</span>';
+		foot.innerHTML = '<span><kbd>H</kbd>隐藏</span><span><kbd>F1</kbd>操作说明</span><span><kbd>P</kbd>拍照模式</span>';
 		panel.append( head, this.tabBar, this.pages, foot );
 
 		// collapsed state: a slim rail of tab icons
-		const rail = this.rail = h( 'nav', 'tw-rail tw-glass tw-interactive', { 'aria-label': 'Settings' } );
-		const open = h( 'button', 'tw-rail-btn tw-rail-open', { type: 'button', 'aria-label': 'Open settings', 'data-tip': 'Settings (H)', 'data-tip-side': 'left', html: icon( 'sliders' ) } );
+		const rail = this.rail = h( 'nav', 'tw-rail tw-glass tw-interactive', { 'aria-label': '设置' } );
+		const open = h( 'button', 'tw-rail-btn tw-rail-open', { type: 'button', 'aria-label': '打开设置', 'data-tip': '设置 (H)', 'data-tip-side': 'left', html: icon( 'sliders' ) } );
 		open.addEventListener( 'click', () => this.togglePanel( true ) );
 		this.railTabs = h( 'div', 'tw-rail-tabs' );
-		const help = h( 'button', 'tw-rail-btn', { type: 'button', 'aria-label': 'Controls', 'data-tip': 'Controls (F1)', 'data-tip-side': 'left', html: icon( 'help' ) } );
+		const help = h( 'button', 'tw-rail-btn', { type: 'button', 'aria-label': '操作说明', 'data-tip': '操作说明 (F1)', 'data-tip-side': 'left', html: icon( 'help' ) } );
 		help.addEventListener( 'click', () => this.toggleHelp() );
 		rail.append( open, h( 'span', 'tw-rail-sep' ), this.railTabs, h( 'span', 'tw-rail-sep' ), help );
 
@@ -2124,51 +2124,51 @@ export class UI {
 		const k = ( ...keys ) => keys.map( ( x ) => `<kbd>${ x }</kbd>` ).join( '' );
 		const row = ( keys, text ) => `<div class="tw-help-row"><span class="tw-keys">${ keys }</span><span class="tw-help-text">${ text }</span></div>`;
 		const wasd = '<span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>';
-		const mouse = `<kbd class="tw-kbd-ico" aria-label="Mouse">${ icon( 'mouse' ) }</kbd>`;
+		const mouse = `<kbd class="tw-kbd-ico" aria-label="鼠标">${ icon( 'mouse' ) }</kbd>`;
 
 		const el = this.helpEl = h( 'div', 'tw-help tw-interactive', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'tw-help-title', hidden: true } );
 		el.innerHTML = `
 			<div class="tw-help-card tw-glass">
 				<header class="tw-help-head">
 					<div>
-						<h2 id="tw-help-title">Controls</h2>
-						<p>Click the view to capture the mouse. Esc releases it.</p>
+						<h2 id="tw-help-title">操作说明</h2>
+						<p>点击游戏画面可锁定鼠标，按 Esc 解锁。</p>
 					</div>
-					<button type="button" class="tw-icon-btn tw-help-close" aria-label="Close" data-tip="Close (F1)">${ icon( 'close' ) }</button>
+					<button type="button" class="tw-icon-btn tw-help-close" aria-label="关闭" data-tip="关闭 (F1)">${ icon( 'close' ) }</button>
 				</header>
 				<div class="tw-help-grid">
 					<section>
-						<h3>Move</h3>
-						${ row( wasd, 'Move' ) }
-						${ row( mouse, 'Look around<small>Click to capture</small>' ) }
-						${ row( k( 'Shift' ), 'Sprint, boat boost' ) }
-						${ row( k( 'Space' ), 'Jump, swim up' ) }
-						${ row( k( 'C' ), 'Crouch, dive' ) }
+						<h3>移动</h3>
+						${ row( wasd, '移动' ) }
+						${ row( mouse, '环顾四周<small>点击画面锁定鼠标</small>' ) }
+						${ row( k( 'Shift' ), '奔跑、加速开船' ) }
+						${ row( k( '空格' ), '跳跃、上浮' ) }
+						${ row( k( 'C' ), '下蹲、下潜' ) }
 					</section>
 					<section>
-						<h3>Interact</h3>
-						${ row( k( 'E' ), 'Interact<small>Board, helm, step ashore, trade</small>' ) }
-						${ row( k( 'V' ), 'Boat camera<small>1st / 3rd person</small>' ) }
-						${ row( k( 'R' ), 'Fishing rod<small>Take out / put away</small>' ) }
-						${ row( k( 'LMB' ), 'Cast, strike, reel<small>Hold to wind up / reel</small>' ) }
-						${ row( k( 'RMB' ), 'Reel in an empty line' ) }
-						${ row( k( 'I' ), 'Cooler and fish log' ) }
-						${ row( k( 'F' ), 'Free camera' ) }
-						${ row( k( 'T' ), 'Pause time' ) }
-						${ row( k( 'L' ), 'Flashlight' ) }
-						${ row( k( 'M' ), 'Mute' ) }
+						<h3>互动</h3>
+						${ row( k( 'E' ), '互动<small>登船、掌舵、上岸、交易</small>' ) }
+						${ row( k( 'V' ), '驾驶视角<small>切换第一人称 / 第三人称</small>' ) }
+						${ row( k( 'R' ), '鱼竿<small>取出 / 收起</small>' ) }
+						${ row( k( '左键' ), '抛竿、刺鱼、收线<small>按住蓄力 / 收线</small>' ) }
+						${ row( k( '右键' ), '收回空鱼线' ) }
+						${ row( k( 'I' ), '鱼箱与鱼类图鉴' ) }
+						${ row( k( 'F' ), '自由镜头' ) }
+						${ row( k( 'T' ), '暂停时间' ) }
+						${ row( k( 'L' ), '手电筒' ) }
+						${ row( k( 'M' ), '静音' ) }
 					</section>
 					<section>
-						<h3>Interface</h3>
-						${ row( k( 'H' ), 'Settings panel' ) }
-						${ row( k( 'P' ), 'Photo mode<small>Hides all interface</small>' ) }
-						${ row( k( 'F1' ) + k( '?' ), 'This sheet' ) }
-						${ row( k( 'Esc' ), 'Release the mouse' ) }
+						<h3>界面</h3>
+						${ row( k( 'H' ), '设置面板' ) }
+						${ row( k( 'P' ), '拍照模式<small>隐藏全部界面</small>' ) }
+						${ row( k( 'F1' ) + k( '?' ), '打开此说明' ) }
+						${ row( k( 'Esc' ), '解锁鼠标' ) }
 					</section>
 				</div>
 				<div class="tw-help-guide">
-					<span><b>How to play:</b> catch fish, sell them to Joe at the fish stand by the pier, and buy upgrades from Marta at the chandlery by the boathouse. Both are on the map (lower right).</span>
-					<button type="button" class="gm-btn is-ghost tw-help-replay">Replay the guide</button>
+					<span><b>玩法提示：</b>钓到鱼后，去码头旁的鱼摊卖给乔，再到船屋旁找玛尔塔购买升级装备。地图右下角标有他们的位置。</span>
+					<button type="button" class="gm-btn is-ghost tw-help-replay">重播新手引导</button>
 				</div>
 			</div>`;
 		el.querySelector( '.tw-help-close' ).addEventListener( 'click', () => this.toggleHelp( false ) );
@@ -2188,14 +2188,14 @@ export class UI {
 		el.innerHTML = `
 			<div class="tw-start-inner">
 				${ brandMark( 'tw-start-mark' ) }
-				<div class="tw-start-title">TIDEWATER</div>
-				<button type="button" class="tw-start-cta"><span class="tw-start-pulse" aria-hidden="true"></span>${ icon( 'mouse' ) }<span>Click to explore</span></button>
+				<div class="tw-start-title">潮汐海岸</div>
+				<button type="button" class="tw-start-cta"><span class="tw-start-pulse" aria-hidden="true"></span>${ icon( 'mouse' ) }<span>点击开始探索</span></button>
 				<div class="tw-start-keys">
-					<span><span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>Move</span>
-					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>Look</span>
-					<span><kbd>E</kbd>Interact</span>
-					<span><kbd>H</kbd>Settings</span>
-					<span><kbd>F1</kbd>All controls</span>
+					<span><span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>移动</span>
+					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>环顾</span>
+					<span><kbd>E</kbd>互动</span>
+					<span><kbd>H</kbd>设置</span>
+					<span><kbd>F1</kbd>操作说明</span>
 				</div>
 			</div>`;
 		this.root.append( el );
@@ -2778,7 +2778,7 @@ export class UI {
 			this.bHead.setAttribute( 'cx', ( 60 + 50 * Math.cos( a ) ).toFixed( 2 ) );
 			this.bHead.setAttribute( 'cy', ( 60 + 50 * Math.sin( a ) ).toFixed( 2 ) );
 			this.boatEl.classList.toggle( 'is-redline', rpm > 0.86 );
-			this.bRpmText.textContent = `rpm ${ Math.round( rpm * 100 ) }%`;
+			this.bRpmText.textContent = `转速 ${ Math.round( rpm * 100 ) }%`;
 
 		}
 
@@ -2956,10 +2956,10 @@ export class UI {
 
 		}
 
-		if ( frameMs > 0 ) this.msEl.textContent = `${ frameMs.toFixed( 1 ) } ms`;
+		if ( frameMs > 0 ) this.msEl.textContent = `${ frameMs.toFixed( 1 ) } 毫秒`;
 		const hasGpu = gpuMs >= 0;
 		if ( this.gpuKv.hidden === hasGpu ) this.gpuKv.hidden = ! hasGpu;
-		if ( hasGpu ) this.gpuEl.textContent = `${ gpuMs.toFixed( 1 ) } ms`;
+		if ( hasGpu ) this.gpuEl.textContent = `${ gpuMs.toFixed( 1 ) } 毫秒`;
 
 	}
 
@@ -3322,7 +3322,7 @@ export class UI {
 		const L = document.getElementById( 'loader' );
 		if ( ! L ) return Promise.resolve();
 		if ( this._loaderGone ) return this._loaderGone;
-		this.setLoading( 1, 'Ready' );
+		this.setLoading( 1, '准备就绪' );
 		L.classList.remove( 'is-compiling' );
 		L.classList.add( 'tw-hidden' );
 		this._loaderGone = new Promise( ( resolve ) => setTimeout( () => {
@@ -3409,118 +3409,118 @@ export class UI {
 		const log = ( name ) => ( v ) => console.debug( `[UI demo] ${ name }`, v );
 
 		// Ocean
-		const ocean = ui.addTab( 'ocean', 'Ocean', 'ocean' );
-		const sea = ocean.addFolder( 'Sea state', { icon: 'wind' } );
+		const ocean = ui.addTab( 'ocean', '海洋', 'ocean' );
+		const sea = ocean.addFolder( '海况', { icon: 'wind' } );
 		sea.addPresets( {
-			label: 'Conditions', active: 'Breezy',
-			presets: Object.keys( SEA ).map( ( k ) => ( { label: k, icon: k.toLowerCase(), apply: () => Object.assign( s, SEA[ k ] ) } ) ),
+			label: '预设海况', active: 'Breezy',
+			presets: Object.keys( SEA ).map( ( k ) => ( { id: k, label: { Calm: '平静', Breezy: '微风', Choppy: '浪急', Storm: '风暴' }[ k ], icon: k.toLowerCase(), apply: () => Object.assign( s, SEA[ k ] ) } ) ),
 		} );
-		sea.addSlider( { label: 'Wind speed', object: s, key: 'windSpeed', min: 0, max: 30, step: 0.1, unit: 'm/s', tooltip: 'Wind 10 m above the sea. Drives wave height and whitecaps.', onChange: log( 'windSpeed' ) } );
-		sea.addSlider( { label: 'Wind direction', object: s, key: 'windDir', min: 0, max: 360, step: 1, unit: '°' } );
-		sea.addSlider( { label: 'Choppiness', object: s, key: 'choppiness', min: 0, max: 2, step: 0.01 } );
-		sea.addSlider( { label: 'Swell', object: s, key: 'swell', min: 0, max: 1, step: 0.01 } );
-		sea.addSlider( { label: 'Fetch', object: s, key: 'fetch', min: 1, max: 2000, log: true, unit: 'km', tooltip: 'Distance the wind has blown over open water.' } );
-		const water = ocean.addFolder( 'Water', { icon: 'droplet' } );
-		water.addColor( { label: 'Deep color', object: s, key: 'deepColor', onChange: log( 'deepColor' ) } );
-		water.addColor( { label: 'Scattering', object: s, key: 'scatter' } );
-		water.addSlider( { label: 'Turbidity', object: s, key: 'turbidity', min: 0, max: 1, step: 0.01 } );
-		water.addSlider( { label: 'Visibility', object: s, key: 'clarity', min: 1, max: 60, step: 0.5, unit: 'm' } );
-		const foam = ocean.addFolder( 'Foam', { icon: 'foam', open: false } );
+		sea.addSlider( { label: '风速', object: s, key: 'windSpeed', min: 0, max: 30, step: 0.1, unit: '米/秒', tooltip: '海面上方 10 米处的风速，影响浪高和白浪。', onChange: log( 'windSpeed' ) } );
+		sea.addSlider( { label: '风向', object: s, key: 'windDir', min: 0, max: 360, step: 1, unit: '°' } );
+		sea.addSlider( { label: '波浪陡峭度', object: s, key: 'choppiness', min: 0, max: 2, step: 0.01 } );
+		sea.addSlider( { label: '涌浪', object: s, key: 'swell', min: 0, max: 1, step: 0.01 } );
+		sea.addSlider( { label: '风区长度', object: s, key: 'fetch', min: 1, max: 2000, log: true, unit: '千米', tooltip: '风在开阔海面上吹过的距离。' } );
+		const water = ocean.addFolder( '海水', { icon: 'droplet' } );
+		water.addColor( { label: '深水颜色', object: s, key: 'deepColor', onChange: log( 'deepColor' ) } );
+		water.addColor( { label: '散射颜色', object: s, key: 'scatter' } );
+		water.addSlider( { label: '浑浊度', object: s, key: 'turbidity', min: 0, max: 1, step: 0.01 } );
+		water.addSlider( { label: '能见度', object: s, key: 'clarity', min: 1, max: 60, step: 0.5, unit: '米' } );
+		const foam = ocean.addFolder( '泡沫', { icon: 'foam', open: false } );
 		const foamCtl = [];
-		foam.addToggle( { label: 'Foam', object: s, key: 'foam', onChange: ( v ) => foamCtl.forEach( ( c ) => c.setEnabled( v ) ) } );
-		foamCtl.push( foam.addSlider( { label: 'Coverage', object: s, key: 'foamAmount', min: 0, max: 1, step: 0.01 } ) );
-		foamCtl.push( foam.addSlider( { label: 'Persistence', object: s, key: 'foamDecay', min: 0.5, max: 0.999, step: 0.001 } ) );
-		const caps = foam.addFolder( 'Whitecaps', { open: false } );
-		foamCtl.push( caps.addSlider( { label: 'Amount', object: s, key: 'whitecaps', min: 0, max: 1, step: 0.01 } ) );
+		foam.addToggle( { label: '泡沫', object: s, key: 'foam', onChange: ( v ) => foamCtl.forEach( ( c ) => c.setEnabled( v ) ) } );
+		foamCtl.push( foam.addSlider( { label: '覆盖范围', object: s, key: 'foamAmount', min: 0, max: 1, step: 0.01 } ) );
+		foamCtl.push( foam.addSlider( { label: '持续时间', object: s, key: 'foamDecay', min: 0.5, max: 0.999, step: 0.001 } ) );
+		const caps = foam.addFolder( '白浪', { open: false } );
+		foamCtl.push( caps.addSlider( { label: '数量', object: s, key: 'whitecaps', min: 0, max: 1, step: 0.01 } ) );
 
 		// Shore
-		const shore = ui.addTab( 'shore', 'Shore', 'shore' );
-		const surf = shore.addFolder( 'Surf', { icon: 'wave' } );
-		surf.addToggle( { label: 'Shore foam', object: s, key: 'shoreFoam' } );
-		surf.addSlider( { label: 'Breaking waves', object: s, key: 'shoreBreak', min: 0, max: 2, step: 0.05 } );
-		const beach = shore.addFolder( 'Beach', { icon: 'palm' } );
-		beach.addColor( { label: 'Sand', object: s, key: 'sand' } );
-		beach.addSlider( { label: 'Wet sand', object: s, key: 'wetSand', min: 0, max: 1, step: 0.01 } );
-		const light = shore.addFolder( 'Caustics', { icon: 'sun', open: false } );
-		light.addSlider( { label: 'Intensity', object: s, key: 'caustics', min: 0, max: 2, step: 0.01 } );
-		light.addSlider( { label: 'Scale', object: s, key: 'causticScale', min: 0.25, max: 4, log: true } );
+		const shore = ui.addTab( 'shore', '海岸', 'shore' );
+		const surf = shore.addFolder( '碎浪', { icon: 'wave' } );
+		surf.addToggle( { label: '岸边泡沫', object: s, key: 'shoreFoam' } );
+		surf.addSlider( { label: '破碎浪', object: s, key: 'shoreBreak', min: 0, max: 2, step: 0.05 } );
+		const beach = shore.addFolder( '沙滩', { icon: 'palm' } );
+		beach.addColor( { label: '沙子颜色', object: s, key: 'sand' } );
+		beach.addSlider( { label: '湿沙效果', object: s, key: 'wetSand', min: 0, max: 1, step: 0.01 } );
+		const light = shore.addFolder( '水下焦散', { icon: 'sun', open: false } );
+		light.addSlider( { label: '强度', object: s, key: 'caustics', min: 0, max: 2, step: 0.01 } );
+		light.addSlider( { label: '缩放', object: s, key: 'causticScale', min: 0.25, max: 4, log: true } );
 
 		// Sky
-		const sky = ui.addTab( 'sky', 'Sky', 'sky' );
-		const sun = sky.addFolder( 'Sun', { icon: 'clock' } );
+		const sky = ui.addTab( 'sky', '天空', 'sky' );
+		const sun = sky.addFolder( '太阳', { icon: 'clock' } );
 		sun.addTimeOfDay( { object: s, key: 'time', onChange: log( 'time' ) } );
 		let scale = null;
-		sun.addToggle( { label: 'Advance time', object: s, key: 'advance', onChange: ( v ) => scale.setVisible( v ) } );
-		scale = sun.addSlider( { label: 'Time scale', object: s, key: 'timeScale', min: 1, max: 3600, log: true, unit: '×' } ).setVisible( false );
-		const atmo = sky.addFolder( 'Atmosphere', { icon: 'cloud' } );
-		atmo.addSlider( { label: 'Cloud cover', object: s, key: 'clouds', min: 0, max: 1, step: 0.01, format: ( v ) => `${ Math.round( v * 100 ) }%` } );
-		atmo.addSlider( { label: 'Fog density', object: s, key: 'fog', min: 0.0001, max: 0.02, log: true } );
-		atmo.addSlider( { label: 'Exposure', object: s, key: 'exposure', min: - 3, max: 3, step: 0.1, unit: 'EV' } );
+		sun.addToggle( { label: '时间流逝', object: s, key: 'advance', onChange: ( v ) => scale.setVisible( v ) } );
+		scale = sun.addSlider( { label: '时间速度', object: s, key: 'timeScale', min: 1, max: 3600, log: true, unit: '×' } ).setVisible( false );
+		const atmo = sky.addFolder( '大气', { icon: 'cloud' } );
+		atmo.addSlider( { label: '云量', object: s, key: 'clouds', min: 0, max: 1, step: 0.01, format: ( v ) => `${ Math.round( v * 100 ) }%` } );
+		atmo.addSlider( { label: '雾气密度', object: s, key: 'fog', min: 0.0001, max: 0.02, log: true } );
+		atmo.addSlider( { label: '曝光', object: s, key: 'exposure', min: - 3, max: 3, step: 0.1, unit: 'EV' } );
 
 		// Camera
-		const cam = ui.addTab( 'camera', 'Camera', 'camera' );
-		const view = cam.addFolder( 'View', { icon: 'camera' } );
-		view.addSelect( { label: 'Boat camera', object: s, key: 'camMode', options: [ { label: '1st person', value: 'first' }, { label: '3rd person', value: 'third' }, { label: 'Free', value: 'free' } ] } );
-		view.addSlider( { label: 'Field of view', object: s, key: 'fov', min: 30, max: 110, step: 1, unit: '°' } );
-		view.addSelect( { label: 'Lens', object: s, key: 'lens', options: { 'Ultra wide 14 mm': 'uw', 'Wide 24 mm': 'wide', 'Standard 35 mm': 'standard', 'Portrait 85 mm': 'portrait', 'Telephoto 200 mm': 'tele' } } );
-		const mouse = cam.addFolder( 'Mouse', { icon: 'mouse' } );
-		mouse.addSlider( { label: 'Sensitivity', object: s, key: 'sensitivity', min: 0.1, max: 4, log: true, unit: '×' } );
-		mouse.addSlider( { label: 'Smoothing', object: s, key: 'smoothing', min: 0, max: 0.5, step: 0.01, unit: 's' } );
-		mouse.addToggle( { label: 'Invert vertical look', object: s, key: 'invertY' } );
+		const cam = ui.addTab( 'camera', '镜头', 'camera' );
+		const view = cam.addFolder( '视角', { icon: 'camera' } );
+		view.addSelect( { label: '驾驶视角', object: s, key: 'camMode', options: [ { label: '第一人称', value: 'first' }, { label: '第三人称', value: 'third' }, { label: '自由镜头', value: 'free' } ] } );
+		view.addSlider( { label: '视野范围', object: s, key: 'fov', min: 30, max: 110, step: 1, unit: '°' } );
+		view.addSelect( { label: '镜头焦距', object: s, key: 'lens', options: { '超广角 14 毫米': 'uw', '广角 24 毫米': 'wide', '标准 35 毫米': 'standard', '人像 85 毫米': 'portrait', '长焦 200 毫米': 'tele' } } );
+		const mouse = cam.addFolder( '鼠标', { icon: 'mouse' } );
+		mouse.addSlider( { label: '灵敏度', object: s, key: 'sensitivity', min: 0.1, max: 4, log: true, unit: '×' } );
+		mouse.addSlider( { label: '平滑度', object: s, key: 'smoothing', min: 0, max: 0.5, step: 0.01, unit: '秒' } );
+		mouse.addToggle( { label: '反转垂直视角', object: s, key: 'invertY' } );
 
 		// Effects
-		const fx = ui.addTab( 'effects', 'Effects', 'effects' );
-		const post = fx.addFolder( 'Post-processing', { icon: 'sparkles' } );
-		post.addToggle( { label: 'Bloom', object: s, key: 'bloom' } );
-		post.addSlider( { label: 'Bloom strength', object: s, key: 'bloomStrength', min: 0, max: 2, step: 0.01 } );
-		post.addToggle( { label: 'Sun shafts', object: s, key: 'godRays' } );
-		post.addSelect( { label: 'Color grade', object: s, key: 'grade', options: { Neutral: 'neutral', Filmic: 'filmic', 'Golden hour': 'golden', Overcast: 'overcast', Tropical: 'tropical', Noir: 'noir' } } );
-		post.addSlider( { label: 'Vignette', object: s, key: 'vignette', min: 0, max: 1, step: 0.01 } );
-		post.addSlider( { label: 'Film grain', object: s, key: 'grain', min: 0, max: 0.5, step: 0.01 } );
-		const lens = fx.addFolder( 'Lens', { icon: 'viewfinder', open: false } );
-		lens.addToggle( { label: 'Depth of field', object: s, key: 'dof' } );
-		lens.addSlider( { label: 'Focus distance', object: s, key: 'focus', min: 0.5, max: 500, log: true, unit: 'm' } );
-		lens.addToggle( { label: 'Lens dirt', object: s, key: 'lensDirt' } );
+		const fx = ui.addTab( 'effects', '画面效果', 'effects' );
+		const post = fx.addFolder( '后期处理', { icon: 'sparkles' } );
+		post.addToggle( { label: '辉光', object: s, key: 'bloom' } );
+		post.addSlider( { label: '辉光强度', object: s, key: 'bloomStrength', min: 0, max: 2, step: 0.01 } );
+		post.addToggle( { label: '阳光光束', object: s, key: 'godRays' } );
+		post.addSelect( { label: '色彩风格', object: s, key: 'grade', options: { 中性: 'neutral', 电影感: 'filmic', 黄金时刻: 'golden', 阴天: 'overcast', 热带: 'tropical', 黑白: 'noir' } } );
+		post.addSlider( { label: '暗角', object: s, key: 'vignette', min: 0, max: 1, step: 0.01 } );
+		post.addSlider( { label: '胶片颗粒', object: s, key: 'grain', min: 0, max: 0.5, step: 0.01 } );
+		const lens = fx.addFolder( '镜头效果', { icon: 'viewfinder', open: false } );
+		lens.addToggle( { label: '景深', object: s, key: 'dof' } );
+		lens.addSlider( { label: '对焦距离', object: s, key: 'focus', min: 0.5, max: 500, log: true, unit: '米' } );
+		lens.addToggle( { label: '镜头污渍', object: s, key: 'lensDirt' } );
 
 		// Performance
-		const perf = ui.addTab( 'performance', 'Performance', 'performance' );
-		const stats = perf.addFolder( 'Live', { icon: 'gauge' } );
-		stats.addInfo( { label: 'Frame rate', get: () => `${ live.fps.toFixed( 0 ) } fps` } );
-		stats.addInfo( { label: 'Frame time', get: () => `${ live.frameMs.toFixed( 2 ) } ms` } );
-		stats.addInfo( { label: 'GPU time', get: () => `${ live.gpuMs.toFixed( 2 ) } ms` } );
-		stats.addInfo( { label: 'Significant wave height', get: () => `${ ( 0.0246 * s.windSpeed * s.windSpeed ).toFixed( 2 ) } m` } );
-		stats.addInfo( { label: 'Render size', get: () => `${ Math.round( window.innerWidth * s.renderScale ) } × ${ Math.round( window.innerHeight * s.renderScale ) }` } );
-		const quality = perf.addFolder( 'Quality', { icon: 'layers' } );
-		quality.addSelect( { label: 'Preset', object: s, key: 'quality', options: { Low: 'low', Medium: 'medium', High: 'high', Ultra: 'ultra' } } );
-		quality.addSlider( { label: 'Render scale', object: s, key: 'renderScale', min: 0.5, max: 2, step: 0.05, format: ( v ) => `${ Math.round( v * 100 ) }%` } );
-		quality.addSelect( { label: 'Wave resolution', object: s, key: 'fftSize', options: [ 64, 128, 256, 512, 1024 ] } );
+		const perf = ui.addTab( 'performance', '性能', 'performance' );
+		const stats = perf.addFolder( '实时数据', { icon: 'gauge' } );
+		stats.addInfo( { label: '帧率', get: () => `${ live.fps.toFixed( 0 ) } 帧/秒` } );
+		stats.addInfo( { label: '每帧耗时', get: () => `${ live.frameMs.toFixed( 2 ) } 毫秒` } );
+		stats.addInfo( { label: '显卡耗时', get: () => `${ live.gpuMs.toFixed( 2 ) } 毫秒` } );
+		stats.addInfo( { label: '有效波高', get: () => `${ ( 0.0246 * s.windSpeed * s.windSpeed ).toFixed( 2 ) } 米` } );
+		stats.addInfo( { label: '渲染尺寸', get: () => `${ Math.round( window.innerWidth * s.renderScale ) } × ${ Math.round( window.innerHeight * s.renderScale ) }` } );
+		const quality = perf.addFolder( '画质', { icon: 'layers' } );
+		quality.addSelect( { label: '画质预设', object: s, key: 'quality', options: { 低: 'low', 中: 'medium', 高: 'high', 极高: 'ultra' } } );
+		quality.addSlider( { label: '渲染比例', object: s, key: 'renderScale', min: 0.5, max: 2, step: 0.05, format: ( v ) => `${ Math.round( v * 100 ) }%` } );
+		quality.addSelect( { label: '波浪分辨率', object: s, key: 'fftSize', options: [ 64, 128, 256, 512, 1024 ] } );
 		let shadowRes = null;
-		quality.addToggle( { label: 'Shadows', object: s, key: 'shadows', onChange: ( v ) => shadowRes.setEnabled( v ) } );
-		shadowRes = quality.addSelect( { label: 'Shadow map', object: s, key: 'shadowRes', options: [ 1024, 2048, 4096 ] } );
-		quality.addButton( { label: 'Apply recommended', icon: 'check', variant: 'primary', onClick: () => {
+		quality.addToggle( { label: '阴影', object: s, key: 'shadows', onChange: ( v ) => shadowRes.setEnabled( v ) } );
+		shadowRes = quality.addSelect( { label: '阴影贴图', object: s, key: 'shadowRes', options: [ 1024, 2048, 4096 ] } );
+		quality.addButton( { label: '应用推荐设置', icon: 'check', variant: 'primary', onClick: () => {
 
 			Object.assign( s, { quality: 'high', renderScale: 1, fftSize: 256, shadows: true, shadowRes: 2048 } );
 			shadowRes.setEnabled( true );
 			ui.refresh();
-			ui.toast( 'Recommended settings applied' );
+			ui.toast( '已应用推荐设置' );
 
 		} } );
-		quality.addButton( { label: 'Log settings to console', icon: 'info', onClick: () => console.table( s ) } );
-		quality.addButton( { label: 'Reset all settings', icon: 'reset', variant: 'ghost', onClick: () => {
+		quality.addButton( { label: '将设置输出到控制台', icon: 'info', onClick: () => console.table( s ) } );
+		quality.addButton( { label: '重置全部设置', icon: 'reset', variant: 'ghost', onClick: () => {
 
 			ui.resetAll();
-			ui.toast( 'All settings reset' );
+			ui.toast( '已重置全部设置' );
 
 		} } );
 
 		// HUD: cycle through traversal modes so every contextual element shows up
 		const MODES = [
-			[ 'Boat · 3rd person', 'E', 'Leave boat' ],
-			[ 'Boat · 1st person', 'V', 'Third-person camera' ],
-			[ 'Walking', 'E', 'Board boat' ],
-			[ 'Swimming', 'Space', 'Swim up' ],
-			[ 'Diving', null, null ],
-			[ 'Free camera', 'F', 'Leave free camera' ],
+			[ '驾船 · 第三人称', 'E', '离开船只' ],
+			[ '驾船 · 第一人称', 'V', '切换第三人称' ],
+			[ '步行', 'E', '登船' ],
+			[ '游泳', '空格', '上浮' ],
+			[ '潜水', null, null ],
+			[ '自由镜头', 'F', '退出自由镜头' ],
 		];
 		let mode = 0, next = 8, raf = 0;
 		ui.setMode( MODES[ 0 ][ 0 ] );
@@ -3544,18 +3544,18 @@ export class UI {
 			live.gpuMs = live.frameMs * ( 0.55 + Math.sin( t * 0.3 ) * 0.05 );
 			ui.setStats( live );
 
-			const boat = MODES[ mode ][ 0 ].startsWith( 'Boat' );
+			const boat = MODES[ mode ][ 0 ].startsWith( '驾船' );
 			const thr = clamp( Math.sin( t * 0.35 ) * 0.65 + 0.35, - 1, 1 );
 			ui.setBoatGauges( { visible: boat, speedKnots: Math.max( 0, thr ) * 26, rpm: clamp( 0.1 + Math.abs( thr ) * 0.9, 0, 1 ), throttle: thr, heading: ( 200 + t * 9 ) % 360 } );
-			ui.setDepth( { visible: MODES[ mode ][ 0 ] === 'Diving', meters: 7 + Math.sin( t * 0.45 ) * 5 } );
+			ui.setDepth( { visible: MODES[ mode ][ 0 ] === '潜水', meters: 7 + Math.sin( t * 0.45 ) * 5 } );
 			raf = requestAnimationFrame( loop );
 
 		};
 
 		raf = requestAnimationFrame( loop );
 		ui.togglePanel( true );
-		ui.toast( 'UI demo: every control is filled with sample data' );
-		setTimeout( () => ui.toast( 'Press H to hide the panel, F1 for controls', 4000 ), 1200 );
+		ui.toast( '界面演示：所有控件已填入示例数据' );
+		setTimeout( () => ui.toast( '按 H 隐藏面板，按 F1 查看操作说明', 4000 ), 1200 );
 
 		return () => {
 

@@ -137,7 +137,7 @@ export class Minimap {
 
 			} },
 		];
-		this.north = h( 'div', 'gm-map-n', 'N' );
+		this.north = h( 'div', 'gm-map-n', '北' );
 		this.marks.append( this.north );
 		this.fish = [ h( 'div', 'gm-map-fish', '<i></i><i></i>' ), h( 'div', 'gm-map-fish', '<i></i><i></i>' ) ];
 		this.fish.forEach( ( f ) => this.marks.prepend( f ) );
