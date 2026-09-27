@@ -398,7 +398,7 @@ function buildContainers( kit, L ) {
 
 // ------------------------------------------------------------------ stern: light and ensign
 
-export const FLAG = { w: 0.5, h: 0.33 };
+export const FLAG = { w: 0.5, h: 1 / 3 }; // Chinese flag: length to height is 3:2.
 
 function buildStern( kit, L, parts ) {
 
