@@ -12,6 +12,8 @@ export class Input {
 		this.rightDown = false;
 		this.locked = false;
 		this.enabled = true;
+		this.focused = ! document.hidden && ( document.hasFocus?.() ?? true );
+		this.interrupted = false;
 
 		window.addEventListener( 'keydown', ( e ) => {
 
@@ -22,7 +24,19 @@ export class Input {
 
 		} );
 		window.addEventListener( 'keyup', ( e ) => this.keys.delete( e.code ) );
-		window.addEventListener( 'blur', () => this.keys.clear() );
+		window.addEventListener( 'blur', () => {
+
+			this.focused = false;
+			this.clear();
+
+		} );
+		window.addEventListener( 'focus', () => { this.focused = ! document.hidden; } );
+		document.addEventListener( 'visibilitychange', () => {
+
+			this.focused = ! document.hidden && ( document.hasFocus?.() ?? true );
+			if ( ! this.focused ) this.clear();
+
+		} );
 
 		dom.addEventListener( 'mousedown', ( e ) => {
 
@@ -59,6 +73,20 @@ export class Input {
 			this.locked = document.pointerLockElement === dom;
 
 		} );
+
+	}
+
+	clear() {
+
+		// Keep the interruption until a frame consumes it, even if a hidden tab ran no frames.
+		this.interrupted = true;
+		this.keys.clear();
+		this.pressed.clear();
+		this.mouseDown = false;
+		this.rightDown = false;
+		this.look.x = 0;
+		this.look.y = 0;
+		this.wheel = 0;
 
 	}
 
@@ -101,6 +129,7 @@ export class Input {
 	endFrame() {
 
 		this.pressed.clear();
+		this.interrupted = false;
 
 	}
 

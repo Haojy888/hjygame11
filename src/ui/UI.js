@@ -3086,7 +3086,8 @@ export class UI {
 			el.hidden = false;
 			void el.offsetWidth;
 			el.classList.add( 'is-on' );
-			if ( ! document.pointerLockElement ) el.querySelector( '.tw-help-close' )?.focus( { preventScroll: true } );
+			if ( document.pointerLockElement ) document.exitPointerLock?.();
+			el.querySelector( '.tw-help-close' )?.focus( { preventScroll: true } );
 
 		} else {
 

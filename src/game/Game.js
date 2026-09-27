@@ -143,6 +143,7 @@ export class Game {
 	update( dt ) {
 
 		const app = this.app, p = app.player, inp = app.input, rod = this.rod;
+		const ui = app.ui?.ui;
 		this._cardDismissed = false;
 		if ( ! this.hud && app.ui && app.ui.ui && typeof document !== 'undefined' && document.head ) {
 
@@ -180,14 +181,35 @@ export class Game {
 
 		}
 
+		const panelOpen = this.hud && ( this.hud.invOpen || this.hud.standOpen );
+		const fishingPaused = !! ( panelOpen || ui?.helpOpen || inp.focused === false || inp.interrupted );
+		if ( fishingPaused ) {
+
+			if ( rod.state === 'windup' ) {
+
+				rod.setState( 'idle' );
+				rod.power = 0;
+
+			}
+			rod.crankRate = 0;
+			this._lmb = this._rmb = false;
+
+		} else if ( this._fishingPaused ) {
+
+			// Require a fresh click after closing a menu or returning to the tab.
+			inp.mouseDown = inp.rightDown = false;
+			this._lmb = this._rmb = false;
+
+		}
+		this._fishingPaused = fishingPaused;
+		this._fishingPauseHint = inp.focused === false || inp.interrupted ? '钓鱼已暂停 · 返回游戏窗口后继续' : '钓鱼已暂停 · 关闭当前界面后继续';
 		// mouse edges (the left button also looks around while the pointer isn't captured)
-		const lmb = inp.mouseDown && inp.enabled, rmb = inp.rightDown && inp.enabled;
+		const lmb = ! fishingPaused && inp.mouseDown && inp.enabled, rmb = ! fishingPaused && inp.rightDown && inp.enabled;
 		const lDown = lmb && ! this._lmb, lUp = ! lmb && this._lmb, rDown = rmb && ! this._rmb;
 		this._lmb = lmb;
 		this._rmb = rmb;
-		const panelOpen = this.hud && ( this.hud.invOpen || this.hud.standOpen );
 
-		if ( rod.equipped && ! panelOpen ) {
+		if ( rod.equipped && ! fishingPaused ) {
 
 			if ( rod.state === 'idle' && lDown ) rod.startWindup();
 			else if ( rod.state === 'windup' && lUp ) rod.release();
@@ -206,11 +228,11 @@ export class Game {
 		}
 
 		// bites and the fight
-		if ( rod.state === 'floating' ) this.updateBite( dt );
-		else if ( ! this.fight ) rod.dip = Math.max( 0, rod.dip - dt * 4 );
-		if ( this.fight ) this.updateFight( dt, lmb && ! panelOpen );
+		if ( ! fishingPaused && rod.state === 'floating' ) this.updateBite( dt );
+		else if ( ! this.fight ) rod.dip = Math.max( 0, rod.dip - ( fishingPaused ? 0 : dt ) * 4 );
+		if ( this.fight && ! fishingPaused ) this.updateFight( dt, lmb );
 
-		rod.update( dt, { visible: can, fight: this.fight } );
+		rod.update( fishingPaused ? 0 : dt, { visible: can, fight: this.fight } );
 		// the landed fish hangs on the end of the line, turned to face you, then goes in the cooler. With
 		// the HUD the catch card comes up once the fish has swung in, and the fish stays (slowly turning)
 		// until the card is dismissed (click, E, Esc) or times out.
@@ -265,7 +287,8 @@ export class Game {
 		this.updateVendors( inp, p );
 
 		// prompts when the player has nothing to say
-		if ( ! p.prompt && can ) p.prompt = this.prompt();
+		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();
+		else if ( ! p.prompt && can ) p.prompt = this.prompt();
 
 		const aboard = p.mode === 'boat' || p.mode === 'deck';
 		// the catch card's live fish portrait (or one queued thumbnail)
@@ -287,6 +310,7 @@ export class Game {
 	prompt() {
 
 		const rod = this.rod, p = this.app.player;
+		if ( this._fishingPaused && rod.equipped ) return { key: '…', text: this._fishingPauseHint };
 		if ( ! rod.equipped ) {
 
 			// by the water (boat deck, pier, the wet beach, wading): suggest the rod

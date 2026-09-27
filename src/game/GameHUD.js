@@ -298,8 +298,15 @@ export class GameHUD {
 
 		this._last.money = s.money;
 		this.renderOrderCard();
+		const panel = this.invOpen ? this.inv : this.standOpen ? this.stand : null;
+		const scrollTop = panel?.querySelector( '.gm-list' )?.scrollTop || 0;
+		const journeyOpen = panel?.querySelector( 'details.gm-journey' )?.open || false;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
+		const journey = panel?.querySelector( 'details.gm-journey' );
+		if ( journey ) journey.open = journeyOpen;
+		const list = panel?.querySelector( '.gm-list' );
+		if ( list ) list.scrollTop = scrollTop;
 
 	}
 
@@ -577,7 +584,11 @@ GameHUD.prototype.renderShop = function () {
 
 	} ).join( '' );
 	const missing = s.stats.fuelL - s.fuelL;
-	const fuelRow = `<div class="gm-shop-row"><span>柴油 · $${ FUEL_PRICE.toFixed( 2 ) } / 升<small>油箱：${ s.fuelL.toFixed( 0 ) } / ${ s.stats.fuelL } 升</small></span>${ missing > 0.5 ? `<button class="gm-btn" data-fuel ${ s.money < FUEL_PRICE ? 'disabled' : '' }>加满 · $${ s.refuelCost() }</button>` : '<span class="gm-have">已加满</span>' }</div>`;
+	const litres = Math.min( missing, Math.floor( s.money / FUEL_PRICE ) );
+	const full = missing <= 1e-3;
+	const volume = litres < 0.01 ? '不足 0.01' : Number( litres.toFixed( 2 ) );
+	const fuelLabel = full ? '已加满' : litres <= 0 ? '余额不足' : `${ litres >= missing ? '加满' : '加油' } ${ volume } 升 · $${ Math.ceil( litres * FUEL_PRICE ) }`;
+	const fuelRow = `<div class="gm-shop-row"><span>柴油 · $${ FUEL_PRICE.toFixed( 2 ) } / 升<small>油箱：${ s.fuelL.toFixed( 1 ) } / ${ s.stats.fuelL } 升</small></span><button class="gm-btn" data-fuel ${ full || litres <= 0 ? 'disabled' : '' }>${ fuelLabel }</button></div>`;
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
