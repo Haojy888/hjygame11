@@ -297,7 +297,7 @@ const COMMON = /* wgsl */`
 		let op = smoothstep( -0.004, 0.004, Lp.z - zE ) * onOp;
 		let grainFade = 1.0 - smoothstep( 0.3, 0.8, px / ( 0.004 * I.z ) );
 		let grain = ( fishVnoise( vec2f( Lp.z, D.z ) * 420.0 ) - 0.5 ) * 0.00022 * grainFade;
-		let bodyH = sc * 0.0016 + op * 0.0025 + grain;
+		let bodyH = sc * 0.00045 + op * 0.0016 + grain;
 		// fin rays: ridges
 		let isFin = part > 0.5 && part < 7.5;
 		let rd = abs( fract( D.w + 0.5 ) - 0.5 );
@@ -385,15 +385,15 @@ function surface( prop, lodFade ) {
 		let lineK = fishBand( y - ( z - eye.x ) * 0.35, eye.y + 0.015, 0.004, 0.003 ) * smoothstep( eye.x - 0.02, eye.x + 0.05, z ) * bodyK;
 		c = mix( c, vec3f( 0.3, 0.6, 0.95 ), lineK * 0.7 );
 	} else if ( pat == ${ PT( 'grunt' ) } ) {
-		// French grunt: yellow with oblique blue-silver stripes (straight above the lateral
-		// line); bluestriped grunt: straight blue stripes. Red mouth.
-		let blue = fract( seed * 3.7 ) < 0.4;
-		let above = smoothstep( 0.35, 0.45, h );
-		let slope = select( mix( 0.45, 0.0, above ), 0.0, blue );
-		let sv = sin( ( y - z * slope ) * select( 150.0, 190.0, blue ) );
+		// Haemulon sciurus: horizontal blue stripes; dark soft dorsal and tail, yellow spines.
+		let sv = sin( y * 190.0 );
 		let stripe = smoothstep( 0.45, 0.8, sv ) * bodyK * ( 1.0 - tBelly * 0.7 );
-		let lineC = select( vec3f( 0.52, 0.6, 0.7 ), vec3f( 0.12, 0.26, 0.55 ), blue );
-		c = mix( c, lineC, stripe * select( 0.7, 0.9, blue ) );
+		c = mix( c, vec3f( 0.12, 0.26, 0.55 ), stripe * 0.9 );
+		if ( P == ${ PA( 'DORSAL2' ) } || P == ${ PA( 'CAUDAL' ) } ) {
+			c = mix( vec3f( 0.02, 0.025, 0.018 ), vec3f( 0.07, 0.08, 0.05 ), smoothstep( 0.15, 1.0, t ) );
+		} else if ( P == ${ PA( 'PECTORAL' ) } || P == ${ PA( 'PELVIC' ) } ) {
+			c = mix( c, vec3f( 0.7, 0.68, 0.46 ), 0.75 );
+		}
 	} else if ( pat == ${ PT( 'yellowtail' ) } ) {
 		// yellow stripe from the snout widening into the yellow tail; yellow spots on the back
 		let wS = mix( 0.006, 0.035, smoothstep( 0.1, -0.25, z ) );
@@ -474,13 +474,17 @@ function surface( prop, lodFade ) {
 		let pale = smoothstep( 0.86, 0.93, fishVnoise( vec2f( z, y ) * 150.0 + 9.0 ) ) * bodyK * 0.2;
 		c = mix( c, vec3f( 0.85, 0.8, 0.72 ), pale );
 	} else if ( pat == ${ PT( 'tuna' ) } ) {
-		// blackfin tuna: sharp dark back, bronze band, pale bars on the belly, dusky yellow finlets
+		// Blackfin tuna: dark bronze dorsal finlets with pale edges; grey ventral finlets.
 		let bronze = fishBand( h, 0.28, 0.05, fwH + 0.06 ) * smoothstep( 0.3, 0.2, z ) * bodyK;
 		c = mix( c, vec3f( 0.42, 0.34, 0.14 ), bronze * 0.6 );
 		c = mix( c, back, smoothstep( 0.28, 0.4, h ) * bodyK );
 		let bars = smoothstep( 0.6, 0.9, sin( z * 95.0 ) ) * smoothstep( 0.0, -0.3, h ) * smoothstep( 0.2, 0.1, z ) * bodyK;
 		c = mix( c, vec3f( 0.85, 0.88, 0.9 ), bars * 0.35 );
-		c = mix( c, vec3f( 0.55, 0.48, 0.16 ), select( 0.0, 0.85, P == ${ PA( 'FINLET' ) } ) );
+		if ( P == ${ PA( 'FINLET' ) } ) {
+			let dorsal = y > 0.0;
+			let rim = smoothstep( 0.82, 0.98, t + abs( w - 0.5 ) * 2.0 ) * smoothstep( 0.06, 0.2, t );
+			c = select( vec3f( 0.22, 0.25, 0.27 ), mix( vec3f( 0.055, 0.04, 0.025 ), vec3f( 0.72, 0.74, 0.7 ), rim ), dorsal );
+		}
 	} else if ( pat == ${ PT( 'mahi' ) } ) {
 		// mahi-mahi: blue-green back, golden flanks with scattered blue spots
 		let cell = floor( vec2f( z, y ) * 55.0 );
@@ -703,8 +707,10 @@ ${ prop ? '\ts.clearcoat = coat;\n\ts.clearcoatRoughness = 0.2;\n' : '' }`;
 }
 
 // props: thin fin membranes let some light through: stochastic transparency, resolved by the
-// temporal anti-aliasing (the rays stay opaque)
+// world's temporal anti-aliasing (the rays stay opaque). Studio portraits have no temporal resolve;
+// keep their membranes intact and let the existing translucency supply the transmitted light.
 const PROP_MASK = /* wgsl */`
+#if !STUDIO_LIGHTING
 	{
 		let Dm = in.vs.vFishData;
 		let partM = fishPartOf( Dm );
@@ -713,7 +719,9 @@ const PROP_MASK = /* wgsl */`
 		let alphaM = select( 1.0, max( mix( 0.9, 0.55, smoothstep( 0.25, 1.0, Dm.z ) ), rayM ), finM );
 		let dither = interleavedGradientNoise( in.pixel + fract( frame.time * 7.3 ) * 97.0 );
 		if ( ! ( dither < alphaM ) ) { discard; }
-	}`;
+	}
+#endif
+`;
 
 function baseMaterial( batch, name, extra ) {
 

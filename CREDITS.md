@@ -30,6 +30,26 @@
 
 中文版加载背景 `public/ui/keyart-zh.png` 使用图像生成工具参照原版截图制作，去除了画面中的英文招牌字样；原版截图仍保留在 `public/ui/`。
 
+## 鱼类近景模型：`public/models/fish-realistic/`
+
+本批三种鱼模型使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
+
+| 资源 | 物种 | Lux3D 原始 taskId |
+|---|---|---|
+| `grunt.glb` | 蓝纹石鲈（*Haemulon sciurus*） | `3796961` |
+| `yellowtail.glb` | 黄尾笛鲷（*Ocyurus chrysurus*） | `3796966` |
+| `tuna.glb` | 黑鳍金枪鱼（*Thunnus atlanticus*） | `3797040` |
+
+这三种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
+
+外形和配色核对参考 Florida Museum of Natural History 的物种资料：
+
+- [Bluestriped Grunt — 蓝纹石鲈](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/bluestriped-grunt/)：水平蓝纹、黄色棘背鳍、深色软背鳍与尾鳍，以及浅色胸鳍和腹鳍。
+- [Yellowtail Snapper — 黄尾笛鲷](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/yellowtail-snapper/)：向尾部加宽的黄色侧条纹、黄色深叉尾和背部黄斑。
+- [Blackfin Tuna — 黑鳍金枪鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/blackfin-tuna/)：暗色背部、暗铜色且带浅色边缘的背部小离鳍，以及灰色腹部小离鳍。
+
+本节登记生成素材的来源与加工过程，不为其额外声明第三方素材许可证。原项目的 `LICENSE`、程序化模型代码及既有第三方素材许可和署名保持原样。
+
 ## 座头鲸：`public/models/whale/`
 
 这是原项目作者用自编脚本生成的原创程序化模型。模型比例参考已发表的座头鲸解剖资料，侧面轮廓描摹自 NOAA Fisheries 的插图；该插图是属于公共领域的美国政府作品。建模时参考的照片未包含在本仓库中。

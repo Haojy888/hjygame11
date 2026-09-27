@@ -1,11 +1,12 @@
-import { Scene, PerspectiveCamera, Matrix4, Quaternion, Vector3, Vector4 } from '../engine/index.js';
+import { Scene, PerspectiveCamera, Matrix4, Quaternion, Vector3, Vector4, Box3 } from '../engine/index.js';
 import { GPU, Texture, MeshRenderer, FullscreenPass, createViewUniforms, setFrameCamera, UniformBlock } from '../engine/webgpu.js';
 import { FishProps } from '../world/fish/FishProps.js';
 import { ACES_WGSL } from '../post/PostFX.js';
 import { FISH, FISH_IDS, fishLengthCm } from './FishTable.js';
+import { RealFish } from './RealFish.js';
 
-// Studio portraits of the catchable fish: the real game models (world/fish, through FishProps) in a
-// neutral photo studio, side-on and horizontal (nose left, as in a field guide).
+// Studio portraits of catchable fish: lightweight FishProps for guide thumbnails and fallbacks,
+// with detailed RealFish models loaded for supported live catch cards. Nose points left.
 //
 //   const fp = new FishPortrait();
 //   fp.attach( canvas )                      live view in a DOM canvas (the catch card); detach() stops it
@@ -15,14 +16,13 @@ import { FISH, FISH_IDS, fishLengthCm } from './FishTable.js';
 //
 // Everything goes through its own MeshRenderer, view uniforms and targets, with the STUDIO_LIGHTING
 // pass define (engine lighting: no world hooks, studio environment; the key light is this view's
-// frame.sunDir / sunColor, the softbox azimuth frame.debug.x). The fish sit far above the island in
-// a private scene. A GPU buffer holds one value per submit, so at most one portrait is drawn per
-// frame: the live card first, thumbnails when it is idle.
+// frame.sunDir / sunColor, the softbox azimuth frame.debug.x). The private scene stays at the origin
+// to preserve precision in the skin's small surface derivatives. A GPU buffer holds one value per
+// submit, so at most one portrait is drawn per frame: the live card first, thumbnails when it is idle.
 //
-// The fish model API used is FishProps ('whole' fish, instance records as FishProps / CatchDisplay):
-// swapping the models (e.g. scanned fish) only needs this class and FishProps to agree.
+// Both model paths use nose +Z, dorsal +Y and a total length of one before placement.
 
-const STUDIO = new Vector3( 0, 6000, 0 );
+const STUDIO = new Vector3( 0, 0, 0 );
 const PARK = new Vector3( 0, 4800, 0 );
 // model frame (nose +z, back +y, left flank +x) -> nose toward -x (left on screen), back up, left
 // flank toward +z (the camera)
@@ -32,6 +32,7 @@ const THUMB_W = 360, THUMB_H = 170;
 const VFOV = 16; // degrees: a long lens, little perspective distortion
 
 const _m = new Matrix4(), _f = new Matrix4(), _q = new Quaternion(), _q2 = new Quaternion(), _p = new Vector3(), _s = new Vector3(), _a = new Vector3();
+const _bounds = new Box3();
 
 const hasDOM = typeof HTMLCanvasElement !== 'undefined' && typeof document !== 'undefined' && typeof document.createElement === 'function';
 
@@ -55,6 +56,8 @@ export class FishPortrait {
 		this.scene = new Scene();
 		this.scene.add( this.mesh );
 		this.scene.updateMatrixWorld( true );
+		this.realFish = new RealFish();
+		this.realShown = null;
 		this.renderer = new MeshRenderer();
 		this.camera = new PerspectiveCamera( VFOV, 2, 0.05, 200 );
 
@@ -161,7 +164,22 @@ fn fragment( in: FSIn ) -> vec4f {
 		_q2.setFromAxisAngle( _a.set( 1, 0, 0 ), roll );
 		_q.multiply( _q2 );
 		_f.makeRotationFromQuaternion( _q ).setPosition( STUDIO.x + x * L, STUDIO.y + y * L, STUDIO.z );
-		this._write( this.slot[ species ], _f, L, curl, jaw );
+		// Only live catch cards request/use the larger GLBs; cached guide thumbnails stay cheap.
+		const real = this.live?.species === species ? this.realFish.get( species ) : null;
+		if ( this.realShown && this.realShown !== real ) this.realShown.group.visible = false;
+		this.realShown = real;
+		this.mesh.visible = ! real;
+		if ( real ) {
+
+			const group = real.group;
+			if ( group.parent !== this.scene ) this.scene.add( group );
+			_m.multiplyMatrices( _f, PORTRAIT );
+			_m.decompose( group.position, group.quaternion, group.scale );
+			group.scale.multiplyScalar( L );
+			group.visible = true;
+			group.updateMatrixWorld( true );
+
+		} else this._write( this.slot[ species ], _f, L, curl, jaw );
 		return L;
 
 	}
@@ -194,8 +212,19 @@ fn fragment( in: FSIn ) -> vec4f {
 		const cam = this.camera;
 		cam.aspect = w / h;
 		cam.updateProjectionMatrix();
-		const tanH = Math.tan( VFOV * Math.PI / 360 ) * cam.aspect;
-		const dist = ( L * 1.08 / fill ) / 2 / tanH;
+		const tanV = Math.tan( VFOV * Math.PI / 360 ), tanH = tanV * cam.aspect;
+		let dist = ( L * 1.08 / fill ) / 2 / tanH;
+		if ( this.realShown ) {
+
+			// The catch card is 2.4:1: tall fins need vertical room as well as body length.
+			// Bind-pose bounds follow the display rotation; leave room for the small idle tail swing.
+			_bounds.setFromObject( this.realShown.group );
+			const halfY = Math.max( Math.abs( _bounds.min.y - STUDIO.y ), Math.abs( _bounds.max.y - STUDIO.y ) );
+			const halfZ = Math.max( Math.abs( _bounds.min.z - STUDIO.z ), Math.abs( _bounds.max.z - STUDIO.z ) );
+			// The camera looks slightly down (y = distance * .06); include depth/perspective too.
+			dist = Math.max( dist, ( halfY + halfZ * 0.06 ) / ( tanV * 0.9 ) + halfZ + halfY * 0.06 );
+
+		}
 		cam.near = Math.max( 0.02, dist - L * 2 );
 		cam.far = dist + L * 4;
 		cam.updateProjectionMatrix();
@@ -209,7 +238,7 @@ fn fragment( in: FSIn ) -> vec4f {
 	_draw( target ) {
 
 		setFrameCamera( this.camera, target.w, target.h, { block: this.block } );
-		this.props.cull( this.camera, - ( ++ this._cullToken || ( this._cullToken = 1 ) ) );
+		if ( this.mesh.visible ) this.props.cull( this.camera, - ( ++ this._cullToken || ( this._cullToken = 1 ) ) );
 		this.renderer.render( this.scene, {
 			camera: this.camera, frameBlock: this.block, kind: 'color', label: 'fish portrait',
 			colorViews: [ target.hdr.view() ], colorFormats: [ 'rgba16float' ],
@@ -241,13 +270,18 @@ fn fragment( in: FSIn ) -> vec4f {
 
 	show( species, kg ) {
 
+		this.detach();
 		this.live = { species, kg, t: 0 };
+		this.realFish.load( species );
 
 	}
 
 	detach() {
 
 		this.live = null;
+		if ( this.realShown ) this.realShown.group.visible = false;
+		this.realShown = null;
+		this.mesh.visible = true;
 
 	}
 
@@ -375,6 +409,7 @@ fn fragment( in: FSIn ) -> vec4f {
 			const T = this._target( 'live', cw * SS, ch * SS );
 			const tr = this._liveTransform( lv.t );
 			const L = this._place( lv.species, lv.kg, tr );
+			if ( this.realShown ) this.realShown.update( dt );
 			this.light.sweep = - 1.1 + ( ( lv.t * 0.32 ) % 2.6 );
 			this._frame( L, T.w, T.h, 0.78 );
 			this._draw( T );
