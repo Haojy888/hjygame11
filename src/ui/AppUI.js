@@ -42,7 +42,6 @@ export class AppUI {
 			cirrus: app.clouds && app.clouds.cirrus ? app.clouds.cirrus.value : 0.5,
 			exposure: 0,
 			fov: app.camera.fov,
-			camMode: 'third',
 			ao: app.post.params.aoStrength.value,
 			bloom: app.post.params.bloom.value,
 			flare: app.post.flare ? app.post.flare.strength.value : 1,
@@ -188,7 +187,16 @@ export class AppUI {
 		// ---------------------------------------------------------------- Camera
 		const cam = ui.addTab( 'camera', '镜头', 'camera' );
 		const view = cam.addFolder( '视角', { icon: 'camera' } );
-		view.addSelect( { label: '驾驶视角', object: s, key: 'camMode', options: [ { label: '第一人称', value: 'first' }, { label: '第三人称', value: 'third' } ], onChange: ( v ) => { app.player.camMode = v; } } );
+		this.drivingView = view.addSelect( {
+			label: '船只驾驶视角', object: app.player, key: 'camMode',
+			tooltip: '仅掌舵时可以切换。登船后走到船舵处按 E 掌舵；岸上、游泳和甲板钓鱼使用第一人称。',
+			options: [ { label: '第一人称', value: 'first' }, { label: '第三人称', value: 'third' } ],
+			onChange: ( v ) => app.player.setCameraMode( v ),
+		} ).setEnabled( app.player.mode === 'boat' && ! app.freeCam );
+		view.addInfo( { label: '当前状态', get: () => app.freeCam ? '自由镜头中 · 按 F 返回'
+			: app.player.mode === 'boat' ? '掌舵中 · 按 V 切换'
+				: app.player.mode === 'deck' ? '走到船舵处按 E 掌舵'
+					: app.player.mode === 'swim' ? '游泳时使用第一人称' : '岸上与钓鱼使用第一人称' } );
 		view.addSlider( { label: '视野范围', object: s, key: 'fov', min: 35, max: 100, step: 1, unit: '°', onChange: ( v ) => {
 
 			app.camera.fov = v;
@@ -255,6 +263,8 @@ export class AppUI {
 		this.s.renderScale = app.post.scale;
 
 		const p = app.player;
+		const canSwitchView = p.mode === 'boat' && ! app.freeCam;
+		if ( this.drivingView.enabled !== canSwitchView ) this.drivingView.setEnabled( canSwitchView );
 		if ( app.freeCam ) {
 
 			ui.setMode( '自由镜头' );

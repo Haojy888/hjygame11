@@ -725,6 +725,16 @@ export class Player {
 
 	}
 
+	setCameraMode( mode ) {
+
+		if ( mode !== 'first' && mode !== 'third' ) return false;
+		this.camMode = mode;
+		// Controls write their binding before calling this method; always reset the chase position.
+		this.camInit = false;
+		return true;
+
+	}
+
 	updateBoat( dt ) {
 
 		const inp = this.input;
@@ -732,7 +742,7 @@ export class Player {
 		const look = inp.consumeLook();
 		const wheel = inp.consumeWheel();
 
-		if ( inp.hit( 'KeyV' ) ) this.camMode = this.camMode === 'first' ? 'third' : 'first';
+		if ( inp.hit( 'KeyV' ) ) this.setCameraMode( this.camMode === 'first' ? 'third' : 'first' );
 		if ( inp.hit( 'KeyE' ) ) {
 
 			this.leaveHelm();
