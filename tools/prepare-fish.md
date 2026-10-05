@@ -29,3 +29,39 @@ $blenderExe = '<blender.exe>'
 拿骚石斑鱼保留源 UV 岛，尾缘改为圆凸，鳃盖下缘局部平滑，再从焊接的高模副本传回连续法线。鬼头刀保留源 UV 岛及轮廓。两条已在游戏的原生渲染中检查正反两侧、尾摆及 1000×600 / 1200×500 钓获卡，作为运行资源启用。最终 GLB 均为约 1.4 万三角、单网格四骨 `idle`、两张内嵌 2048×2048 PNG。
 
 鹦嘴鱼源模型的头部、胸鳍和喙形缺陷经本地修形后仍在近景明显，因此 `game-candidates/parrot.glb` **只是未上线候选**，游戏继续使用原有程序化外观。保留源 GLB、候选 GLB 和 `.blend`，供后续有更合适的源模型时继续处理。
+
+## 第三批：猪齿鱼、皇后神仙鱼、红笛鲷、大魣鱼、大海鲢
+
+第三批五个独立 Lux G1 任务均成功，任务编号见 `CREDITS.md`。源文件位于 `../fish-realism-batch3/lux3d-source/`，可编辑工程位于 `../fish-realism-batch3/blender/`。以下修复工具针对本批固定源模型，不能直接用于其他生成结果。从仓库根目录按顺序运行：
+
+```powershell
+$blenderExe = '<blender.exe>'
+
+# 猪齿鱼：减面、绑定后补齐中间背鳍丝。
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source ../fish-realism-batch3/lux3d-source/wrasse_glb.glb --name wrasse --mode prepare --work ../../work/fish-realism-batch3/wrasse --forward=-Y --up +Z --preserve-source-seams --out-glb public/models/fish-realistic/wrasse.glb --out-blend ../fish-realism-batch3/blender/wrasse.blend
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/repair-wrasse-filament.py -- --blend ../fish-realism-batch3/blender/wrasse.blend --out-glb public/models/fish-realistic/wrasse.glb
+
+# 皇后神仙鱼：保留几何，以连续鳞片 UV 修补胸鳍后的漏画区域。
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source ../fish-realism-batch3/lux3d-source/angel_glb.glb --name angel --mode prepare --work ../../work/fish-realism-batch3/angel --forward=-Y --up +Z --preserve-source-seams --out-glb public/models/fish-realistic/angel.glb --out-blend ../fish-realism-batch3/blender/angel.blend
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/repair-angel-uv.py -- --blend ../fish-realism-batch3/blender/angel.blend --out-glb public/models/fish-realistic/angel.glb
+
+# 红笛鲷：保留源轮廓与 UV 岛。
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source ../fish-realism-batch3/lux3d-source/redSnapper_glb.glb --name redSnapper --mode prepare --work ../../work/fish-realism-batch3/redSnapper --forward=+X --up +Z --preserve-source-seams --out-glb public/models/fish-realistic/redSnapper.glb --out-blend ../fish-realism-batch3/blender/redSnapper.blend
+
+# 大魣鱼：另存清理后的源网格，再减面、绑定和压薄尾鳍。
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/clean-barracuda.py -- --source ../fish-realism-batch3/lux3d-source/barracuda_glb.glb --out ../../work/fish-realism-batch3/barracuda/barracuda-clean.glb
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source ../../work/fish-realism-batch3/barracuda/barracuda-clean.glb --name barracuda --mode prepare --work ../../work/fish-realism-batch3/barracuda --forward=-0.72620059,-0.68708721,-0.02332109 --up +Z --preserve-source-seams --out-glb public/models/fish-realistic/barracuda.glb --out-blend ../fish-realism-batch3/blender/barracuda.blend
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/thin-barracuda-tail.py -- --blend ../fish-realism-batch3/blender/barracuda.blend --out-glb public/models/fish-realistic/barracuda.glb
+
+# 大海鲢：保留背鳍末端长丝与源 UV 岛。
+& $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source ../fish-realism-batch3/lux3d-source/tarpon_glb.glb --name tarpon --mode prepare --work ../../work/fish-realism-batch3/tarpon --forward=-Y --up +Z --preserve-source-seams --out-glb public/models/fish-realistic/tarpon.glb --out-blend ../fish-realism-batch3/blender/tarpon.blend
+```
+
+最终五条均为单网格四骨 `idle`，鼻朝 `+Z`、背朝 `+Y`、总长约为 1，内嵌两张实际 2048×2048 PNG。猪齿鱼为 14,379 三角，其余为 13,999–14,000 三角。大魣鱼清理工具只移除源模型悬浮的重复鱼身；压薄尾鳍时同步变换法线。皇后神仙鱼修补了 76 个面的 UV，接缝处仍有轻微鳞片节距差异。原下载文件均未改动。
+
+验收命令如下，输出游戏原生 GPU 渲染的正侧、斜侧、摆尾与反侧截图。默认画幅为 1000×600，`--card` 为 1200×500。五条均完成两个画幅的检查，无裁切或 GPU 错误；这些截图不等同于浏览器交互测试。
+
+```powershell
+node test/actual-real-fish-render.mjs ../fish-realism-batch3/render wrasse angel redSnapper barracuda tarpon
+node test/actual-real-fish-render.mjs ../fish-realism-batch3/card wrasse angel redSnapper barracuda tarpon --card
+```

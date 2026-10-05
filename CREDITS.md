@@ -32,7 +32,7 @@
 
 ## 鱼类近景模型：`public/models/fish-realistic/`
 
-当前游戏使用以下五种近景模型，分两批使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
+当前游戏使用以下十种近景模型，分三批使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
 
 | 资源 | 物种 | Lux3D 原始 taskId |
 |---|---|---|
@@ -41,12 +41,17 @@
 | `tuna.glb` | 黑鳍金枪鱼（*Thunnus atlanticus*） | `3797040` |
 | `grouper.glb` | 拿骚石斑鱼（*Epinephelus striatus*） | `3942289` |
 | `mahi.glb` | 鬼头刀（*Coryphaena hippurus*，成年雄鱼） | `3942441` |
+| `wrasse.glb` | 猪齿鱼（*Lachnolaimus maximus*，成年雄鱼） | `3942891` |
+| `angel.glb` | 皇后神仙鱼（*Holacanthus ciliaris*） | `3942896` |
+| `redSnapper.glb` | 红笛鲷（*Lutjanus campechanus*） | `3942950` |
+| `barracuda.glb` | 大魣鱼（*Sphyraena barracuda*） | `3942955` |
+| `tarpon.glb` | 大海鲢（*Megalops atlanticus*） | `3943018` |
 
 鬼头刀的首次任务 `3942366` 生成失败且无模型文件；经确认后仅重试一次，使用上表中的成功结果。两次任务记录均保留在本地交付包中。
 
 红绿鹦嘴鱼（*Sparisoma viride*）也完成了生成与 Blender 修形尝试，原任务为 `3942284`；候选的嘴部、鱼鳍与整体真实感未通过视觉验收，因此没有替换游戏中的程序化模型。原始 GLB、源包、可编辑 Blender 工程和修形候选保存在本地第二批交付目录中。
 
-这五种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
+这十种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
 
 外形和配色核对参考 Florida Museum of Natural History 的物种资料：
 
@@ -56,6 +61,11 @@
 - [Stoplight Parrotfish — 红绿鹦嘴鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/stoplight-parrotfish/)：喙状牙板、大鳞片，终末期雄鱼绿色体色及鳃盖后上方的黄色斑点。
 - [Nassau Grouper — 拿骚石斑鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/nassau-grouper/)：厚实的大头与大嘴、褐色竖带、尾柄黑色鞍状斑和成年鱼圆凸的尾缘。
 - [Dolphinfish — 鬼头刀](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/dolphinfish/)：雄鱼陡直的额头、贯穿背部的长背鳍、深叉尾与金绿蓝色体色。
+- [Hogfish — 猪齿鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/hogfish/)：长鱼吻、红色虹膜和前三根延长的背鳍棘；近景按游戏学名制作。
+- [Queen Angelfish — 皇后神仙鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/queen-angelfish/)：蓝绿底色、金黄鳞缘、额头皇冠斑与全黄色尾鳍。
+- [Northern Red Snapper — 红笛鲷](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/northern-red-snapper/)：成年鱼红色体表、红眼与连续背鳍；尾缘近截形至浅凹，另参考 [Smithsonian 物种资料](https://biogeodb.stri.si.edu/caribbean/en/thefishes/species/3686)。
+- [Great Barracuda — 大魣鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/great-barracuda/)：细长体型、前突下颌、分离的双背鳍，以及银色体侧下方的不规则黑斑。
+- [Tarpon — 大海鲢](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/tarpon/)：大片银鳞、上翘的嘴、背鳍末端长丝和深叉尾。
 
 本节登记生成素材的来源与加工过程，不为其额外声明第三方素材许可证。原项目的 `LICENSE`、程序化模型代码及既有第三方素材许可和署名保持原样。
 

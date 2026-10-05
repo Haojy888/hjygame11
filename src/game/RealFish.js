@@ -2,7 +2,7 @@ import { Color } from '../engine/index.js';
 import { SkinnedModel } from '../engine/render/Skinning.js';
 import { loadGLB } from '../engine/loaders/GLTF.js';
 
-const SPECIES = new Set( [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi' ] );
+const SPECIES = new Set( [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi', 'wrasse', 'angel', 'redSnapper', 'barracuda', 'tarpon' ] );
 const BASE = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/fish-realistic/';
 
 // Close-up assets only. Loading never changes the portrait's current selection; the next live

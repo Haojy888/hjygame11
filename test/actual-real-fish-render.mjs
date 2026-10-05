@@ -1,5 +1,5 @@
 // Explicit asset acceptance/render tool, not part of the synthetic npm test regression.
-// node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna grouper mahi] [--card]
+// node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card]
 // Blender must embed 8-bit, non-interlaced PNGs. Reuse the engine tests' PNG decoder.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -12,10 +12,10 @@ import { setShadowMap } from '../src/engine/render/wgsl/lighting.js';
 import { FishPortrait } from '../src/game/FishPortrait.js';
 import { FISH } from '../src/game/FishTable.js';
 
-assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna grouper mahi] [--card]' );
+assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card]' );
 const folder = resolve( process.argv[ 2 ] );
 const requested = process.argv.slice( 3 ).filter( ( argument ) => argument !== '--card' );
-const supported = [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi' ];
+const supported = [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi', 'wrasse', 'angel', 'redSnapper', 'barracuda', 'tarpon' ];
 const speciesIds = requested.length ? requested : supported;
 for ( const id of speciesIds ) assert.ok( supported.includes( id ), 'Unsupported asset: ' + id );
 mkdirSync( folder, { recursive: true } );
@@ -98,7 +98,7 @@ for ( const species of speciesIds ) {
 	} ) );
 	assert.ok( materials.some( ( material ) => material.albedo ), species + ' has no base color texture' );
 	const entry = { species, name: FISH[ species ].name, kg, bounds, width: W, height: H, joints: model.joints, clips: model.clipNames(), animated, materials, images: decoded.slice( imageStart ), views: [] };
-	for ( const [ view, yaw, time ] of [ [ 'side', 0, 0 ], [ 'three-quarter', - 0.58, 0 ], [ 'side-tail', 0, 0.5 ] ] ) {
+	for ( const [ view, yaw, time ] of [ [ 'side', 0, 0 ], [ 'three-quarter', - 0.58, 0 ], [ 'side-tail', 0, 0.5 ], [ 'opposite', Math.PI, 0 ] ] ) {
 
 		for ( const layer of model.layers ) layer.time = time;
 		model.update( 0 );
