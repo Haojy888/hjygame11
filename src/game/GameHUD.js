@@ -2,6 +2,7 @@ import { FISH, fishLengthCm } from './FishTable.js';
 import { UPGRADES, nextLevel, FUEL_PRICE } from './Gear.js';
 import { FishPortrait } from './FishPortrait.js';
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
+import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -27,7 +28,12 @@ const CSS = /* css */`
 .gm-order-line span { min-width: 0; }
 .gm-order-hint, .gm-order-status { margin-top: 2px; color: var(--tw-ink-3); font-size: var(--tw-fs-xs); overflow-wrap: anywhere; }
 .gm-order-status.is-ready { color: var(--tw-aqua); }
-.tw-root:has(.gm-catch.is-on) .gm-order { opacity: 0; }
+.gm-story-track { margin-top: var(--tw-2); padding-top: var(--tw-2); border-top: 1px solid var(--tw-line); color: #ccbcff;
+	font-size: var(--tw-fs-xs); pointer-events: auto; }
+.gm-story-track > summary { cursor: pointer; }
+.gm-story-track p { margin: var(--tw-1) 0 0; color: var(--tw-ink-2); }
+.gm-story-track .gm-order-hint { color: #ccbcff; }
+.tw-root:has(.gm-catch.is-on) .gm-order { opacity: 0; visibility: hidden; }
 .gm-money { font-family: var(--tw-mono); color: var(--tw-sun); font-weight: 600; }
 .gm-cooler { display: flex; align-items: center; gap: var(--tw-2); color: var(--tw-ink-2); font-size: var(--tw-fs-md); }
 .gm-cooler-bar { width: calc(64 * var(--tw-u)); height: calc(5 * var(--tw-u)); border-radius: 99px; background: var(--tw-fill-2); overflow: hidden; }
@@ -112,6 +118,16 @@ const CSS = /* css */`
 .gm-journey { margin: var(--tw-3) 0; padding: var(--tw-3); border: 1px solid var(--tw-line); border-radius: var(--tw-r-md); font-size: var(--tw-fs-sm); line-height: 1.5; }
 .gm-journey > summary { cursor: pointer; color: var(--tw-ink); font-weight: 600; }
 .gm-journey h3 { margin: 0 0 var(--tw-2); font-size: var(--tw-fs-md); }
+.gm-story-journal > summary, .gm-story-dialogue h3 { color: #ccbcff; }
+.gm-story-entry { margin-top: var(--tw-3); }
+.gm-story-entry p, .gm-story-dialogue p { margin: var(--tw-1) 0 var(--tw-2); color: var(--tw-ink-2); line-height: 1.65; white-space: pre-line; overflow-wrap: anywhere; }
+.gm-story-dialogue { margin: 0 0 var(--tw-3); padding: var(--tw-3); border: 1px solid rgba(184, 161, 255, 0.3); border-radius: var(--tw-r-md); background: var(--tw-fill); }
+.gm-story-dialogue h3 { margin: 0; font-size: var(--tw-fs-sm); font-weight: 600; }
+.gm-story-dialogue p { font-size: var(--tw-fs-sm); }
+.gm-story-choices { display: flex; flex-wrap: wrap; gap: var(--tw-2); }
+.gm-story-choice { padding: var(--tw-2) var(--tw-3); border-radius: var(--tw-r-md); color: var(--tw-ink); text-align: left; white-space: normal; line-height: 1.5; }
+.gm-story-choice:hover { border-color: #ccbcff; background: var(--tw-fill-2); }
+.gm-story-choice:focus-visible, .gm-story-track > summary:focus-visible { outline: 2px solid #ccbcff; outline-offset: 3px; }
 .gm-chapter { padding: var(--tw-2) 0; border-bottom: 1px solid var(--tw-line); color: var(--tw-ink-3); }
 .gm-chapter-head { display: flex; justify-content: space-between; gap: var(--tw-2); }
 .gm-chapter-head span { flex: none; }
@@ -326,10 +342,13 @@ export class GameHUD {
 		const panel = this.invOpen ? this.inv : this.standOpen ? this.stand : null;
 		const scrollTop = panel?.querySelector( '.gm-list' )?.scrollTop || 0;
 		const journeyOpen = panel?.querySelector( 'details.gm-journey' )?.open || false;
+		const storyOpen = panel?.querySelector( 'details.gm-story-journal' )?.open || false;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
 		const journey = panel?.querySelector( 'details.gm-journey' );
 		if ( journey ) journey.open = journeyOpen;
+		const story = panel?.querySelector( 'details.gm-story-journal' );
+		if ( story ) story.open = storyOpen;
 		const list = panel?.querySelector( '.gm-list' );
 		if ( list ) list.scrollTop = scrollTop;
 
@@ -337,7 +356,37 @@ export class GameHUD {
 
 	renderOrderCard() {
 
-		this.orderCard.innerHTML = this.orderMarkup( true );
+		const trackOpen = this.orderCard.querySelector?.( '.gm-story-track' )?.open || false;
+		const active = this.game.state.story?.stage > 0;
+		const objective = active ? storyObjective( this.game.state ) : null;
+		this.orderCard.innerHTML = this.orderMarkup( true ) + ( objective ? `<details class="gm-story-track tw-interactive" ${ trackOpen ? 'open' : '' }>
+			<summary>☆ ${ objective.title } · I 日志</summary><p>${ objective.text }</p>${ objective.location ? '<div class="gm-order-hint">蓝紫色 ☆ 指向支线目标</div>' : '' }</details>` : '' );
+
+	}
+
+	storyJournalMarkup() {
+
+		const s = this.game.state;
+		if ( ! s.story?.stage ) return '';
+		const objective = storyObjective( s );
+		const entries = storyJournal( s ).map( ( entry ) => `<article class="gm-story-entry"><b>${ entry.title }</b><p>${ entry.text }</p></article>` ).join( '' );
+		return `<details class="gm-journey gm-story-journal"><summary>☆ ${ STORY_TITLE } · ${ s.story.stage === 6 ? '已完成' : '进行中' }</summary>
+			<div class="gm-story-entry"><b>${ objective.title }</b><p>${ objective.text }</p></div>${ entries }</details>`;
+
+	}
+
+	storyDialogueMarkup( kind ) {
+
+		const dialogue = this.game.state.story ? storyDialogue( this.game.state, kind ) : null;
+		if ( ! dialogue ) return '';
+		return `<section class="gm-story-dialogue" aria-label="支线对话"><h3>☆ ${ STORY_TITLE }</h3><p>${ dialogue.text }</p>
+			<div class="gm-story-choices">${ dialogue.choices.map( ( choice ) => `<button type="button" class="gm-mini gm-story-choice" data-story="${ choice.id }">${ choice.label }</button>` ).join( '' ) }</div></section>`;
+
+	}
+
+	bindStoryChoices() {
+
+		for ( const button of this.stand.querySelectorAll( '[data-story]' ) ) button.onclick = () => this.game.talkStory( button.dataset.story );
 
 	}
 
@@ -553,6 +602,7 @@ export class GameHUD {
 			<div class="gm-list">
 				<div class="gm-order-offer">${ this.orderMarkup() }</div>
 				${ this.journeyMarkup( true ) }
+				${ this.storyJournalMarkup() }
 				${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }
 				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
 			</div>
@@ -597,11 +647,12 @@ export class GameHUD {
 		this.stand.innerHTML = `
 			<h2>${ v.name }</h2>
 			<p class="gm-sub">${ s.inventory.length ? v.greeting || '让我看看你钓到了什么。' : v.idle || '钓到鱼再来吧。' }</p>
-			<div class="gm-list">${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }${ this.journeyMarkup() }</div>
+			<div class="gm-list">${ this.storyDialogueMarkup( 'buyer' ) }${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }${ this.journeyMarkup() }</div>
 			<div class="gm-foot"><button class="gm-btn is-ghost" data-close>离开 (E)</button><button class="gm-btn" data-all ${ s.inventory.length ? '' : 'disabled' }>全部出售 · 鱼价 $${ s.holdValue }</button></div>`;
 		this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 		this.stand.querySelector( '[data-all]' ).onclick = () => this.game.sellAll();
 		for ( const b of this.stand.querySelectorAll( '[data-sell]' ) ) b.onclick = () => this.game.sell( [ Number( b.dataset.sell ) ] );
+		this.bindStoryChoices();
 
 	}
 
@@ -630,12 +681,13 @@ GameHUD.prototype.renderShop = function () {
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );
 	const f = this.stand.querySelector( '[data-fuel]' );
 	if ( f ) f.onclick = () => this.game.refuel();
+	this.bindStoryChoices();
 
 };
 

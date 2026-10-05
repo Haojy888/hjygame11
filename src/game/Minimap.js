@@ -39,6 +39,7 @@ const CSS = /* css */`
 .gm-mk.is-marta > i { background: var(--tw-aqua); }
 .gm-mk.is-boat > i { background: #f2efe6; }
 .gm-mk.is-task > i { background: var(--tw-sun); border-radius: 4px; font-size: calc(16 * var(--tw-u)); }
+.gm-mk.is-story > i { background: #b8a1ff; border-radius: 4px; font-size: calc(17 * var(--tw-u)); }
 .gm-map-goal { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); max-width: 230px;
 	padding: 4px 8px; border-radius: 6px; text-align: center; white-space: nowrap; color: var(--tw-sun); font: 500 var(--tw-fs-xs) var(--tw-font); }
 .gm-mk > b { position: absolute; left: 0; top: 0; width: 0; height: 0; border-left: calc(5 * var(--tw-u)) solid transparent; border-right: calc(5 * var(--tw-u)) solid transparent;
@@ -141,6 +142,7 @@ export class Minimap {
 
 			} },
 			{ id: 'task', ...mk( 'task', '◇' ), pos: () => this._goalPos },
+			{ id: 'story', ...mk( 'story', '☆' ), pos: () => game.storyTarget },
 		];
 		this.goalLabel = h( 'div', 'gm-map-goal tw-glass' );
 		this.el.append( this.goalLabel );

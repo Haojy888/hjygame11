@@ -6,13 +6,15 @@ import { GROUNDS, CHAPTERS } from './Orders.js';
 import { CatchMinigame } from './CatchMinigame.js';
 import { GameState } from './GameState.js';
 import { FishingRod } from './FishingRod.js';
-import { FishStand } from './FishStand.js';
-import { Chandlery } from './Chandlery.js';
+import { FishStand, STAND } from './FishStand.js';
+import { Chandlery, CHANDLERY } from './Chandlery.js';
 import { CatchDisplay } from './CatchDisplay.js';
 import { UPGRADES, fuelBurn } from './Gear.js';
 import { GameHUD } from './GameHUD.js';
 import { Minimap } from './Minimap.js';
 import { Guide } from './Guide.js';
+import { StoryWorld, STORY_SPOTS } from './StoryWorld.js';
+import { storyObjective, storyDialogue } from './Story.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -38,6 +40,8 @@ export class Game {
 		this.landing = null; // { species, kg } while the caught fish swings in view
 		this.chandlery = new Chandlery( { scene: app.scene, terrain: app.terrainData, colliders: app.colliders, material: this.stand.material } );
 		this.vendors = [ this.stand.vendor, this.chandlery.vendor ];
+		this.storyWorld = new StoryWorld( app );
+		this.storyWorld.update( this.state.story, this.hour, 0 );
 		// boat upgrades: engine (thrust / top speed) and deck floodlights for night fishing
 		const b = app.boatCtl;
 		this._engineBase = { maxThrust: b.maxThrust, pitchSpeed: b.pitchSpeed };
@@ -173,6 +177,65 @@ export class Game {
 			if ( this.rescueHold >= 2 ) this.rescueToHarbor();
 
 		} else this.rescueHold = 0;
+
+	}
+
+	get storyTarget() {
+
+		if ( ! this.state.story || ( this.state.story.stage === 0 && this.state.orderIndex < 1 ) ) return null;
+		const location = storyObjective( this.state ).location;
+		if ( location === 'joe' ) return this.stand?.vendor.position || STAND;
+		if ( location === 'marta' ) return this.chandlery?.vendor.position || CHANDLERY;
+		return this.storyWorld?.[ location ]?.position || STORY_SPOTS[ location ] || null;
+
+	}
+
+	talkStory( choice ) {
+
+		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;
+		if ( ! this.hud?.standOpen || ! vendor || app.freeCam || ui?.helpOpen || ui?._photo || this.guide?.open
+			|| app.input.focused === false || app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) || this.fight ) return false;
+		const dialogue = storyDialogue( this.state, vendor.kind );
+		if ( ! dialogue?.choices.some( ( option ) => option.id === choice ) ) return false;
+		if ( ! this.state.storyEvent( choice ) ) return false;
+		this.toast( '剧情已更新 · 按 I 查看「最后一盏归航灯」日志', 3500 );
+		return true;
+
+	}
+
+	updateStory( dt ) {
+
+		if ( ! this.storyWorld ) return;
+		const app = this.app, p = app.player, input = app.input, ui = app.ui?.ui;
+		this.storyWorld.update( this.state.story, this.hour, dt );
+		if ( app.freeCam || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen
+			|| input.enabled === false || input.focused === false || input.interrupted || this._cardDismissed ) return;
+		const stage = this.state.story.stage, location = storyObjective( this.state ).location;
+		if ( ! [ 1, 3, 5 ].includes( stage ) ) return;
+		const target = this.storyTarget;
+		const afloat = location === 'reef';
+		if ( afloat ? ! [ 'boat', 'deck' ].includes( p.mode ) : p.mode !== 'walk' ) return;
+		const pos = afloat ? app.boatCtl.position : p.position;
+		if ( Math.hypot( pos.x - target.x, pos.z - target.z ) > ( afloat ? 12 : 3 ) ) return;
+		if ( ! afloat && Math.abs( p.position.y - target.y ) > 2.5 ) return;
+		const busy = p.busy || this.rod.equipped || this.fight;
+		const stopped = ! afloat || ( ! app.boatCtl.capsized && app.boatCtl.speed < 1.2 );
+		const hour = this.hour;
+		const timeOK = stage === 1 || ( stage === 5 ? hour >= 18 || hour < 6 : afloat ? hour >= 17 && hour < 20 : hour >= 6 && hour < 18 );
+		const action = stage === 1 ? '拾取瓶中信' : stage === 5 ? '点亮归航灯' : '核对旧航线';
+		p.prompt = { key: 'G', text: busy ? '先收起鱼竿，再调查线索' : ! stopped ? '先减速停稳，再观察礁线'
+			: ! timeOK ? `等待${ stage === 5 ? '夜间 18:00–06:00' : afloat ? '暮色 17:00–20:00' : '白天 06:00–18:00' } · H 可调整时刻` : action };
+		if ( ! busy && stopped && timeOK && input.hit( 'KeyG' ) ) {
+
+			if ( this.state.storyEvent( stage === 1 ? 'bottle' : stage === 3 ? 'survey' : 'light', { hour } ) ) {
+
+				this.storyWorld.update( this.state.story, hour, 0 );
+				this.toast( stage === 5 ? '归航灯亮了 · 渔港谢礼 $150 · 按 I 阅读结局' : '已记录新线索 · 按 I 查看剧情日志', 5000 );
+
+			}
+
+		}
 
 	}
 
@@ -323,6 +386,7 @@ export class Game {
 		// the traders
 		for ( const v of this.vendors ) v.update( dt, p.mode === 'walk' ? p.position : null );
 		this.updateVendors( inp, p );
+		this.updateStory( dt );
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

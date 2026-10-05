@@ -2,6 +2,7 @@ import { FISH, fishValue, fishLengthCm } from './FishTable.js';
 import { defaultUpgrades, gearStats, nextLevel, UPGRADES, FUEL_PRICE } from './Gear.js';
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { fishGround } from './Bites.js';
+import { freshStory, normalizeStory } from './Story.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -24,6 +25,7 @@ export class GameState {
 		this._nextId = 1;
 		this.orderDelivered = 0;
 		this.legacyAccess = false;
+		this.story = freshStory();
 		this.listeners = new Set();
 
 	}
@@ -67,6 +69,36 @@ export class GameState {
 	awardChapter( chapter ) {
 
 		for ( const [ key, level ] of Object.entries( chapter.gear ) ) this.upgrades[ key ] = Math.max( this.upgrades[ key ], level );
+
+	}
+
+	// World interactions validate distance and movement mode before asking to advance.
+	storyEvent( event, payload = {} ) {
+
+		const s = this.story, hour = payload?.hour;
+		const validHour = Number.isFinite( hour ) && hour >= 0 && hour < 24;
+		if ( s.stage === 0 && event === 'accept' && this.orderIndex >= 1 ) s.stage = 1;
+		else if ( s.stage === 1 && event === 'bottle' ) s.stage = 2;
+		else if ( s.stage === 2 && [ 'chart', 'shore' ].includes( event ) && this.orderIndex >= 2 ) {
+
+			s.route = event;
+			s.stage = 3;
+
+		} else if ( s.stage === 3 && event === 'survey' && validHour && ( s.route === 'chart' ? hour >= 17 && hour < 20 : hour >= 6 && hour < 18 ) ) s.stage = 4;
+		else if ( s.stage === 4 && [ 'names', 'home' ].includes( event ) ) {
+
+			s.ending = event;
+			s.stage = 5;
+
+		} else if ( s.stage === 5 && event === 'light' && validHour && ( hour >= 18 || hour < 6 ) ) {
+
+			s.stage = 6;
+			this.money += 150;
+
+		} else return false;
+		this.save();
+		this.emit();
+		return true;
 
 	}
 
@@ -252,7 +284,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
 
 	}
 
@@ -273,6 +305,7 @@ export class GameState {
 		this.orderDelivered = d.v === 2 && Number.isSafeInteger( d.orderDelivered ) && d.orderDelivered >= 0 && this.currentOrder
 			? Math.min( this.currentOrder.count - 1, d.orderDelivered ) : 0;
 		this.legacyAccess = d.v === 1 || d.legacyAccess === true;
+		this.story = normalizeStory( d.story );
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
@@ -316,6 +349,7 @@ export class GameState {
 		this.orderIndex = 0;
 		this.orderDelivered = 0;
 		this.legacyAccess = false;
+		this.story = freshStory();
 		this.save();
 		this.emit();
 
