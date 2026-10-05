@@ -32,21 +32,30 @@
 
 ## 鱼类近景模型：`public/models/fish-realistic/`
 
-本批三种鱼模型使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
+当前游戏使用以下五种近景模型，分两批使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
 
 | 资源 | 物种 | Lux3D 原始 taskId |
 |---|---|---|
 | `grunt.glb` | 蓝纹石鲈（*Haemulon sciurus*） | `3796961` |
 | `yellowtail.glb` | 黄尾笛鲷（*Ocyurus chrysurus*） | `3796966` |
 | `tuna.glb` | 黑鳍金枪鱼（*Thunnus atlanticus*） | `3797040` |
+| `grouper.glb` | 拿骚石斑鱼（*Epinephelus striatus*） | `3942289` |
+| `mahi.glb` | 鬼头刀（*Coryphaena hippurus*，成年雄鱼） | `3942441` |
 
-这三种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
+鬼头刀的首次任务 `3942366` 生成失败且无模型文件；经确认后仅重试一次，使用上表中的成功结果。两次任务记录均保留在本地交付包中。
+
+红绿鹦嘴鱼（*Sparisoma viride*）也完成了生成与 Blender 修形尝试，原任务为 `3942284`；候选的嘴部、鱼鳍与整体真实感未通过视觉验收，因此没有替换游戏中的程序化模型。原始 GLB、源包、可编辑 Blender 工程和修形候选保存在本地第二批交付目录中。
+
+这五种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
 
 外形和配色核对参考 Florida Museum of Natural History 的物种资料：
 
 - [Bluestriped Grunt — 蓝纹石鲈](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/bluestriped-grunt/)：水平蓝纹、黄色棘背鳍、深色软背鳍与尾鳍，以及浅色胸鳍和腹鳍。
 - [Yellowtail Snapper — 黄尾笛鲷](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/yellowtail-snapper/)：向尾部加宽的黄色侧条纹、黄色深叉尾和背部黄斑。
 - [Blackfin Tuna — 黑鳍金枪鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/blackfin-tuna/)：暗色背部、暗铜色且带浅色边缘的背部小离鳍，以及灰色腹部小离鳍。
+- [Stoplight Parrotfish — 红绿鹦嘴鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/stoplight-parrotfish/)：喙状牙板、大鳞片，终末期雄鱼绿色体色及鳃盖后上方的黄色斑点。
+- [Nassau Grouper — 拿骚石斑鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/nassau-grouper/)：厚实的大头与大嘴、褐色竖带、尾柄黑色鞍状斑和成年鱼圆凸的尾缘。
+- [Dolphinfish — 鬼头刀](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/dolphinfish/)：雄鱼陡直的额头、贯穿背部的长背鳍、深叉尾与金绿蓝色体色。
 
 本节登记生成素材的来源与加工过程，不为其额外声明第三方素材许可证。原项目的 `LICENSE`、程序化模型代码及既有第三方素材许可和署名保持原样。
 

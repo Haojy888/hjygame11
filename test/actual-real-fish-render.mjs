@@ -1,5 +1,5 @@
 // Explicit asset acceptance/render tool, not part of the synthetic npm test regression.
-// node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna] [--card]
+// node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna grouper mahi] [--card]
 // Blender must embed 8-bit, non-interlaced PNGs. Reuse the engine tests' PNG decoder.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -12,11 +12,12 @@ import { setShadowMap } from '../src/engine/render/wgsl/lighting.js';
 import { FishPortrait } from '../src/game/FishPortrait.js';
 import { FISH } from '../src/game/FishTable.js';
 
-assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna]' );
+assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [grunt yellowtail tuna grouper mahi] [--card]' );
 const folder = resolve( process.argv[ 2 ] );
 const requested = process.argv.slice( 3 ).filter( ( argument ) => argument !== '--card' );
-const speciesIds = requested.length ? requested : [ 'grunt', 'yellowtail', 'tuna' ];
-for ( const id of speciesIds ) assert.ok( [ 'grunt', 'yellowtail', 'tuna' ].includes( id ), 'Unsupported asset: ' + id );
+const supported = [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi' ];
+const speciesIds = requested.length ? requested : supported;
+for ( const id of speciesIds ) assert.ok( supported.includes( id ), 'Unsupported asset: ' + id );
 mkdirSync( folder, { recursive: true } );
 const decodePNG = globalThis.__assetImage;
 const decoded = [];
@@ -136,7 +137,7 @@ for ( const species of speciesIds ) {
 
 }
 assert.deepEqual( gpuErrors, [] );
-console.log( 'PASS: actual GLB textures, normalized bounds, idle animation, both portrait views, no GPU validation errors.' );
+console.log( 'PASS: actual GLB textures, normalized bounds, idle animation, all portrait views, no GPU validation errors.' );
 process.exit( 0 );
 
 function silhouette( pixels, width, height ) {
