@@ -204,6 +204,12 @@ export class AppUI {
 
 		} } );
 		view.addButton( { label: '自由镜头 (F)', icon: 'camera', onClick: () => app.setFreeCam( ! app.freeCam ) } );
+		const rescue = cam.addFolder( '脱困与救援', { icon: 'boat' } );
+		rescue.addInfo( { label: '适用情况', get: () => '翻船、搁浅或卡住' } );
+		rescue.addInfo( { label: '快捷操作', get: () => '长按 X 2 秒' } );
+		rescue.addInfo( { label: '免费救援', get: () => '保留渔获、金币与任务' } );
+		rescue.addInfo( { label: '返回港口', get: () => '取消当前鱼线 · 燃油不变' } );
+		rescue.addButton( { label: '救援回港', icon: 'boat', tooltip: '将船扶正并返回港口安全水域，保留已获得的渔获、金币、燃油和任务进度；取消当前鱼线。', onClick: () => app.game.rescueToHarbor() } );
 
 		// ---------------------------------------------------------------- Effects
 		const fx = ui.addTab( 'effects', '画面效果', 'effects' );

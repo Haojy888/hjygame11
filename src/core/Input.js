@@ -18,9 +18,11 @@ export class Input {
 		window.addEventListener( 'keydown', ( e ) => {
 
 			if ( e.target && ( e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' ) ) return;
+			if ( [ 'Space', 'ArrowUp', 'ArrowDown', 'Tab' ].includes( e.code ) ) e.preventDefault();
+			// A cleared input (focus loss or rescue) needs a fresh physical press.
+			if ( e.repeat ) return;
 			if ( ! this.keys.has( e.code ) ) this.pressed.add( e.code );
 			this.keys.add( e.code );
-			if ( [ 'Space', 'ArrowUp', 'ArrowDown', 'Tab' ].includes( e.code ) ) e.preventDefault();
 
 		} );
 		window.addEventListener( 'keyup', ( e ) => this.keys.delete( e.code ) );

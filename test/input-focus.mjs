@@ -56,6 +56,15 @@ try {
 	assert.equal( input.interrupted, false, 'interruption clears after the game consumes the frame' );
 	assert.equal( input.hit( 'KeyW' ), false );
 	assert.equal( input.down( 'KeyW' ), true, 'ordinary held keys still work across frames' );
+	emit( win, 'keydown', { code: 'KeyX' } );
+	assert.equal( input.down( 'KeyX' ), true );
+	input.clear();
+	input.endFrame();
+	emit( win, 'keydown', { code: 'KeyX', repeat: true } );
+	assert.equal( input.down( 'KeyX' ), false, 'OS key repeat cannot request another rescue after input was cleared' );
+	emit( win, 'keyup', { code: 'KeyX' } );
+	emit( win, 'keydown', { code: 'KeyX', repeat: false } );
+	assert.equal( input.down( 'KeyX' ), true, 'a fresh physical press can request rescue again' );
 	console.log( 'Input focus passed: blur and hidden tabs clear held buttons, keys and pending camera motion.' );
 
 } finally {

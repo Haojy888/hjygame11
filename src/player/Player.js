@@ -104,6 +104,14 @@ export class Player {
 
 		const q = this.query;
 		if ( ! q.cpuValid ) return 0;
+		if ( this._waterAfterExit ) {
+
+			const k = this.slot * 4;
+			const distance = Math.hypot( q.resultInputs[ k ] - this.position.x, q.resultInputs[ k + 1 ] - this.position.z );
+			if ( ! Number.isFinite( distance ) || distance > 1 ) return this.waterH;
+			this._waterAfterExit = false;
+
+		}
 		const h = q.cpu[ this.slot * 4 ];
 		return Number.isFinite( h ) ? h : this.waterH || 0;
 
@@ -121,7 +129,7 @@ export class Player {
 
 	nearBoat() {
 
-		if ( ! this.boat ) return false;
+		if ( ! this.boat || this.boat.capsized ) return false;
 		const bp = this.boat.toWorld( this.boat.model.boardPoint, _v );
 		const d = Math.hypot( bp.x - this.position.x, bp.z - this.position.z );
 		const dy = Math.abs( bp.y - this.position.y );
@@ -138,6 +146,7 @@ export class Player {
 		this.waterH = this.waterHeight();
 		this.waterMean = this.waterMean === null ? this.waterH : this.waterMean + ( this.waterH - this.waterMean ) * ( 1 - Math.exp( - dt / 4 ) );
 		this.prompt = null;
+		if ( this.boat?.capsized && ( this.mode === 'boat' || this.mode === 'deck' ) ) this.exitBoat( null, 1 );
 
 		if ( this.mode === 'boat' ) {
 
@@ -416,6 +425,7 @@ export class Player {
 	boardBoat() {
 
 		const b = this.boat;
+		if ( b.capsized ) return;
 		this.mode = 'deck';
 		this.deckPos.copy( b.model.boardPoint );
 		this.deckVel.set( 0, 0, 0 );
@@ -433,6 +443,7 @@ export class Player {
 	// sit down at the helm and drive (the old "enter boat")
 	takeHelm() {
 
+		if ( this.boat.capsized ) return;
 		this.mode = 'boat';
 		this.boat.driven = true;
 		this.boat.moored = false;
@@ -474,14 +485,15 @@ export class Player {
 	exitBoat( target = null, side = 0 ) {
 
 		const b = this.boat;
-		const wasDriving = b.driven;
+		if ( b.capsized ) side = 1;
+		const wasDriving = b.driven || this.mode === 'boat';
 		b.driven = false;
 		b.throttle = 0;
 		// the exit point closest to something walkable (pier deck / sand)
 		let best = side ? null : this.ashoreTarget();
 
 		const dock = WORLD.boatDock.position;
-		if ( b.position.distanceTo( dock ) < 14 && b.speed < 1.5 ) {
+		if ( ! b.capsized && b.position.distanceTo( dock ) < 14 && b.speed < 1.5 ) {
 
 			b.moored = true;
 			b.mooring.anchor.set( b.position.x, 0, b.position.z );
@@ -489,7 +501,7 @@ export class Player {
 
 		}
 
-		if ( target ) best = target;
+		if ( target && ! b.capsized ) best = target;
 		if ( best ) {
 
 			this.position.set( best.out.x, best.g, best.out.z );
@@ -497,11 +509,17 @@ export class Player {
 
 		} else {
 
-			const w = b.toWorld( new THREE.Vector3( 2.2 * ( side || 1 ), 0, 0 ), new THREE.Vector3() );
+			// Use a level offset even when the hull is upside down; leave the person at the surface.
+			const yaw = b.getYaw();
+			const reach = 2.8 * ( side || 1 );
+			const w = new THREE.Vector3( b.position.x + Math.cos( yaw ) * reach, 0, b.position.z - Math.sin( yaw ) * reach );
 			// (the boat floats at the water line: the walker's water height is stale while aboard)
-			this.waterH = this.waterMean = b.position.y;
-			this.position.set( w.x, b.position.y - 0.2, w.z );
+			this.waterH = this.waterMean = b.sampleWaterAt( w );
+			this.position.set( w.x, this.waterH - 0.2, w.z );
+			this.colliders.resolveCapsule( this.position, RADIUS, HEIGHT, 0 );
 			this.mode = 'swim';
+			this.floating = true;
+			this._waterAfterExit = true;
 			if ( this.audio ) this.audio.splash( 0.8, this.position );
 
 		}
@@ -510,6 +528,35 @@ export class Player {
 		this.yaw = b.getYaw() + Math.PI;
 		this._camY = null;
 		if ( this.audio && wasDriving ) this.audio.engineStop();
+
+	}
+
+	rescueToHarbor() {
+
+		const pier = WORLD.pier;
+		this.mode = 'walk';
+		this.position.set( pier.x + pier.headWidth / 2 - 1, pier.deckHeight, WORLD.boatDock.position.z );
+		this.velocity.set( 0, 0, 0 );
+		this.deckVel.set( 0, 0, 0 );
+		this.deckPos.set( 0, 0, 0 );
+		this.yaw = - Math.PI / 2;
+		this.pitch = - 0.05;
+		this.grounded = this.deckGrounded = this.floating = true;
+		this.waterH = 0;
+		this.waterMean = null;
+		this.wade = this.bob = this.stepDist = this.camOff = this.camOffV = 0;
+		this.camInit = false;
+		this.wasUnder = false;
+		this._camY = this._ashore = null;
+		this._ashoreT = 0;
+		this._waterAfterExit = true;
+		this.busy = false;
+		this.prompt = null;
+		this.surface = 'wood';
+		this.query.setPoint( this.slot, this.position.x, this.position.z );
+		this.camera.position.copy( this.position ).add( _v.set( 0, EYE, 0 ) );
+		this.camera.quaternion.setFromEuler( _e.set( this.pitch, this.yaw, 0 ) );
+		if ( this.audio ) this.audio.engineStop();
 
 	}
 
@@ -739,6 +786,12 @@ export class Player {
 
 		const inp = this.input;
 		const b = this.boat;
+		if ( ! b.driven ) {
+
+			this.leaveHelm();
+			return;
+
+		}
 		const look = inp.consumeLook();
 		const wheel = inp.consumeWheel();
 

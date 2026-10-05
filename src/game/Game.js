@@ -46,6 +46,7 @@ export class Game {
 		this._fuelOut = false;
 		this._sonarT = 0;
 		this._sonar = null;
+		this.rescueHold = 0;
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
 		this.bite = null; // { phase: 'wait' | 'nibble' | 'take', t, nibbles, species, kg }
@@ -139,6 +140,42 @@ export class Game {
 
 	}
 
+	rescueToHarbor() {
+
+		const app = this.app;
+		this.cancelLine( true );
+		this.endLanding();
+		this.rod.equip( false );
+		this.hud?.toggleInventory( false );
+		this.hud?.closeStand();
+		if ( app.freeCam ) app.setFreeCam( false );
+		app.boatCtl.reset();
+		app.input.clear();
+		app.player.rescueToHarbor();
+		this.rescueHold = 0;
+		this._lmb = this._rmb = this._wasDriven = false;
+		this._sonar = null;
+		this._sonarT = 0;
+		this.state.save();
+		this.toast( '救援完成 · 船已扶正并拖回泊位，你已返回码头；渔获和进度已保留', 5000 );
+
+	}
+
+	updateRescue( dt ) {
+
+		const app = this.app, inp = app.input, ui = app.ui?.ui;
+		const blocked = app.freeCam || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start
+			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen
+			|| inp.enabled === false || inp.focused === false || inp.interrupted;
+		if ( ! blocked && inp.down?.( 'KeyX' ) ) {
+
+			this.rescueHold = ( this.rescueHold || 0 ) + Math.min( Math.max( dt, 0 ), 0.1 );
+			if ( this.rescueHold >= 2 ) this.rescueToHarbor();
+
+		} else this.rescueHold = 0;
+
+	}
+
 	// ---- per frame (after the player / camera update)
 	update( dt ) {
 
@@ -156,6 +193,7 @@ export class Game {
 
 		}
 
+		this.updateRescue( dt );
 		const can = this.canFish;
 		if ( inp.hit( 'KeyR' ) && can && ! this.fight ) {
 
@@ -291,9 +329,12 @@ export class Game {
 		else if ( ! p.prompt && can ) p.prompt = this.prompt();
 
 		const aboard = p.mode === 'boat' || p.mode === 'deck';
+		const capsized = !! app.boatCtl?.capsized;
+		if ( capsized || this.rescueHold > 0 ) p.prompt = { key: 'X', text: '长按 2 秒救援回港 · 保留已获渔获和进度' };
 		// the catch card's live fish portrait (or one queued thumbnail)
 		if ( this.hud && this.hud.portrait ) this.hud.portrait.update( dt );
 		if ( this.hud ) this.hud.update( {
+			rescue: capsized || this.rescueHold > 0 ? { capsized, hold: Math.min( 1, this.rescueHold / 2 ) } : null,
 			fuel: aboard ? { litres: this.state.fuelL, tank: this.state.stats.fuelL } : null,
 			sonar: aboard && this.state.stats.finder ? this._sonar : null,
 			fight: this.fight,

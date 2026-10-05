@@ -100,6 +100,9 @@ export class BoatController {
 		this.pitchSpeed = 16; // m/s, propeller pitch speed at full rpm (thrust -> 0 there)
 		this.reverseFactor = 0.45; // astern thrust relative to ahead
 		this.driven = false;
+		this.capsized = false;
+		this._capsizeTime = 0;
+		this._uprightTime = 0;
 		this.moored = true;
 		this.mooring = { anchor: WORLD.boatDock.position.clone(), heading: WORLD.boatDock.heading };
 
@@ -144,6 +147,8 @@ export class BoatController {
 
 	setInput( throttle, steer, dt ) {
 
+		if ( this.capsized ) return;
+
 		// the throttle lever moves with some inertia (the engine then spools after it); the rudder
 		// follows the wheel
 		this.throttleTarget = throttle;
@@ -178,6 +183,20 @@ export class BoatController {
 
 		const q = this.query;
 		if ( ! q.cpuValid || q.version === this._qVersion ) return;
+		// A rescue teleports the hull. Ignore pending GPU results from the old pose.
+		if ( this._waitForWater ) {
+
+			for ( let i = 0; i < this.samples.length; i ++ ) {
+
+				this.toWorld( this.samples[ i ].p, _v );
+				const k = ( this.slot + i ) * 4;
+				const distance = Math.hypot( q.resultInputs[ k ] - _v.x, q.resultInputs[ k + 1 ] - _v.z );
+				if ( ! Number.isFinite( distance ) || distance > 0.1 ) return;
+
+			}
+			this._waitForWater = false;
+
+		}
 		const dt = q.resultTime - ( this._qTime ?? q.resultTime );
 		this._qVersion = q.version;
 		this._qTime = q.resultTime;
@@ -218,6 +237,8 @@ export class BoatController {
 
 	update( dt ) {
 
+		if ( ! this.isFinite() ) this.reset();
+		this.updateCapsize( dt );
 		this.readQueries();
 		if ( ! this.hasWater ) {
 
@@ -249,6 +270,23 @@ export class BoatController {
 		this.model.setSteering( this.steer );
 		this.model.setPropellerRPM( this.rpm * 2400 * Math.sign( this.throttle || 1 ) );
 		this.apply();
+
+	}
+
+	updateCapsize( dt ) {
+
+		const upright = _up.set( 0, 1, 0 ).applyQuaternion( this.quaternion ).y;
+		const elapsed = Math.min( Math.max( dt, 0 ), 0.1 );
+		this._capsizeTime = upright < 0.25 ? this._capsizeTime + elapsed : 0;
+		this._uprightTime = upright > 0.65 ? this._uprightTime + elapsed : 0;
+		if ( this._capsizeTime >= 2 ) this.capsized = true;
+		else if ( this._uprightTime >= 1 ) this.capsized = false;
+		if ( this.capsized ) {
+
+			this.driven = false;
+			this.throttle = this.throttleTarget = this.steer = this.rpm = this.thrust = 0;
+
+		}
 
 	}
 
@@ -431,7 +469,7 @@ export class BoatController {
 	isFinite() {
 
 		const ok = ( v ) => Number.isFinite( v.x ) && Number.isFinite( v.y ) && Number.isFinite( v.z );
-		return ok( this.position ) && ok( this.velocity ) && ok( this.angular ) && Number.isFinite( this.quaternion.w );
+		return ok( this.position ) && ok( this.velocity ) && ok( this.angular ) && ok( this.quaternion ) && Number.isFinite( this.quaternion.w );
 
 	}
 
@@ -442,12 +480,24 @@ export class BoatController {
 		this.quaternion.setFromAxisAngle( new THREE.Vector3( 0, 1, 0 ), WORLD.boatDock.heading );
 		this.velocity.set( 0, 0, 0 );
 		this.angular.set( 0, 0, 0 );
-		this.throttle = 0;
-		this.steer = 0;
-		this.rpm = 0;
+		this.throttle = this.throttleTarget = this.steer = this.rpm = this.thrust = 0;
+		this.speed = this.forwardSpeed = this.slam = this.wetFraction = 0;
+		this.driven = false;
+		this.capsized = false;
+		this._capsizeTime = this._uprightTime = this._acc = this._age = 0;
 		this.moored = true;
 		this.mooring.anchor.copy( WORLD.boatDock.position );
 		this.mooring.heading = WORLD.boatDock.heading;
+		this.hasWater = false;
+		this._waitForWater = true;
+		this._qVersion = this.query.version;
+		this._qTime = undefined;
+		for ( const values of [ this.waterH, this.waterV, this.waterOff, this.hEff, this.qx, this.qz, this.gx, this.gz ] ) values.fill( 0 );
+		this.model.setThrottle( 0 );
+		this.model.setSteering( 0 );
+		this.model.setPropellerRPM( 0 );
+		this.apply();
+		this.queueQueries();
 
 	}
 

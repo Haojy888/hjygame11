@@ -2149,6 +2149,7 @@ export class UI {
 						<h3>互动</h3>
 						${ row( k( 'E' ), '互动<small>登船、掌舵、上岸、交易</small>' ) }
 						${ row( k( 'V' ), '驾驶视角<small>切换第一人称 / 第三人称</small>' ) }
+						${ row( k( 'X' ), '长按 2 秒救援回港<small>免费保留渔获、金币与任务；取消当前鱼线</small>' ) }
 						${ row( k( 'R' ), '鱼竿<small>取出 / 收起</small>' ) }
 						${ row( k( '左键' ), '抛竿、刺鱼、收线<small>按住蓄力 / 收线</small>' ) }
 						${ row( k( '右键' ), '收回空鱼线' ) }

@@ -60,6 +60,21 @@ const CSS = /* css */`
 .gm-cast > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--tw-aqua), var(--tw-sun)); }
 .gm-dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255,255,255,0.7); box-shadow: 0 0 3px rgba(0,0,0,0.6); opacity: 0; pointer-events: none; }
 .gm-dot.is-on { opacity: 1; }
+.gm-rescue { position: absolute; top: calc(108 * var(--tw-u)); left: 50%; transform: translateX(-50%);
+	width: calc(370 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); padding: var(--tw-3) var(--tw-4);
+	border-radius: var(--tw-r-lg); border: 1px solid rgba(var(--tw-sun-rgb), 0.45); color: var(--tw-ink);
+	font: 500 var(--tw-fs-md) var(--tw-font); line-height: 1.5; pointer-events: auto; }
+.gm-rescue[hidden] { display: none; }
+.gm-rescue-title { color: var(--tw-sun); font-size: var(--tw-fs-lg); font-weight: 600; }
+.gm-rescue p { margin: var(--tw-1) 0 var(--tw-2); color: var(--tw-ink-2); font-size: var(--tw-fs-sm); }
+.gm-rescue-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--tw-3); }
+.gm-rescue-actions .gm-btn { flex: none; }
+.gm-rescue progress { display: block; width: 100%; height: calc(5 * var(--tw-u)); margin-top: var(--tw-2);
+	border: 0; border-radius: 99px; overflow: hidden; background: var(--tw-fill-2); accent-color: var(--tw-sun); }
+.gm-rescue progress::-webkit-progress-bar { background: var(--tw-fill-2); }
+.gm-rescue progress::-webkit-progress-value { background: var(--tw-sun); }
+.gm-rescue progress::-moz-progress-bar { background: var(--tw-sun); }
+.tw-root[data-panel='open'] .gm-rescue { left: calc((100vw - var(--tw-panel-w) - var(--tw-3)) / 2); }
 .gm-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -48%); width: calc(460 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); max-height: 76vh; display: flex; flex-direction: column;
 	padding: var(--tw-4) var(--tw-5); border-radius: var(--tw-r-lg); font: 500 var(--tw-fs-md) var(--tw-font); color: var(--tw-ink);
 	opacity: 0; pointer-events: none; transition: opacity var(--tw-med) var(--tw-ease), transform var(--tw-slow) var(--tw-ease); }
@@ -252,11 +267,21 @@ export class GameHUD {
 		this.cast = h( 'div', 'gm-cast', '<span></span>' );
 		this.castBar = this.cast.firstChild;
 		this.dot = h( 'div', 'gm-dot' );
+		this.rescue = h( 'section', 'gm-rescue tw-glass tw-interactive', `
+			<div class="gm-rescue-title" role="status">船只已翻覆</div>
+			<p>免费回港，保留渔获、金币和任务进度；取消当前鱼线。按 Esc 可使用鼠标点击。</p>
+			<div class="gm-rescue-actions"><span class="gm-rescue-hold">长按 X 2 秒</span><button type="button" class="gm-btn">救援回港</button></div>
+			<progress max="1" value="0" aria-label="长按救援进度"></progress>` );
+		this.rescue.hidden = true;
+		this.rescueTitle = this.rescue.querySelector( '.gm-rescue-title' );
+		this.rescueHold = this.rescue.querySelector( '.gm-rescue-hold' );
+		this.rescueProgress = this.rescue.querySelector( 'progress' );
+		this.rescue.querySelector( 'button' ).onclick = () => game.rescueToHarbor();
 		this.catchScrim = h( 'div', 'gm-catch-scrim' );
 		this.catchCard = h( 'div', 'gm-catch tw-glass' );
 		this.catchOpen = false;
 		const hud = ui.hud || ui.root;
-		hud.append( this.catchScrim, this.purse, this.fight, this.bite, this.cast, this.dot, this.catchCard );
+		hud.append( this.catchScrim, this.purse, this.fight, this.bite, this.cast, this.dot, this.rescue, this.catchCard );
 		this.orderCard = h( 'div', 'gm-order tw-glass' );
 		( hud.querySelector( '.tw-tl' ) || hud ).append( this.orderCard );
 
@@ -370,7 +395,20 @@ export class GameHUD {
 	}
 
 	// per frame
-	update( { fight, casting, power, bite, aiming, fuel = null, sonar = null } ) {
+	update( { fight, casting, power, bite, aiming, fuel = null, sonar = null, rescue = null } ) {
+
+		const showRescue = !! rescue && ! this.invOpen && ! this.standOpen && ! this.catchOpen && ! this.ui.helpOpen && ! this.ui.photoMode;
+		if ( ! showRescue && this.rescue.contains( document.activeElement ) ) document.activeElement.blur();
+		this.rescue.hidden = ! showRescue;
+		if ( showRescue ) {
+
+			const title = rescue.capsized ? '船只已翻覆' : '准备救援回港';
+			if ( this.rescueTitle.textContent !== title ) this.rescueTitle.textContent = title;
+			const hold = Math.max( 0, Math.min( 1, rescue.hold ) );
+			this.rescueHold.textContent = hold > 0 ? `继续按住 X · ${ ( ( 1 - hold ) * 2 ).toFixed( 1 ) } 秒` : '长按 X 2 秒';
+			this.rescueProgress.value = hold;
+
+		}
 
 		// boat instruments in the purse: fuel while aboard, the fish finder when fitted
 		this.fuelEl.classList.toggle( 'is-on', !! fuel );
