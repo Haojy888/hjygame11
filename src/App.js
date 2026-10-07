@@ -27,6 +27,7 @@ import { Colliders } from './world/Colliders.js';
 import { Village } from './world/Village.js';
 import { Reef } from './world/Reef.js';
 import { BoatModel } from './world/BoatModel.js';
+import { OffshoreBoatModel } from './world/OffshoreBoatModel.js';
 import { Rocks } from './world/Rocks.js';
 import { Debris } from './world/Debris.js';
 import { Wildlife } from './world/wildlife/Wildlife.js';
@@ -58,6 +59,7 @@ import { FlyCamera } from './player/FlyCamera.js';
 import { Player } from './player/Player.js';
 import { PlayerAvatar } from './player/PlayerAvatar.js';
 import { Game } from './game/Game.js';
+import { GameState } from './game/GameState.js';
 import { STAND } from './game/FishStand.js';
 import { CHANDLERY } from './game/Chandlery.js';
 import { BoatController } from './player/BoatController.js';
@@ -164,10 +166,13 @@ export class App {
 		await progress( 0.23, '正在生成珊瑚礁…' );
 		this.reef = new Reef( { scene, terrain: this.terrainData, shoreField: this.shoreField } );
 
-		this.boat = new BoatModel();
+		// Build every boat-dependent system from the same persisted selection.
+		this.gameState = GameState.load();
+		this.boat = this.gameState.boatId === 'offshore' ? new OffshoreBoatModel() : new BoatModel();
 		scene.add( this.boat.group );
-		this.boat.group.position.copy( WORLD.boatDock.position );
-		this.boat.group.rotation.y = WORLD.boatDock.heading;
+		const boatDock = this.boat.dock || WORLD.boatDock;
+		this.boat.group.position.copy( boatDock.position );
+		this.boat.group.rotation.y = boatDock.heading;
 
 		// ---------------------------------------------------------------- ocean
 		await progress( 0.3, '正在模拟海洋…' );

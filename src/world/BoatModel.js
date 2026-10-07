@@ -7,6 +7,7 @@ import { buildHull, buildHullVolume, keelVolume, houseHalfWidth, KEEL } from './
 import { buildWheelhouse, wheelGeometry, throttleGeometry, radarArrayGeometry, HOUSE, roofTopY } from './boat/Wheelhouse.js';
 import { buildDeckGear, TRAPS, TRAP, HAULER } from './boat/DeckGear.js';
 import { propellerGeometry, rudderGeometry, PROP, RUDDER } from './boat/Running.js';
+import { WORLD } from './WorldLayout.js';
 
 const STATIC_BUCKETS = [ 'hull', 'gelcoat', 'wood', 'fittings', 'trap', 'glow', 'glass' ];
 const WHEEL_TURNS = 0.75; // wheel turns from centre to hard over
@@ -58,6 +59,13 @@ export class BoatModel {
 
 		this.group = new Group();
 		this.group.name = 'LobsterBoat';
+		this.profileId = 'coastal';
+		this.visualScale = new Vector3( 1, 1, 1 );
+		this.visualGroup = this.group;
+		this.baseLines = lines;
+		this.dock = { position: WORLD.boatDock.position.clone(), heading: WORLD.boatDock.heading };
+		this.deckForwardLimit = 4.0;
+		this.chaseDistance = 13;
 		this.meshes = {};
 
 		for ( const name of STATIC_BUCKETS ) {
@@ -152,6 +160,8 @@ export class BoatModel {
 		// ---- anchor points (boat frame)
 
 		this.helmEye = new Vector3( HOUSE.helmX, 1.85, 0.3 );
+		this.helmSeat = new Vector3( HOUSE.helmX, this.helmEye.y - 1.62, HOUSE.seatZ + 0.04 );
+		this.helmExit = new Vector3( HOUSE.helmX + 0.55, lines.deckY, HOUSE.seatZ - 0.1 );
 		this.boardPoint = new Vector3( 0, lines.deckY, - 1.75 );
 
 		this.exitPoints = [];

@@ -3,6 +3,7 @@ import { defaultUpgrades, gearStats, nextLevel, UPGRADES, FUEL_PRICE } from './G
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { fishGround } from './Bites.js';
 import { freshStory, normalizeStory } from './Story.js';
+import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -21,12 +22,21 @@ export class GameState {
 		this.lastCatch = null;
 		this.upgrades = defaultUpgrades();
 		this.fuel = null; // litres left (null = full tank)
+		this.boatId = DEFAULT_BOAT_ID;
 		this.orderIndex = 0;
 		this._nextId = 1;
 		this.orderDelivered = 0;
 		this.legacyAccess = false;
 		this.story = freshStory();
 		this.listeners = new Set();
+
+	}
+
+	static load( storage = safeStorage() ) {
+
+		const state = new GameState( storage );
+		state.load();
+		return state;
 
 	}
 
@@ -284,7 +294,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
 
 	}
 
@@ -299,6 +309,7 @@ export class GameState {
 		for ( const [ k, v ] of Object.entries( this.log ) ) if ( FISH[ k ] && v && v.bestKg > 0 && ! Number.isFinite( v.bestCm ) ) v.bestCm = Math.round( fishLengthCm( k, v.bestKg ) );
 		this.upgrades = { ...defaultUpgrades(), ...( d.upgrades || {} ) };
 		this.fuel = Number.isFinite( d.fuel ) ? d.fuel : null;
+		this.boatId = typeof d.boatId === 'string' ? getBoatProfile( d.boatId ).id : DEFAULT_BOAT_ID;
 		const savedIndex = Number.isSafeInteger( d.orderIndex ) && d.orderIndex >= 0 ? d.orderIndex : 0;
 		// Old requests had six single-fish steps and no locked water. Keep earned access and money.
 		this.orderIndex = d.v === 1 ? [ 0, 2, 3, 4, 5, 7, 8 ][ Math.min( 6, savedIndex ) ] : Math.min( ORDERS.length, savedIndex );
@@ -314,12 +325,13 @@ export class GameState {
 
 	save() {
 
-		if ( ! this.storage ) return;
+		if ( ! this.storage ) return false;
 		try {
 
 			this.storage.setItem( SAVE_KEY, JSON.stringify( this.toJSON() ) );
+			return true;
 
-		} catch ( e ) { /* storage full or blocked: keep playing */ }
+		} catch ( e ) { return false; /* storage full or blocked: keep playing */ }
 
 	}
 
@@ -346,6 +358,7 @@ export class GameState {
 		this.log = {};
 		this.upgrades = defaultUpgrades();
 		this.fuel = null;
+		this.boatId = DEFAULT_BOAT_ID;
 		this.orderIndex = 0;
 		this.orderDelivered = 0;
 		this.legacyAccess = false;

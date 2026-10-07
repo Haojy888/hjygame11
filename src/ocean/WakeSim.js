@@ -12,8 +12,7 @@ const SIZE = N * CELL; // window size (m)
 const DEPTHS = [ Infinity, 6, 1.8, 0.6 ];
 const SPONGE = 22; // absorbing band at the window edges (cells)
 // boat-frame box of the near-field template (steady wave pattern under the hull)
-const TW = 32, TH = 88; // 0.1 m texels (steep pressure near the stem: keep resampling errors small)
-const TX0 = - 1.6, TX1 = 1.6, TZ0 = - 4.4, TZ1 = 4.4;
+const TW = 32, TH = 88; // 0.1–0.16 m texels, below the simulation's 0.4 m grid
 
 // WGSL float literal
 const f = ( x ) => {
@@ -72,6 +71,8 @@ export class WakeSim {
 		this.terrain = terrainGPU;
 		this.boat = boat;
 		this.lines = boat.model.lines;
+		const scale = boat.model.visualScale || { x: 1, z: 1 };
+		this.nearBox = { TX0: - 1.6 * scale.x, TX1: 1.6 * scale.x, TZ0: - 4.4 * scale.z, TZ1: 4.4 * scale.z };
 
 		const K = this.kernelParams = new UniformBlock( 'WakeKernel', {
 			origin: [ 'vec2f', new Vector2() ], // min corner, cells
@@ -187,7 +188,7 @@ export class WakeSim {
 
 		const L = this.lines;
 		const NX = 24, NZ = 112;
-		const X1 = 1.9, Z0 = L.zAft - 0.8, Z1 = L.wlEnd + 0.8;
+		const X1 = 1.9 * ( this.boat.model.visualScale?.x || 1 ), Z0 = L.zAft - 0.8, Z1 = L.wlEnd + 0.8;
 		const R = 0.55;
 		const data = new Uint16Array( NX * NZ );
 		for ( let iz = 0; iz < NZ; iz ++ ) {
@@ -301,6 +302,7 @@ export class WakeSim {
 
 		const HB = this.hullBox;
 		const L = this.lines;
+		const { TX0, TX1, TZ0, TZ1 } = this.nearBox;
 
 		// constants + hashes shared by the kernels and the readers
 		this.commonModule = new ShaderModule( {
@@ -739,6 +741,7 @@ ${ stages( 'shRow', [ 0 ], 1 ) }
 
 	_buildReaders() {
 
+		const { TX0, TX1, TZ0, TZ1 } = this.nearBox;
 		// one sampler for the whole wake: the display texture (height, slopes, foam); the
 		// near-field template and the aeration are read with textureLoad (no sampler)
 		this.module = new ShaderModule( {

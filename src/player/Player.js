@@ -72,7 +72,7 @@ export class Player {
 		// boat cameras
 		this.orbitYaw = 0;
 		this.orbitPitch = 0.22;
-		this.orbitDist = 13;
+		this.orbitDist = boat?.model.chaseDistance ?? 13;
 		this.orbitLookIdle = 0;
 		this.helmYaw = 0;
 		this.helmPitch = - 0.05;
@@ -80,7 +80,7 @@ export class Player {
 		this.camTarget = new THREE.Vector3();
 		this.camOrbitYaw = 0;
 		this.camOrbitPitch = 0;
-		this.camOrbitDist = 13;
+		this.camOrbitDist = this.orbitDist;
 		this.camInit = false;
 		this.wasUnder = false;
 
@@ -468,7 +468,8 @@ export class Player {
 		b.driven = false;
 		b.throttle = 0;
 		this.mode = 'deck';
-		this.deckPos.set( HOUSE_HELM.x + 0.45, b.model.lines.deckY, HOUSE_HELM.z - 0.1 );
+		if ( b.model.helmExit ) this.deckPos.copy( b.model.helmExit );
+		else this.deckPos.set( HOUSE_HELM.x + 0.45, b.model.lines.deckY, HOUSE_HELM.z - 0.1 );
 		this.deckVel.set( 0, 0, 0 );
 		this.deckYaw = this.helmYaw;
 		this.pitch = this.helmPitch;
@@ -498,7 +499,7 @@ export class Player {
 		// the exit point closest to something walkable (pier deck / sand)
 		let best = side ? null : this.ashoreTarget();
 
-		const dock = WORLD.boatDock.position;
+		const dock = ( b.dock || b.model.dock || WORLD.boatDock ).position;
 		if ( ! b.capsized && b.position.distanceTo( dock ) < 14 && b.speed < 1.5 ) {
 
 			b.moored = true;
@@ -517,7 +518,7 @@ export class Player {
 
 			// Use a level offset even when the hull is upside down; leave the person at the surface.
 			const yaw = b.getYaw();
-			const reach = 2.8 * ( side || 1 );
+			const reach = 2.8 * ( b.model.visualScale?.x ?? 1 ) * ( side || 1 );
 			const w = new THREE.Vector3( b.position.x + Math.cos( yaw ) * reach, 0, b.position.z - Math.sin( yaw ) * reach );
 			// (the boat floats at the water line: the walker's water height is stale while aboard)
 			this.waterH = this.waterMean = b.sampleWaterAt( w );
@@ -541,7 +542,8 @@ export class Player {
 
 		const pier = WORLD.pier;
 		this.mode = 'walk';
-		this.position.set( pier.x + pier.headWidth / 2 - 1, pier.deckHeight, WORLD.boatDock.position.z );
+		const dock = this.boat?.dock || this.boat?.model.dock || WORLD.boatDock;
+		this.position.set( pier.x + pier.headWidth / 2 - 1, pier.deckHeight, dock.position.z );
 		this.velocity.set( 0, 0, 0 );
 		this.deckVel.set( 0, 0, 0 );
 		this.deckPos.set( 0, 0, 0 );
@@ -587,6 +589,10 @@ export class Player {
 				const g = this.groundAt( out.x, out.z, w.y + 2.5 );
 				const up = g - w.y;
 				if ( up > 1.7 || up < - 1.2 || g < water - 0.3 ) continue;
+				// Different hulls reach different parts of the quay; exclude rails and mooring posts.
+				const landing = out.clone().setY( g );
+				this.colliders.resolveCapsule( landing, RADIUS, HEIGHT );
+				if ( Math.hypot( landing.x - out.x, landing.z - out.z ) > 0.01 ) continue;
 				const score = Math.abs( up ) + reach * 0.2;
 				if ( score < bestScore ) { bestScore = score; best = { out, g, ep }; }
 
@@ -689,7 +695,7 @@ export class Player {
 		}
 
 		// stay inside the hull (the bulwarks, plus a margin fore and aft)
-		p.z = THREE.MathUtils.clamp( p.z, L.zAft + L.shell + DECK_RADIUS, 4.0 );
+		p.z = THREE.MathUtils.clamp( p.z, L.zAft + L.shell + DECK_RADIUS, b.model.deckForwardLimit ?? 4.0 );
 		const halfIn = Math.max( 0.15, L.halfBreadth( L.tAtSheerZ( p.z ), Math.max( p.y, L.deckY ) ) - L.shell - DECK_RADIUS );
 		p.x = THREE.MathUtils.clamp( p.x, - halfIn, halfIn );
 
@@ -720,7 +726,8 @@ export class Player {
 		this.deckToWorld();
 
 		// prompts: take the helm, or step ashore
-		const hx = HOUSE_HELM.x, hz = HOUSE_HELM.z;
+		const helm = b.model.helmSeat || HOUSE_HELM;
+		const hx = helm.x, hz = helm.z;
 		const nearHelm = Math.hypot( p.x - hx, p.z - hz ) < HELM_REACH && ! this.busy;
 		this._ashoreT -= dt;
 		if ( this._ashoreT <= 0 ) {
@@ -840,7 +847,8 @@ export class Player {
 
 			this.orbitYaw -= look.x * 0.003;
 			this.orbitPitch = THREE.MathUtils.clamp( this.orbitPitch + look.y * 0.003, - 0.05, 1.2 );
-			this.orbitDist = THREE.MathUtils.clamp( this.orbitDist * ( 1 + wheel * 0.08 ), 6, 40 );
+			const minDist = Math.max( 6, ( b.model.chaseDistance ?? 13 ) * 0.45 );
+			this.orbitDist = THREE.MathUtils.clamp( this.orbitDist * ( 1 + wheel * 0.08 ), minDist, 40 );
 			// Give manual looking on either axis time to settle before following the heading.
 			this.orbitLookIdle = look.x !== 0 || look.y !== 0 ? 0 : this.orbitLookIdle + dt;
 			if ( b.speed > 2 && this.orbitLookIdle > 1.5 ) {

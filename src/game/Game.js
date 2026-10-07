@@ -5,6 +5,7 @@ import { habitatAt, fishGround, pickSpecies, rollWeight, biteDelay } from './Bit
 import { GROUNDS, CHAPTERS } from './Orders.js';
 import { CatchMinigame } from './CatchMinigame.js';
 import { GameState } from './GameState.js';
+import { BOATS } from './Boats.js';
 import { FishingRod } from './FishingRod.js';
 import { FishStand, STAND } from './FishStand.js';
 import { Chandlery, CHANDLERY } from './Chandlery.js';
@@ -32,8 +33,7 @@ export class Game {
 	constructor( app ) {
 
 		this.app = app;
-		this.state = new GameState();
-		this.state.load();
+		this.state = app.gameState || GameState.load();
 		this.rod = new FishingRod( { scene: app.scene, camera: app.camera, query: app.query, terrain: app.terrainData, audio: app.audio } );
 		this.rod.onLand = ( where ) => this.onBobberLanded( where );
 		this.stand = new FishStand( { scene: app.scene, terrain: app.terrainData, colliders: app.colliders } );
@@ -45,7 +45,7 @@ export class Game {
 		this.storyWorld.update( this.state.story, this.hour, 0 );
 		// boat upgrades: engine (thrust / top speed) and deck floodlights for night fishing
 		const b = app.boatCtl;
-		this._engineBase = { maxThrust: b.maxThrust, pitchSpeed: b.pitchSpeed };
+		this._engineBase = { maxThrust: b.baseMaxThrust ?? b.maxThrust, pitchSpeed: b.basePitchSpeed ?? b.pitchSpeed };
 		this.floods = [];
 		if ( app.localLights ) this.addFloodlights( app.localLights, app.boat );
 		this._fuelOut = false;
@@ -89,6 +89,7 @@ export class Game {
 		for ( const x of [ - 0.8, 0.8 ] ) {
 
 			const local = new Vector3( x, 2.25, - 1.0 );
+			if ( boat.visualScale ) local.multiply( boat.visualScale );
 			const localDir = new Vector3( x * 0.25, - 0.75, - 0.62 ).normalize();
 			const src = {
 				position: new Vector3(), color: new Color( 1.0, 0.93, 0.8 ), intensity: 3.2, range: 14, kind: 'boatFlood',
@@ -128,6 +129,47 @@ export class Game {
 		}
 
 		return l;
+
+	}
+
+	selectBoat( id ) {
+
+		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;
+		if ( typeof id !== 'string' || ! Object.hasOwn( BOATS, id ) || id === this.state.boatId || this._changingBoat
+			|| ! this.hud?.standOpen || vendor !== this.chandlery?.vendor || vendor?.kind !== 'shop'
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing
+			|| app.input.enabled === false || app.input.focused === false
+			|| app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) ) return false;
+
+		const previous = this.state.boatId;
+		this.state.boatId = id;
+		if ( ! this.state.save() ) {
+
+			this.state.boatId = previous;
+			this.toast( '无法保存进度，暂未换船。请允许此网站存储数据后重试；当前游戏可继续。', 6500 );
+			return false;
+
+		}
+		// Rebuild the hull, water simulation and their GPU bindings together on the next load.
+		this._changingBoat = true;
+		try {
+
+			this.cancelLine( true );
+			this.endLanding();
+			app.input.clear();
+			window.location.reload();
+			return true;
+
+		} catch ( e ) {
+
+			this.state.boatId = previous;
+			this.state.save();
+			this._changingBoat = false;
+			this.toast( '重新载入失败，当前船只已保留，请稍后重试换船。', 5500 );
+			return false;
+
+		}
 
 	}
 

@@ -248,12 +248,13 @@ export function addBoatLights( lights, boat ) {
 		{ p: [ 0.47, 3.45, - 0.47 ], color: [ 1.0, 0.06, 0.03 ], intensity: 1.4, range: 8, kind: 'boatNav', side: [ 1, 0, 0 ] },
 		{ p: [ - 0.47, 3.45, - 0.47 ], color: [ 0.05, 1.0, 0.3 ], intensity: 1.4, range: 8, kind: 'boatNav', side: [ - 1, 0, 0 ] },
 		{ p: [ 0, 3.97, - 0.5 ], color: [ 1.0, 0.95, 0.85 ], intensity: 1.2, range: 8, kind: 'boatNav' },
-		{ p: [ 0, sternY, L.zAft - 0.05 ], color: [ 1.0, 0.95, 0.85 ], intensity: 0.8, range: 7, kind: 'boatNav' },
+		{ p: [ 0, sternY, L.zAft - 0.05 * ( boat.visualScale?.z || 1 ) ], boatFrame: true, color: [ 1.0, 0.95, 0.85 ], intensity: 0.8, range: 7, kind: 'boatNav' },
 	];
 	const out = [];
 	for ( const d of defs ) {
 
 		const local = new THREE.Vector3( ...d.p );
+		if ( boat.visualScale && ! d.boatFrame ) local.multiply( boat.visualScale );
 		const localDir = d.side ? new THREE.Vector3( ...d.side ) : null;
 		const src = {
 			position: new THREE.Vector3(), color: new THREE.Color( ...d.color ), intensity: d.intensity, range: d.range, kind: d.kind,

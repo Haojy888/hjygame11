@@ -3,6 +3,7 @@ import { UPGRADES, nextLevel, FUEL_PRICE } from './Gear.js';
 import { FishPortrait } from './FishPortrait.js';
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
+import { BOATS } from './Boats.js';
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -108,6 +109,17 @@ const CSS = /* css */`
 .gm-shop-row { display: grid; grid-template-columns: 1fr auto; gap: var(--tw-3); align-items: center; padding: var(--tw-2) 0; border-bottom: 1px solid var(--tw-line); }
 .gm-shop-row small { display: block; color: var(--tw-ink-3); font-size: var(--tw-fs-sm); margin-top: 2px; }
 .gm-shop-row .gm-have { color: var(--tw-ink-3); font-size: var(--tw-fs-sm); }
+.gm-panel.gm-boats { width: calc(780 * var(--tw-u)); }
+.gm-boat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tw-3); }
+.gm-boat-card { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--tw-line); border-radius: var(--tw-r-md); background: var(--tw-fill); }
+.gm-boat-card.is-current { border-color: var(--tw-aqua); }
+.gm-boat-image { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #162b38; }
+.gm-boat-info { display: flex; flex: 1; flex-direction: column; gap: var(--tw-2); padding: var(--tw-3); }
+.gm-boat-info h3 { margin: 0; font-size: var(--tw-fs-lg); }
+.gm-boat-size { color: var(--tw-aqua); font: 500 var(--tw-fs-sm) var(--tw-mono); }
+.gm-boat-info p { margin: 0; color: var(--tw-ink-2); font-size: var(--tw-fs-sm); line-height: 1.6; }
+.gm-boat-info .gm-btn { margin-top: auto; width: 100%; white-space: normal; }
+@media (max-width: 600px) { .gm-boat-grid { grid-template-columns: minmax(0, 1fr); } }
 .gm-log { margin-top: var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); line-height: 1.5; }
 .gm-order-offer { padding: var(--tw-3); margin-bottom: var(--tw-2); border: 1px solid var(--tw-line-2); border-radius: var(--tw-r-md); background: var(--tw-fill); }
 .gm-order-offer .gm-order-head { color: var(--tw-ink-2); }
@@ -616,6 +628,7 @@ export class GameHUD {
 	openStand( vendor ) {
 
 		this.standOpen = true;
+		this.boatView = false;
 		this.vendor = vendor;
 		this.toggleInventory( false );
 		if ( vendor.kind === 'shop' ) this.renderShop();
@@ -628,6 +641,8 @@ export class GameHUD {
 	closeStand() {
 
 		this.standOpen = false;
+		this.boatView = false;
+		this.stand.classList.remove( 'gm-boats' );
 		this.stand.classList.remove( 'is-open' );
 
 	}
@@ -660,6 +675,8 @@ export class GameHUD {
 
 GameHUD.prototype.renderShop = function () {
 
+	this.stand.classList?.toggle( 'gm-boats', !! this.boatView );
+	if ( this.boatView ) return this.renderBoats();
 	const s = this.game.state;
 	const v = this.vendor;
 	const rows = Object.entries( UPGRADES ).map( ( [ key, track ] ) => {
@@ -678,16 +695,45 @@ GameHUD.prototype.renderShop = function () {
 	const volume = litres < 0.01 ? '不足 0.01' : Number( litres.toFixed( 2 ) );
 	const fuelLabel = full ? '已加满' : litres <= 0 ? '余额不足' : `${ litres >= missing ? '加满' : '加油' } ${ volume } 升 · $${ Math.ceil( litres * FUEL_PRICE ) }`;
 	const fuelRow = `<div class="gm-shop-row"><span>柴油 · $${ FUEL_PRICE.toFixed( 2 ) } / 升<small>油箱：${ s.fuelL.toFixed( 1 ) } / ${ s.stats.fuelL } 升</small></span><button class="gm-btn" data-fuel ${ full || litres <= 0 ? 'disabled' : '' }>${ fuelLabel }</button></div>`;
+	const boatSection = `<div class="gm-shop-row"><span>船只选择<small>当前：${ BOATS[ s.boatId ].name } · 两种船型均可免费使用</small></span><button class="gm-btn" data-boats>查看船只</button></div>`;
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ boatSection }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );
+	const boatButton = this.stand.querySelector( '[data-boats]' );
+	if ( boatButton ) boatButton.onclick = () => { this.boatView = true; this.renderShop(); this.stand.querySelector( '[data-shop]' ).focus(); };
 	const f = this.stand.querySelector( '[data-fuel]' );
 	if ( f ) f.onclick = () => this.game.refuel();
 	this.bindStoryChoices();
+
+};
+
+GameHUD.prototype.renderBoats = function () {
+
+	const currentId = this.game.state.boatId;
+	const base = ( import.meta.env && import.meta.env.BASE_URL ) || '/';
+	const cards = Object.values( BOATS ).map( ( boat ) => {
+
+		const current = boat.id === currentId;
+		return `<article class="gm-boat-card ${ current ? 'is-current' : '' }">
+			<img class="gm-boat-image" src="${ base }images/boats/${ boat.id }.png" alt="${ boat.name }外观" width="640" height="360">
+			<div class="gm-boat-info"><h3>${ boat.name }</h3>
+			<div class="gm-boat-size">船长 ${ boat.length.toFixed( 1 ) } 米 · 船宽 ${ boat.beam.toFixed( 1 ) } 米</div>
+			<p>${ boat.description }</p>
+			<button class="gm-btn" data-boat="${ boat.id }" aria-label="${ current ? '当前船只：' : '免费换船并重新载入：' }${ boat.name }" ${ current ? 'disabled' : '' }>${ current ? '当前船只' : '免费换船 · 重新载入' }</button></div>
+		</article>`;
+
+	} ).join( '' );
+	this.stand.innerHTML = `<h2>船只选择</h2><p class="gm-sub">玛尔塔 · 选一艘船出海</p>
+		<div class="gm-list"><p class="gm-sub">换船后返回港口并重新载入。渔获、资金和进度保留，两艘船共用升级、鱼舱、油箱及剩余燃油。</p>
+		<div class="gm-boat-grid">${ cards }</div></div>
+		<div class="gm-foot"><button class="gm-btn is-ghost" data-shop>返回船具店</button><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
+	this.stand.querySelector( '[data-shop]' ).onclick = () => { this.boatView = false; this.renderShop(); this.stand.querySelector( '[data-boats]' ).focus(); };
+	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
+	for ( const button of this.stand.querySelectorAll( '[data-boat]' ) ) button.onclick = () => this.game.selectBoat( button.dataset.boat );
 
 };
 

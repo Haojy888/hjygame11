@@ -2,6 +2,12 @@
 
 本仓库代码采用 MIT 许可证发布（见 `LICENSE`）。以下第三方素材分别遵循各自的许可证。
 
+## 可驾驶船只与船型预览
+
+近岸渔船基于 [dgreenheck/tidewater](https://github.com/dgreenheck/tidewater) 的 MIT 程序化造船代码。新增远海渔船由本项目扩建：13.12 × 3.915 米船体、遮阳棚、护栏、救生圈、防碰垫和鱼竿插座；同步适配浮力、碰撞、人物锚点与尾流。船型卡片 `public/images/boats/` 是游戏模型的原生 WebGPU 渲染图。
+
+设计时参考了 [BENETEAU Antares 12 官方尺寸与甲板布局](https://www.beneteau.com/antares-outboard/antares-12)，也考察了 [Kenney Watercraft Kit（CC0）](https://kenney.nl/assets/watercraft-kit)。最终实现使用本项目程序化几何，未导入上述网站的模型、照片或品牌标识。
+
 ## 音频：`public/audio/`
 
 共 42 段来自 [Freesound](https://freesound.org) 的环境录音，全部采用 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) 发布。CC0 不要求署名，但每个文件的作者和来源链接仍列于 [`public/audio/CREDITS.md`](public/audio/CREDITS.md)。

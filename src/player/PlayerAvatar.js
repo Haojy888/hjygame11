@@ -65,7 +65,7 @@ export class PlayerAvatar {
 			group.quaternion.copy( boat.quaternion );
 			if ( p.mode === 'boat' ) {
 
-				boat.toWorld( this._offset.set( HOUSE.helmX, boat.model.helmEye.y - 1.62, HOUSE.seatZ + 0.04 ), group.position );
+				boat.toWorld( boat.model.helmSeat || this._offset.set( HOUSE.helmX, boat.model.helmEye.y - 1.62, HOUSE.seatZ + 0.04 ), group.position );
 
 			} else {
 
