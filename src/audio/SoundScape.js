@@ -1,5 +1,6 @@
-// Sample-based sound for the island: real field recordings only (public/audio, sources and licences in
-// public/audio/CREDITS.md). Nothing is synthesised. Files are fetched and decoded after the first user
+// Island ambience uses field recordings (public/audio, sources and licences in
+// public/audio/CREDITS.md); rain and rolling thunder are generated locally by WeatherAudio.
+// Files are fetched and decoded after the first user
 // gesture (resume()); boat, underwater, pier and night sounds load the first time they become audible.
 //
 // Surf is wave by wave, driven by the game's own shore waves (ShoreWaves): a CPU mirror of their phase
@@ -34,6 +35,7 @@
 
 import { WORLD } from '../world/WorldLayout.js';
 import { BANK } from './soundBank.js';
+import { WeatherAudio } from './WeatherAudio.js';
 
 const clamp = ( v, a, b ) => ( v < a ? a : v > b ? b : v );
 const lerp = ( a, b, t ) => a + ( b - a ) * t;
@@ -136,6 +138,8 @@ export class SoundScape {
 		this._failed = false;
 		this._muted = false;
 		this._volume = 0.8;
+		this._weatherState = { rain: 0, sheltered: 0, underwater: false };
+		this.weatherAudio = null;
 		this._buffers = new Map(); // name -> AudioBuffer
 		this._loading = new Map(); // name -> Promise
 		this._beds = new Map(); // name -> { src, gain, trim }
@@ -244,6 +248,7 @@ export class SoundScape {
 	setMuted( m ) {
 
 		this._muted = !! m;
+		if ( this._muted ) this.clearThunder();
 		this._applyVolume();
 
 	}
@@ -253,6 +258,25 @@ export class SoundScape {
 
 		this._volume = clamp( num( v, this._volume ), 0, 1 );
 		this._applyVolume();
+
+	}
+
+	setWeather( { rain = 0, sheltered = 0, underwater = false } = {} ) {
+
+		this._weatherState = { rain: clamp( num( rain, 0 ), 0, 1 ), sheltered: clamp( num( sheltered, 0 ), 0, 1 ), underwater: !! underwater };
+		this.weatherAudio?.setWeather( this._weatherState );
+
+	}
+
+	thunder( options ) {
+
+		return this.enabled && ! this._muted && this._volume > 0 ? this.weatherAudio?.thunder( options ) || false : false;
+
+	}
+
+	clearThunder() {
+
+		this.weatherAudio?.clearThunder();
 
 	}
 
@@ -444,6 +468,8 @@ export class SoundScape {
 
 	dispose() {
 
+		this.weatherAudio?.dispose();
+		this.weatherAudio = null;
 		if ( ! this.ctx ) return;
 		try {
 
@@ -551,6 +577,8 @@ export class SoundScape {
 			boat_engine: this.engineLP, boat_rush: this.boatSum, boat_lap: this.boatSum,
 			reel_wind: this.rod, reel_drag: this.rod, line_strain: this.rod,
 		};
+		this.weatherAudio = new WeatherAudio( c, this.above );
+		this.weatherAudio.setWeather( this._weatherState );
 
 	}
 

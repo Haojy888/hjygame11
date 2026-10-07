@@ -17,6 +17,9 @@ import { Sky, sunDirectionFromTime } from './sky/Sky.js';
 import { Clouds } from './sky/Clouds.js';
 import { SkyProClouds } from './sky/SkyProClouds.js';
 import { Environment } from './sky/Environment.js';
+import { Weather } from './sky/Weather.js';
+import { Rain } from './fx/Rain.js';
+import { Lightning } from './fx/Lightning.js';
 
 import { TerrainData } from './world/TerrainData.js';
 import { TerrainGPU } from './world/TerrainGPU.js';
@@ -344,6 +347,16 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		// ---------------------------------------------------------------- audio
 		// recorded field recordings (public/audio, credits in public/audio/CREDITS.md); ?noAudio turns it off
 		this.audio = qs.has( 'noAudio' ) ? null : new SoundScape();
+		this.rain = new Rain( { terrain: this.terrainGPU, query: this.query, colliders: this.colliders } );
+		this.lightning = new Lightning();
+		scene.add( this.rain.group, this.lightning.group );
+		this.weather = new Weather( { sky: this.sky, clouds: this.clouds, haze: this.haze,
+			environment: this.environment, terrain: this.terrainData, rainFx: this.rain,
+			lightning: this.lightning, audio: this.audio } );
+		// RAF may stop completely while hidden: cancel delayed thunder at the event, not next frame.
+		const suspendWeather = () => this.weather.update( 0, camera, { active: false } );
+		document.addEventListener( 'visibilitychange', suspendWeather );
+		window.addEventListener( 'blur', suspendWeather );
 		this.player.audio = this.audio;
 		// the fishing game (rod, bites, catch, cooler, fish stand)
 		this.game = new Game( this );
@@ -480,6 +493,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		const nightAmb = 0.012 * G.night.value;
 		G.skyIrradiance.value.setRGB( irr[ 0 ] + nightAmb * 0.6, irr[ 1 ] + nightAmb * 0.7, irr[ 2 ] + nightAmb );
 		G.horizonColor.value.setRGB( a.horizon[ 0 ], a.horizon[ 1 ], a.horizon[ 2 ] );
+		this.weather?.applyLighting( G );
 
 	}
 
@@ -637,6 +651,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.avatar.update( this, dt );
 		this.updateSun();
 
+		this.weather.update( dt, this.camera, { active: ! document.hidden && document.hasFocus() } );
 		this.atmosphere.update( dt, this.camera.position.y );
 		this.applyAtmosphereReadback();
 
@@ -656,6 +671,12 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 		}
 
+		this.weather.updateEffects( dt, this.camera, { windSpeed: G.windSpeed.value,
+			windDirection: G.windDir.value, underwater: !! G.cameraUnderwater.value, boat: this.boatCtl } );
+		// A disappearing distant bolt must not stay locked as a static thin feature in TAA.
+		const lightningVisible = this.lightning.group.visible;
+		if ( this._lightningWasVisible && ! lightningVisible ) this.post.taau._needsRestart = true;
+		this._lightningWasVisible = lightningVisible;
 		if ( this.caustics ) this.caustics.update();
 		// drawn while any part of the view can be under water (the specks above the surface are dropped)
 		this.marineSnow.update( this.camera, this.camera.position.y < ( this.cameraWaterHeight ?? 0 ) + LENS_REACH );

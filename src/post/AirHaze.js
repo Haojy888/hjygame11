@@ -361,6 +361,7 @@ fn hazeApply( uv: vec2f, c: vec4f ) -> vec4f {
 			var fog = atmosphereSkyLuminance( vh );
 #if HZ_MOON
 			fog += skyMoonSky( vh );
+			fog = skyWeather( fog, vh, false );
 #endif
 
 			// sun (moon) light scattered toward the eye, and its share of the haze radiance

@@ -44,10 +44,14 @@ export class Sky {
 			moonDir: [ 'vec3f', new Vector3( - 0.3, 0.5, 0.8 ).normalize() ],
 			sunDiskIntensity: [ 'f32', 1 ],
 			starIntensity: [ 'f32', 0 ],
+			overcast: [ 'f32', 0 ],
+			lightningFlash: [ 'f32', 0 ],
 		}, { label: 'sky' } );
 		this.sunDiskIntensity = this.params.fields.sunDiskIntensity;
 		this.moonDir = this.params.fields.moonDir;
 		this.starIntensity = this.params.fields.starIntensity;
+		this.overcast = this.params.fields.overcast;
+		this.lightningFlash = this.params.fields.lightningFlash;
 		this._module = null;
 		this._background = null;
 
@@ -65,9 +69,9 @@ export class Sky {
 		const clouds = this.clouds;
 		const deps = [ commonModule, this.atmosphere.module ];
 		if ( clouds ) deps.push( clouds.module );
-		const composite = ( sampler ) => clouds
-			? `let c = ${ sampler }( dir );\n\treturn base * c.a + c.rgb;`
-			: 'return base;';
+		const composite = ( sampler, flash = false ) => clouds
+			? `let c = ${ sampler }( dir );\n\treturn skyWeather( base * c.a + c.rgb, dir, ${ flash } );`
+			: `return skyWeather( base, dir, ${ flash } );`;
 
 		return new ShaderModule( {
 			name: 'sky',
@@ -165,10 +169,23 @@ fn skyBackground( dir: vec3f, starK: f32 ) -> vec3f {
 }
 
 // Full sky radiance for a direction (no clouds).
+// Keep lightning out of the slowly refreshed environment cube. Only the live view and water
+// reflections receive it, so a single flash cannot remain baked into one cube face.
+fn skyWeather( radiance: vec3f, dir: vec3f, flash: bool ) -> vec3f {
+	let grey = dot( radiance, vec3f( 0.2126, 0.7152, 0.0722 ) );
+	let greySky = grey * vec3f( 0.68, 0.76, 0.86 );
+	var result = mix( radiance, greySky, skyParams.overcast * 0.85 );
+	result *= 1.0 - skyParams.overcast * 0.62;
+	if ( flash ) {
+		result += vec3f( 0.42, 0.5, 0.68 ) * skyParams.lightningFlash * ( 0.65 + 0.35 * max( dir.y, 0.0 ) );
+	}
+	return result;
+}
+
 fn skyRadiance( dir: vec3f, withSun: bool ) -> vec3f {
 	var L = skyBackground( dir, 1.0 ) + skyMoon( dir );
 	if ( withSun ) { L += skySunDisk( dir ); }
-	return L;
+	return skyWeather( L, dir, false );
 }
 
 // Sky with clouds composited (low resolution cloud panorama). withSun = false (environment
@@ -184,7 +201,7 @@ fn skyRadianceWithClouds( dir: vec3f, withSun: bool ) -> vec3f {
 // trace of the stars, which rough water would spread into flickering sparkles.
 fn skyReflectionRadiance( dir: vec3f ) -> vec3f {
 	let base = skyBackground( dir, ${ f( STAR_REFLECTION ) } );
-	${ composite( 'cloudsSample' ) }
+	${ composite( 'cloudsSample', true ) }
 }
 
 // Main view background: full resolution clouds for the camera's view (the sun's disc behind them
@@ -193,7 +210,7 @@ fn skyViewRadiance( dir: vec3f ) -> vec3f {
 	let base = skyBackground( dir, 1.0 ) + skyMoon( dir );
 	let sun = skySunDisk( dir );
 	${ clouds ? `let c = cloudsSampleView( dir );
-	return base * c.a + sun * cloudsSunTransmittance( c.a ) + c.rgb;` : 'return base + sun;' }
+	return skyWeather( base * c.a + sun * cloudsSunTransmittance( c.a ) + c.rgb, dir, true );` : 'return skyWeather( base + sun, dir, true );' }
 }
 `,
 		} );

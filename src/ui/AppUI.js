@@ -154,6 +154,30 @@ export class AppUI {
 
 		// ---------------------------------------------------------------- Sky
 		const sky = ui.addTab( 'sky', '天空', 'sky' );
+		if ( app.weather ) {
+
+			const weather = sky.addFolder( '天气', { icon: 'cloud' } );
+			weather.addToggle( { label: '下雨', object: app.weather, key: 'rain',
+				tooltip: '开启海面雨幕、雨点涟漪和雨声；关闭时同时停止雷暴。', onChange: ( v ) => {
+
+					app.weather.setRain( v );
+					if ( v ) app.audio?.resume();
+					ui.refresh();
+
+				} } );
+			weather.addToggle( { label: '雷暴', object: app.weather, key: 'thunderstorm',
+				tooltip: '自动开启大雨与乌云，海上出现闪电，雷声按距离延迟传来。', onChange: ( v ) => {
+
+					app.weather.setThunderstorm( v );
+					if ( v ) app.audio?.resume();
+					ui.refresh();
+
+				} } );
+			weather.addInfo( { label: '当前天气', get: () => app.weather.thunderstorm ? '雷暴 · 大雨'
+				: app.weather.rain ? '下雨' : '无降雨' } );
+			weather.addInfo( { label: '体验风浪', get: () => '海洋 → 海况 → 风暴' } );
+
+		}
 		const sun = sky.addFolder( '太阳', { icon: 'clock' } );
 		sun.addTimeOfDay( { object: app.settings, key: 'timeOfDay' } );
 		sun.addSlider( { label: '太阳方位角', object: app.settings, key: 'sunAzimuth', min: - 180, max: 180, step: 1, format: ( v ) => `${ Math.round( v ) }°`, tooltip: '调整太阳绕岛运行的方向。0° 为实际轨迹：东升西落。' } );
@@ -166,13 +190,13 @@ export class AppUI {
 		} } );
 		speed = sun.addSlider( { label: '时间速度', object: s, key: 'timeSpeed', min: 0.002, max: 1, log: true, unit: '小时/秒', onChange: ( v ) => { if ( s.advance ) app.settings.timeSpeed = v; } } ).setVisible( s.advance );
 		const atmo = sky.addFolder( '大气', { icon: 'cloud' } );
-		if ( app.clouds ) atmo.addSlider( { label: '云量', object: s, key: 'clouds', min: 0, max: 1, step: 0.01, format: ( v ) => `${ Math.round( v * 100 ) }%`, onChange: ( v ) => { app.clouds.coverage.value = v; } } );
+		if ( app.clouds ) atmo.addSlider( { label: '云量', object: s, key: 'clouds', min: 0, max: 1, step: 0.01, format: ( v ) => `${ Math.round( v * 100 ) }%`, onChange: ( v ) => { if ( app.weather ) app.weather.setCloudCoverage( v ); else app.clouds.coverage.value = v; } } );
 		if ( app.clouds && app.clouds.cirrus ) atmo.addSlider( { label: '卷云', object: s, key: 'cirrus', min: 0, max: 1, step: 0.01, format: ( v ) => `${ Math.round( v * 100 ) }%`, onChange: ( v ) => { app.clouds.cirrus.value = v; } } );
 		if ( app.haze ) {
 
 			s.haze = app.haze.density.value;
 			s.shafts = app.haze.shafts.value;
-			atmo.addSlider( { label: '海雾', object: s, key: 'haze', min: 0, max: 4, step: 0.05, tooltip: '控制远景雾效和海雾密度。1 约等于海平面能见度 20 千米；0 为晴朗无雾。', onChange: ( v ) => { app.haze.density.value = v; } } );
+			atmo.addSlider( { label: '海雾', object: s, key: 'haze', min: 0, max: 4, step: 0.05, tooltip: '控制远景雾效和海雾密度。1 约等于海平面能见度 20 千米；0 为晴朗无雾。', onChange: ( v ) => { if ( app.weather ) app.weather.setHaze( v ); else app.haze.density.value = v; } } );
 			atmo.addSlider( { label: '阳光光束', object: s, key: 'shafts', min: 0, max: 3, step: 0.05, tooltip: '雾中穿过棕榈树、码头、山丘和云层的光束。设为 0 可关闭。', onChange: ( v ) => { app.haze.shafts.value = v; } } );
 
 		}
