@@ -55,6 +55,15 @@ for ( const mode of [ 'third', 'first', 'third', 'first' ] ) {
 	else expectThird();
 }
 
+// V and mouse motion in the same frame must use the newly selected camera's rate.
+player.setCameraMode( 'first' );
+player.orbitYaw = 0;
+input.look.x = 400;
+pressed.add( 'KeyV' );
+frame();
+assert.ok( Math.abs( player.orbitYaw ) <= Math.PI / 15 + 1e-9, 'switching to chase does not amplify the input turn budget' );
+player.setCameraMode( 'first' );
+
 // Capture the real AppUI configuration; unrelated UI controls need no DOM.
 const controls = [];
 const folder = {
@@ -148,14 +157,14 @@ for ( const sensitivity of [ 0.25, 1, 2 ] ) {
 		player.position.set( 0, 0, 0 );
 		const fly = new FlyCamera( camera, null, input );
 		const update = () => mode === 'fly' ? fly.update( 1 / 60 ) : player.update( 1 / 60 );
-		input.look.x = 40;
-		input.look.y = 10;
+		input.look.x = 20;
+		input.look.y = 5;
 		update();
 		const yaw = () => mode === 'fly' ? fly.yaw : player[ { walk: 'yaw', swim: 'yaw', deck: 'deckYaw', first: 'helmYaw', third: 'orbitYaw' }[ mode ] ];
 		const pitch = () => mode === 'fly' ? fly.pitch : player[ mode === 'first' ? 'helmPitch' : mode === 'third' ? 'orbitPitch' : 'pitch' ];
 		const rate = mode === 'third' ? 0.003 : 0.0022;
-		near( yaw(), - 40 * rate * sensitivity, `${ mode } yaw at ${ sensitivity }x` );
-		near( pitch(), mode === 'third' ? 0.3 + 10 * rate * sensitivity : - 10 * rate * sensitivity, `${ mode } pitch at ${ sensitivity }x` );
+		near( yaw(), - 20 * rate * sensitivity, `${ mode } yaw at ${ sensitivity }x` );
+		near( pitch(), mode === 'third' ? 0.3 + 5 * rate * sensitivity : - 5 * rate * sensitivity, `${ mode } pitch at ${ sensitivity }x` );
 		const beforeYaw = yaw(), beforePitch = pitch();
 		for ( let i = 0; i < 120; i ++ ) update();
 		near( yaw(), beforeYaw, `${ mode } stops rotating after mouse stops` );
@@ -185,6 +194,53 @@ assert.ok( Math.abs( player.orbitYaw - manualYaw ) > 0.1, 'gentle heading follow
 boat.speed = 0;
 input.setSensitivity( 1 );
 
+// Exercise the orbit independently of mouse filtering: a queued half-turn used to
+// send the camera straight across the boat and flip it nearly 180 degrees overhead.
+const target = boat.toWorld( new Vector3( 0, 1.4, 0 ), new Vector3() );
+for ( const degrees of [ 170, 180, - 179 ] ) {
+	player.setCameraMode( 'third' );
+	player.orbitYaw = 0;
+	player.orbitPitch = 0.22;
+	player.orbitDist = 13;
+	player.updateBoat( 1 / 30 );
+	player.orbitYaw = degrees * Math.PI / 180;
+	const previous = camera.quaternion.clone();
+	for ( let i = 0; i < 30; i ++ ) {
+		player.updateBoat( 1 / 30 );
+		near( camera.position.distanceTo( target ), 13, 'a fast orbit preserves its distance instead of cutting through the boat' );
+		assert.ok( previous.angleTo( camera.quaternion ) <= Math.PI / 9 + 1e-6, 'orbit smoothing cannot flip the view overhead' );
+		previous.copy( camera.quaternion );
+	}
+}
+
+// Numeric wraparound must take the short arc rather than orbiting almost a full turn.
+player.setCameraMode( 'third' );
+player.orbitYaw = Math.PI - 0.04;
+player.updateBoat( 1 / 60 );
+const beforeWrap = camera.quaternion.clone();
+player.orbitYaw = - Math.PI + 0.04;
+for ( let i = 0; i < 60; i ++ ) {
+	const previous = camera.quaternion.clone();
+	player.updateBoat( 1 / 60 );
+	assert.ok( previous.angleTo( camera.quaternion ) < 0.01, 'crossing ±pi uses the shortest yaw arc' );
+	near( camera.position.distanceTo( target ), 13, 'yaw wrap preserves the orbit radius' );
+}
+assert.ok( Math.abs( beforeWrap.angleTo( camera.quaternion ) - 0.08 ) < 0.001, 'the total wrapped orbit is only 0.08 radians' );
+
+// After sustained fast looking the eased camera trails its target. A slow frame
+// cannot suddenly consume that entire angular gap, even though the mouse has stopped.
+player.setCameraMode( 'third' );
+player.orbitYaw = 0;
+player.updateBoat( 1 / 60 );
+for ( let i = 0; i < 30; i ++ ) {
+	input.look.x = 1000;
+	player.updateBoat( 1 / 60 );
+}
+const beforeSlowFrame = camera.quaternion.clone();
+player.updateBoat( 0.1 );
+assert.ok( beforeSlowFrame.angleTo( camera.quaternion ) <= Math.PI / 9 + 1e-6, 'a slow frame keeps camera-follow rotation within 20 degrees' );
+near( camera.position.distanceTo( target ), 13, 'slow-frame catch-up also preserves the orbit radius' );
+
 for ( const mode of [ 'deck', 'walk', 'swim' ] ) {
 	player.mode = mode;
 	appUI.update( 1 / 60 );
@@ -198,4 +254,4 @@ app.freeCam = false;
 appUI.update( 1 / 60 );
 assert.equal( drivingView.enabled, true, 'returning to the helm re-enables the selector' );
 
-console.log( 'Player camera passed: first/third positions, V and UI bindings, sensitivity/reset across all six modes, idle stability and manual-look priority before heading follow.' );
+console.log( 'Player camera passed: first/third positions, V and UI bindings, six-mode sensitivity/reset, idle stability, manual-look priority, fixed-radius fast orbits and shortest yaw wrap.' );

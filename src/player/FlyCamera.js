@@ -37,7 +37,7 @@ export class FlyCamera {
 
 		if ( ! this.enabled ) return;
 		const inp = this.input;
-		const look = inp.consumeLook();
+		const look = inp.consumeLook( dt, 0.0022 );
 		this.yaw -= look.x * 0.0022;
 		this.pitch -= look.y * 0.0022;
 		this.pitch = Math.max( - 1.55, Math.min( 1.55, this.pitch ) );

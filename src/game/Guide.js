@@ -91,6 +91,7 @@ const CARDS = [
 		body: `<div class="gm-guide-list">
 			${ row( k( 'W', 'A', 'S', 'D' ), '移动；鼠标控制视角；按 <kbd>Shift</kbd> 奔跑' ) }
 			${ row( k( 'E' ), '登船、掌舵，或与乔和玛尔塔交谈' ) }
+			${ row( k( 'M' ), '查看地图、港口和已开放钓场；M / Esc 关闭' ) }
 			${ row( k( 'F1' ), '查看全部操作，或重看本指南' ) }
 		</div>
 		<div class="gm-guide-where">
@@ -298,6 +299,7 @@ export class Guide {
 	update( dt ) {
 
 		const ui = this.ui, g = this.game, app = g.app, p = app.player;
+		if ( g.worldMap?.open ) { this._hideCoach(); return; }
 
 		// the intro, once the start overlay is gone
 		if ( this._wait >= 0 && ! ui._start ) {

@@ -17,6 +17,7 @@ const N = 640; // baked canvas size (px)
 const EXT = 1280; // metres covered by the bake
 const X0 = - EXT / 2, Z0 = - 180 - EXT / 2; // world at canvas (0, 0): the island sits north of the bay
 const PPM = N / EXT; // canvas px per metre
+export const MAP_BOUNDS = { x: X0, z: Z0, extent: EXT, size: N };
 const ROWS_PER_FRAME = 48;
 
 const CSS = /* css */`
@@ -114,6 +115,7 @@ export class Minimap {
 			<div class="gm-map-marks"></div>
 			<div class="gm-map-me"><svg viewBox="0 0 24 24"><path d="M12 2 20 21 12 16.5 4 21Z" fill="#fff" stroke="#0b1418" stroke-width="1.4" stroke-linejoin="round"/></svg></div></div>` );
 		this.el.setAttribute( 'aria-hidden', 'true' );
+		this.el.append( h( 'div', 'gm-map-label', 'M · 打开地图' ) );
 		this.view = this.el.querySelector( '.gm-map-view' );
 		this.canvas = this.el.querySelector( 'canvas' );
 		this.marks = this.el.querySelector( '.gm-map-marks' );

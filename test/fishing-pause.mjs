@@ -123,6 +123,50 @@ function harness( state = 'floating' ) {
 
 }
 
+// The full map uses the same fishing pause as the inventory, including a real fight.
+{
+
+	const { game, input, rod } = harness( 'fighting' );
+	game.bite = null;
+	game.worldMap = { open: false, update() {} };
+	game.fight = new CatchMinigame( { species: 'grunt', kg: 0.8, distance: 15, rng: () => 0.5 } );
+	game.update( 0.25 );
+	const before = game.fight.time, distance = game.fight.distance;
+	game.worldMap.open = true;
+	input.enabled = false;
+	game.update( 8 );
+	assert( game.fight.time === before && game.fight.distance === distance && rod.elapsed === 0.25,
+		'viewing the map freezes fish struggle and line time' );
+	game.worldMap.open = false;
+	input.enabled = true;
+	game.update( 0.25 );
+	assert( game.fight.time > before && rod.elapsed === 0.5, 'closing the map resumes the existing fish fight' );
+
+}
+{
+
+	const { game, input, rod } = harness( 'windup' );
+	game.bite = null;
+	game._lmb = true;
+	input.mouseDown = true;
+	input.enabled = false;
+	game.worldMap = { open: true, update() {} };
+	game.update( 1 );
+	assert( rod.state === 'idle' && rod.releases === 0 && rod.power === 0,
+		'opening the map during charging cancels the cast without releasing it' );
+	game.worldMap.open = false;
+	input.enabled = true;
+	game.update( 0.1 );
+	assert( rod.windups === 0 && rod.releases === 0 && ! input.mouseDown,
+		'closing the map requires a fresh mouse press before casting' );
+	input.mouseDown = true;
+	game.update( 0.1 );
+	input.mouseDown = false;
+	game.update( 0.1 );
+	assert( rod.windups === 1 && rod.releases === 1, 'casting works normally after closing the map' );
+
+}
+
 // Exercise actual mouse events: dropping pointer lock or dragging onto UI must
 // cancel a held cast, not look like the deliberate mouseup that releases it.
 {

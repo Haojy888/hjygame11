@@ -15,6 +15,7 @@ doc.hasFocus = () => true;
 globalThis.window = win;
 globalThis.document = doc;
 const emit = ( target, type, fields = {} ) => target.dispatchEvent( Object.assign( new Event( type ), fields ) );
+const near = ( actual, expected, message ) => assert.ok( Math.abs( actual - expected ) < 1e-9, `${ message }: ${ actual } vs ${ expected }` );
 try {
 
 	const input = new Input( canvas );
@@ -74,7 +75,7 @@ try {
 	assert.equal( input.down( 'KeyX' ), true, 'a fresh physical press can request rescue again' );
 	input.clear();
 	input.endFrame();
-	const move = ( x, y ) => emit( win, 'mousemove', { movementX: x, movementY: y } );
+	const move = ( x, y, coordinates = {} ) => emit( win, 'mousemove', { movementX: x, movementY: y, ...coordinates } );
 	const lock = element => {
 
 		doc.pointerLockElement = element;
@@ -112,7 +113,11 @@ try {
 	move( undefined, 4 );
 	assert.deepEqual( input.consumeLook(), { x: 12, y: 3 }, 'broken events cannot poison or add to valid input' );
 	for ( let i = 0; i < 20; i ++ ) move( 32, - 16 );
-	assert.deepEqual( input.consumeLook(), { x: 640, y: - 320 }, 'normal fast events accumulate without a frame-dependent cap' );
+	const burst = input.consumeLook();
+	near( Math.hypot( burst.x, burst.y ) * 0.0022, Math.PI / 15, 'an excessive batch is bounded to 12 degrees at 60 FPS' );
+	near( burst.x / burst.y, - 2, 'turn limiting preserves the requested direction' );
+	for ( let i = 0; i < 5; i ++ ) move( 6, - 3 );
+	assert.deepEqual( input.consumeLook(), { x: 30, y: - 15 }, 'ordinary event batches keep their exact displacement' );
 	assert.deepEqual( input.consumeLook(), { x: 0, y: 0 }, 'no smoothing tail continues turning after mouse movement stops' );
 	assert.equal( storageWrites, 0, 'moving the mouse never writes settings' );
 	emit( canvas, 'mousedown', { button: 0 } );
@@ -152,7 +157,54 @@ try {
 	move( 3, 4 );
 	assert.deepEqual( input.consumeLook(), { x: 3, y: 4 }, 'focus restoration never replays motion from the inactive window' );
 
+	lock( canvas );
+	input.endFrame();
+	const fixed = { clientX: 640, clientY: 360 };
+	move( 0, 0, fixed );
+	move( 320, 0, fixed );
+	assert.deepEqual( input.consumeLook(), { x: 0, y: 0 }, 'a zero first packet cannot let the next recentering packet turn the camera' );
+	emit( canvas, 'mousedown', { button: 0, ...fixed } );
+	move( 8, 2, fixed );
+	const warped = { clientX: 460, clientY: 360 };
+	move( - 180, 0, warped );
+	assert.deepEqual( input.consumeLook(), { x: 0, y: 0 }, 'a locked coordinate warp discards this frame motion' );
+	assert.equal( input.mouseDown, true, 'a coordinate warp does not cancel a held cast or reel' );
+	assert.equal( input.interrupted, false );
+	move( 4, 1, warped );
+	assert.deepEqual( input.consumeLook(), { x: 4, y: 1 }, 'normal movement resumes at the new locked coordinate baseline' );
+	emit( win, 'mouseup', { button: 0 } );
+	move( 180, 0, warped );
+	near( input.consumeLook().x * 0.0022, Math.PI / 15, 'a moderate constant-coordinate spike is bounded even below the single-event threshold' );
+	input.setSensitivity( 3 );
+	for ( let i = 0; i < 10; i ++ ) move( 60, 30, warped );
+	const scaledBurst = input.consumeLook( 1 / 60, 0.003 );
+	near( Math.hypot( scaledBurst.x, scaledBurst.y ) * 0.003, Math.PI / 15, 'high sensitivity and the chase camera use the same angular budget' );
+	move( 400, 0, warped );
+	near( input.consumeLook( 1 ).x * 0.0022, Math.PI / 9, 'a long render stall never permits more than 20 degrees at once' );
+	assert.deepEqual( input.consumeLook(), { x: 0, y: 0 }, 'excess turn is discarded without a later tail' );
+	input.setSensitivity( 1 );
+	for ( const fps of [ 30, 60, 144 ] ) {
+
+		let total = 0;
+		for ( let frame = 0; frame < fps; frame ++ ) {
+
+			// The same 600 pixels/s input, split into multiple native events per frame.
+			for ( let event = 0; event < 3; event ++ ) move( 200 / fps, 0, warped );
+			total += input.consumeLook( 1 / fps ).x;
+
+		}
+		near( total, 600, `ordinary turning retains its full displacement at ${ fps } FPS` );
+
+	}
+	for ( const dt of [ 0, NaN, Infinity, - 1 ] ) {
+
+		move( 4, 2, warped );
+		assert.deepEqual( input.consumeLook( dt ), { x: 0, y: 0 }, 'invalid frame time cannot cause a jump' );
+
+	}
+
 	// One shared multiplier applies after validation and survives a new Input instance.
+	storageWrites = 0;
 	assert.equal( input.setSensitivity( 0.5 ), 0.5 );
 	move( 12, - 8 );
 	assert.deepEqual( input.consumeLook(), { x: 6, y: - 4 } );
@@ -178,7 +230,43 @@ try {
 	Object.defineProperty( globalThis, 'localStorage', { configurable: true, get() { throw new Error( 'Storage blocked' ); } } );
 	assert.equal( new Input( new EventTarget() ).sensitivity, 1 );
 	assert.equal( input.setSensitivity( 1.25 ), 1.25, 'storage failure does not prevent adjusting the camera' );
-	console.log( 'Input passed: focus/lock/UI transitions clear mouse state, spikes are rejected without a frame cap, and sensitivity persists safely.' );
+
+	// Request raw input once; only an unsupported raw-input option warrants the normal-lock fallback.
+	lock( null );
+	let resolveLock, requests = [];
+	canvas.requestPointerLock = ( options ) => {
+
+		requests.push( options );
+		return new Promise( resolve => { resolveLock = resolve; } );
+
+	};
+	const pending = input.requestLock();
+	await input.requestLock();
+	assert.deepEqual( requests, [ { unadjustedMovement: true } ], 'concurrent requests share the pending raw-input attempt' );
+	resolveLock();
+	await pending;
+	requests = [];
+	canvas.requestPointerLock = ( options ) => {
+
+		requests.push( options );
+		return options ? Promise.reject( Object.assign( new Error(), { name: 'NotSupportedError' } ) ) : Promise.resolve();
+
+	};
+	await input.requestLock();
+	assert.deepEqual( requests, [ { unadjustedMovement: true }, undefined ], 'unsupported raw input falls back to standard pointer lock' );
+	requests = [];
+	canvas.requestPointerLock = ( options ) => { requests.push( options ); throw Object.assign( new Error(), { name: 'NotAllowedError' } ); };
+	await input.requestLock();
+	assert.equal( requests.length, 1, 'a denied lock is not retried as a second request' );
+	assert.equal( input._lockPending, false, 'failure releases the pending-request guard' );
+	requests = [];
+	canvas.requestPointerLock = ( options ) => { requests.push( options ); };
+	await input.requestLock();
+	assert.deepEqual( requests, [ { unadjustedMovement: true } ], 'legacy non-Promise pointer lock remains supported' );
+	doc.pointerLockElement = canvas;
+	await input.requestLock();
+	assert.equal( requests.length, 1, 'the actual locked element prevents a request before the change event arrives' );
+	console.log( 'Input passed: lock/focus/UI/warp isolation, raw-input fallback, bounded turns without a tail, frame-rate-independent normal motion and safe saved sensitivity.' );
 
 } finally {
 

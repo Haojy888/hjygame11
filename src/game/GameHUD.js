@@ -446,7 +446,7 @@ export class GameHUD {
 	// per frame
 	update( { fight, casting, power, bite, aiming, fuel = null, sonar = null, rescue = null } ) {
 
-		const showRescue = !! rescue && ! this.invOpen && ! this.standOpen && ! this.catchOpen && ! this.ui.helpOpen && ! this.ui.photoMode;
+		const showRescue = !! rescue && ! this.game.worldMap?.open && ! this.invOpen && ! this.standOpen && ! this.catchOpen && ! this.ui.helpOpen && ! this.ui.photoMode;
 		if ( ! showRescue && this.rescue.contains( document.activeElement ) ) document.activeElement.blur();
 		this.rescue.hidden = ! showRescue;
 		if ( showRescue ) {

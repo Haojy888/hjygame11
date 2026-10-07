@@ -18,7 +18,9 @@ export class Input {
 		this.interrupted = false;
 		this.sensitivity = 1;
 		this._mousePosition = null;
+		this._lockedPosition = null;
 		this._skipLockedMove = false;
+		this._lockPending = false;
 		try {
 
 			const saved = JSON.parse( localStorage.getItem( SENSITIVITY_KEY ) );
@@ -79,10 +81,24 @@ export class Input {
 			let dx, dy;
 			if ( this.locked ) {
 
-				// Browsers can report the pointer's recentering as the first locked motion.
-				if ( this._skipLockedMove ) { this._skipLockedMove = false; return; }
 				dx = e.movementX;
 				dy = e.movementY;
+				if ( Number.isFinite( e.clientX ) && Number.isFinite( e.clientY ) ) {
+
+					const previous = this._lockedPosition;
+					this._lockedPosition = { x: e.clientX, y: e.clientY };
+					// Locked client coordinates must stay fixed; a warp is not physical motion.
+					if ( previous && ( e.clientX !== previous.x || e.clientY !== previous.y ) ) {
+
+						this.look.x = this.look.y = 0;
+						return;
+
+					}
+
+				}
+				if ( ! Number.isFinite( dx ) || ! Number.isFinite( dy ) || ( dx === 0 && dy === 0 ) ) return;
+				// A zero event can precede recentering; only the first nonzero event consumes this guard.
+				if ( this._skipLockedMove ) { this._skipLockedMove = false; return; }
 
 			} else {
 
@@ -136,6 +152,7 @@ export class Input {
 		this.look.x = 0;
 		this.look.y = 0;
 		this._mousePosition = null;
+		this._lockedPosition = null;
 		this._skipLockedMove = this.locked;
 
 	}
@@ -149,9 +166,28 @@ export class Input {
 
 	}
 
-	requestLock() {
+	async requestLock() {
 
-		if ( ! this.locked ) this.dom.requestPointerLock?.()?.catch?.( () => {} );
+		if ( this.locked || document.pointerLockElement === this.dom || this._lockPending || ! this.dom.requestPointerLock ) return;
+		this._lockPending = true;
+		try {
+
+			// Raw input avoids platform mouse acceleration. Old non-Promise implementations also work with await.
+			await this.dom.requestPointerLock( { unadjustedMovement: true } );
+
+		} catch ( error ) {
+
+			if ( error?.name === 'NotSupportedError' ) {
+
+				try { await this.dom.requestPointerLock(); } catch { /* Unlocked dragging remains available. */ }
+
+			}
+
+		} finally {
+
+			this._lockPending = false;
+
+		}
 
 	}
 
@@ -168,12 +204,23 @@ export class Input {
 
 	}
 
-	consumeLook() {
+	consumeLook( dt = 1 / 60, radiansPerPixel = 0.0022 ) {
 
 		if ( ! this.enabled || ! this.focused ) this._resetMouse();
 		const l = { x: this.look.x * this.sensitivity, y: this.look.y * this.sensitivity };
 		this.look.x = 0;
 		this.look.y = 0;
+		// Bound one visible turn after sensitivity, independent of event count. Discard excess rather than queuing a turn.
+		const seconds = Number.isFinite( dt ) ? Math.max( 0, dt ) : 0;
+		const budget = Math.min( Math.PI * 4 * seconds, Math.PI / 9 ); // 720 degrees/s, at most 20 degrees per frame.
+		const angle = Math.hypot( l.x, l.y ) * radiansPerPixel;
+		if ( angle > budget ) {
+
+			const scale = budget / angle;
+			l.x *= scale;
+			l.y *= scale;
+
+		}
 		return l;
 
 	}

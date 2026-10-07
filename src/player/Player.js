@@ -77,6 +77,10 @@ export class Player {
 		this.helmYaw = 0;
 		this.helmPitch = - 0.05;
 		this.camPos = new THREE.Vector3();
+		this.camTarget = new THREE.Vector3();
+		this.camOrbitYaw = 0;
+		this.camOrbitPitch = 0;
+		this.camOrbitDist = 13;
 		this.camInit = false;
 		this.wasUnder = false;
 
@@ -163,7 +167,7 @@ export class Player {
 
 		}
 
-		const look = inp.consumeLook();
+		const look = inp.consumeLook( dt, 0.0022 );
 		this.yaw -= look.x * 0.0022;
 		this.pitch = THREE.MathUtils.clamp( this.pitch - look.y * 0.0022, - 1.5, 1.5 );
 
@@ -638,7 +642,7 @@ export class Player {
 		const inp = this.input;
 		const b = this.boat;
 		const L = b.model.lines;
-		const look = inp.consumeLook();
+		const look = inp.consumeLook( dt, 0.0022 );
 		this.deckYaw -= look.x * 0.0022;
 		this.pitch = THREE.MathUtils.clamp( this.pitch - look.y * 0.0022, - 1.5, 1.5 );
 
@@ -795,10 +799,10 @@ export class Player {
 			return;
 
 		}
-		const look = inp.consumeLook();
+		if ( inp.hit( 'KeyV' ) ) this.setCameraMode( this.camMode === 'first' ? 'third' : 'first' );
+		const look = inp.consumeLook( dt, this.camMode === 'third' ? 0.003 : 0.0022 );
 		const wheel = inp.consumeWheel();
 
-		if ( inp.hit( 'KeyV' ) ) this.setCameraMode( this.camMode === 'first' ? 'third' : 'first' );
 		if ( inp.hit( 'KeyE' ) ) {
 
 			this.leaveHelm();
@@ -849,23 +853,37 @@ export class Player {
 			}
 
 			const target = b.toWorld( new THREE.Vector3( 0, 1.4, 0 ), new THREE.Vector3() );
-			const off = new THREE.Vector3(
-				Math.sin( this.orbitYaw ) * Math.cos( this.orbitPitch ),
-				Math.sin( this.orbitPitch ),
-				Math.cos( this.orbitYaw ) * Math.cos( this.orbitPitch )
-			).multiplyScalar( this.orbitDist );
-			const want = target.clone().add( off );
-			want.y = Math.max( want.y, this.waterH + 0.7 );
 			if ( ! this.camInit ) {
 
-				this.camPos.copy( want );
+				this.camTarget.copy( target );
+				this.camOrbitYaw = this.orbitYaw;
+				this.camOrbitPitch = this.orbitPitch;
+				this.camOrbitDist = this.orbitDist;
 				this.camInit = true;
 
 			}
 
-			this.camPos.lerp( want, 1 - Math.exp( - dt * 6 ) );
+			// Follow an arc around the boat. A straight position lerp can cut through
+			// the target during a fast turn, making lookAt flip as it crosses overhead.
+			const k = 1 - Math.exp( - dt * 6 );
+			const yawDelta = this.orbitYaw - this.camOrbitYaw;
+			const yawStep = Math.atan2( Math.sin( yawDelta ), Math.cos( yawDelta ) ) * k;
+			const pitchStep = ( this.orbitPitch - this.camOrbitPitch ) * k;
+			// A slow frame must not release a large accumulated camera-follow turn at once.
+			const turn = Math.hypot( yawStep, pitchStep ), maxTurn = Math.PI / 9;
+			const turnScale = turn > maxTurn ? maxTurn / turn : 1;
+			this.camOrbitYaw += yawStep * turnScale;
+			this.camOrbitPitch += pitchStep * turnScale;
+			this.camOrbitDist += ( this.orbitDist - this.camOrbitDist ) * k;
+			this.camTarget.lerp( target, k );
+			this.camPos.set(
+				Math.sin( this.camOrbitYaw ) * Math.cos( this.camOrbitPitch ),
+				Math.sin( this.camOrbitPitch ),
+				Math.cos( this.camOrbitYaw ) * Math.cos( this.camOrbitPitch )
+			).multiplyScalar( this.camOrbitDist ).add( this.camTarget );
+			this.camPos.y = Math.max( this.camPos.y, this.waterH + 0.7 );
 			this.camera.position.copy( this.camPos );
-			this.camera.lookAt( target );
+			this.camera.lookAt( this.camTarget );
 
 		}
 

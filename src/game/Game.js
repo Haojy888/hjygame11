@@ -12,6 +12,7 @@ import { CatchDisplay } from './CatchDisplay.js';
 import { UPGRADES, fuelBurn } from './Gear.js';
 import { GameHUD } from './GameHUD.js';
 import { Minimap } from './Minimap.js';
+import { WorldMap } from './WorldMap.js';
 import { Guide } from './Guide.js';
 import { StoryWorld, STORY_SPOTS } from './StoryWorld.js';
 import { storyObjective, storyDialogue } from './Story.js';
@@ -152,6 +153,7 @@ export class Game {
 		this.rod.equip( false );
 		this.hud?.toggleInventory( false );
 		this.hud?.closeStand();
+		this.worldMap?.toggle( false );
 		if ( app.freeCam ) app.setFreeCam( false );
 		app.boatCtl.reset();
 		app.input.clear();
@@ -168,7 +170,7 @@ export class Game {
 	updateRescue( dt ) {
 
 		const app = this.app, inp = app.input, ui = app.ui?.ui;
-		const blocked = app.freeCam || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start
+		const blocked = app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start
 			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen
 			|| inp.enabled === false || inp.focused === false || inp.interrupted;
 		if ( ! blocked && inp.down?.( 'KeyX' ) ) {
@@ -193,7 +195,7 @@ export class Game {
 	talkStory( choice ) {
 
 		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;
-		if ( ! this.hud?.standOpen || ! vendor || app.freeCam || ui?.helpOpen || ui?._photo || this.guide?.open
+		if ( ! this.hud?.standOpen || ! vendor || app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?._photo || this.guide?.open
 			|| app.input.focused === false || app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) || this.fight ) return false;
 		const dialogue = storyDialogue( this.state, vendor.kind );
 		if ( ! dialogue?.choices.some( ( option ) => option.id === choice ) ) return false;
@@ -208,7 +210,7 @@ export class Game {
 		if ( ! this.storyWorld ) return;
 		const app = this.app, p = app.player, input = app.input, ui = app.ui?.ui;
 		this.storyWorld.update( this.state.story, this.hour, dt );
-		if ( app.freeCam || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+		if ( app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
 			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen
 			|| input.enabled === false || input.focused === false || input.interrupted || this._cardDismissed ) return;
 		const stage = this.state.story.stage, location = storyObjective( this.state ).location;
@@ -251,6 +253,7 @@ export class Game {
 			this.hud = new GameHUD( ui, this );
 			// the minimap (lower right) and the first-play guide (intro, one-time tips; replay from F1)
 			this.minimap = new Minimap( ui.hud || ui.root, this );
+			this.worldMap = new WorldMap( ui, this, this.minimap );
 			this.guide = new Guide( ui, this, this.minimap );
 			ui.onReplayGuide = () => this.guide.replay();
 
@@ -282,7 +285,7 @@ export class Game {
 
 		}
 
-		const panelOpen = this.hud && ( this.hud.invOpen || this.hud.standOpen );
+		const panelOpen = this.worldMap?.open || this.hud && ( this.hud.invOpen || this.hud.standOpen );
 		const fishingPaused = !! ( panelOpen || ui?.helpOpen || inp.focused === false || inp.interrupted );
 		if ( fishingPaused ) {
 
@@ -408,6 +411,7 @@ export class Game {
 			aiming: rod.equipped,
 		} );
 		if ( this.minimap ) this.minimap.update( dt );
+		if ( this.worldMap ) this.worldMap.update( dt );
 		if ( this.guide ) this.guide.update( dt );
 
 	}

@@ -617,7 +617,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 		}
 
-		if ( this.input.hit( 'KeyM' ) && this.audio ) {
+		if ( this.input.hit( 'KeyN' ) && this.audio ) {
 
 			this.audio.setMuted( ! this.audio.muted );
 			if ( this.ui ) this.ui.ui.toast( this.audio.muted ? '声音已关闭' : '声音已开启' );

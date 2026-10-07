@@ -2158,10 +2158,11 @@ export class UI {
 						${ row( k( 'F' ), '自由镜头' ) }
 						${ row( k( 'T' ), '暂停时间' ) }
 						${ row( k( 'L' ), '手电筒' ) }
-						${ row( k( 'M' ), '静音' ) }
+						${ row( k( 'N' ), '静音' ) }
 					</section>
 					<section>
 						<h3>界面</h3>
+						${ row( k( 'M' ), '查看地图<small>玩家、船只、港口与已开放钓场；M / Esc 关闭</small>' ) }
 						${ row( k( 'H' ), '设置面板' ) }
 						${ row( k( 'P' ), '拍照模式<small>隐藏全部界面</small>' ) }
 						${ row( k( 'F1' ) + k( '?' ), '打开此说明' ) }
@@ -3351,7 +3352,7 @@ export class UI {
 	// or while a UI control is being dragged. Use it to skip pointer-lock clicks.
 	get isPointerOverUI() {
 
-		if ( this._drag > 0 || this._start || this._help ) return true;
+		if ( this._drag > 0 || this._start || this._help || this._worldMapOpen ) return true;
 		if ( document.pointerLockElement ) return false;
 		return this._overUI;
 
