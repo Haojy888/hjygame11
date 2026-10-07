@@ -2,6 +2,8 @@
 
 商贩乔（Joe，鱼摊）和玛尔塔（Marta，船具店）的角色来自 [Microsoft Rocketbox](https://github.com/microsoft/Microsoft-Rocketbox) 角色库，采用 MIT 许可证（见 `public/models/characters/LICENSE-Rocketbox.md`）。离线转换后，每人各对应一个 GLB 文件（`public/models/characters/joe.glb`、`marta.glb`），内含网格（约 7,500 个三角形，80 根骨骼的 Bip01 骨架）、1024² 纹理和下列动画片段。
 
+玩家身体由 `src/player/PlayerAvatar.js` 复用 `joe.glb` 的便装成年男性网格和贴图，创建独立的 `SkinnedModel` 实例。行走与掌舵姿势基于模型的静立姿势生成普通动画通道，复用现有蒙皮、交叉淡化和阴影；没有新增下载素材或修改原始 GLB。第一人称隐藏独立头部网格，自由镜头与驾驶第三人称显示完整人物，许可证保持不变。
+
     tools/characters/build.sh [workdir]      # 下载 → 处理纹理 → Blender 转换 → public/models/characters/
 
 - `fetch.sh`：从 Rocketbox 仓库获取角色文件，优先使用 Git LFS 媒体链接，失败时使用原始文件链接。

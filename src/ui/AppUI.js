@@ -42,6 +42,7 @@ export class AppUI {
 			cirrus: app.clouds && app.clouds.cirrus ? app.clouds.cirrus.value : 0.5,
 			exposure: 0,
 			fov: app.camera.fov,
+			sensitivity: 1,
 			ao: app.post.params.aoStrength.value,
 			bloom: app.post.params.bloom.value,
 			flare: app.post.flare ? app.post.flare.strength.value : 1,
@@ -204,6 +205,12 @@ export class AppUI {
 
 		} } );
 		view.addButton( { label: '自由镜头 (F)', icon: 'camera', onClick: () => app.setFreeCam( ! app.freeCam ) } );
+		const mouse = cam.addFolder( '鼠标', { icon: 'camera' } );
+		mouse.addSlider( { label: '视角灵敏度', object: s, key: 'sensitivity', min: 0.1, max: 3, step: 0.05, unit: '×',
+			tooltip: '同时调整步行、游泳、船上与自由镜头的转动速度。数值越低越慢；双击标题恢复 1 倍，刷新后保留设置。',
+			onChange: ( v ) => { app.input.setSensitivity( v ); s.sensitivity = app.input.sensitivity; } } );
+		// Capture the factory default for Reset before showing the saved preference.
+		s.sensitivity = app.input.sensitivity;
 		const rescue = cam.addFolder( '脱困与救援', { icon: 'boat' } );
 		rescue.addInfo( { label: '适用情况', get: () => '翻船、搁浅或卡住' } );
 		rescue.addInfo( { label: '快捷操作', get: () => '长按 X 2 秒' } );

@@ -73,6 +73,7 @@ export class Player {
 		this.orbitYaw = 0;
 		this.orbitPitch = 0.22;
 		this.orbitDist = 13;
+		this.orbitLookIdle = 0;
 		this.helmYaw = 0;
 		this.helmPitch = - 0.05;
 		this.camPos = new THREE.Vector3();
@@ -450,6 +451,7 @@ export class Player {
 		this.helmYaw = 0;
 		this.helmPitch = - 0.05;
 		this.orbitYaw = this.boat.getYaw() + Math.PI;
+		this.orbitLookIdle = 0;
 		this.camInit = false;
 		if ( this.audio ) this.audio.engineStart();
 
@@ -778,6 +780,7 @@ export class Player {
 		this.camMode = mode;
 		// Controls write their binding before calling this method; always reset the chase position.
 		this.camInit = false;
+		this.orbitLookIdle = 0;
 		return true;
 
 	}
@@ -834,8 +837,9 @@ export class Player {
 			this.orbitYaw -= look.x * 0.003;
 			this.orbitPitch = THREE.MathUtils.clamp( this.orbitPitch + look.y * 0.003, - 0.05, 1.2 );
 			this.orbitDist = THREE.MathUtils.clamp( this.orbitDist * ( 1 + wheel * 0.08 ), 6, 40 );
-			// gently swing behind the boat when moving
-			if ( b.speed > 2 && Math.abs( look.x ) < 0.5 ) {
+			// Give manual looking on either axis time to settle before following the heading.
+			this.orbitLookIdle = look.x !== 0 || look.y !== 0 ? 0 : this.orbitLookIdle + dt;
+			if ( b.speed > 2 && this.orbitLookIdle > 1.5 ) {
 
 				const behind = b.getYaw() + Math.PI;
 				let d = behind - this.orbitYaw;

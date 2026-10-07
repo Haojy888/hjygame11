@@ -1,6 +1,7 @@
 // Game.update with a real fight and a small app shell: overlays pause fishing, not the world.
 import { Game } from '../src/game/Game.js';
 import { CatchMinigame } from '../src/game/CatchMinigame.js';
+import { Input } from '../src/core/Input.js';
 
 const assert = ( condition, message ) => {
 
@@ -119,5 +120,83 @@ function harness( state = 'floating' ) {
 	game.update( 0.2 );
 	assert( rod.state === 'idle' && rod.releases === 0 && rod.power === 0,
 		'a hidden tab cannot turn cleared mouse input into an accidental cast on the first visible frame' );
+
+}
+
+// Exercise actual mouse events: dropping pointer lock or dragging onto UI must
+// cancel a held cast, not look like the deliberate mouseup that releases it.
+{
+
+	const previousWindow = globalThis.window, previousDocument = globalThis.document;
+	const win = new EventTarget(), doc = new EventTarget(), canvas = new EventTarget();
+	doc.hidden = false;
+	doc.hasFocus = () => true;
+	globalThis.window = win;
+	globalThis.document = doc;
+	const emit = ( target, type, fields = {} ) => target.dispatchEvent( Object.assign( new Event( type ), fields ) );
+	try {
+
+		const input = new Input( canvas );
+		const { game, rod, ui } = harness( 'idle' );
+		game.app.input = input;
+		game.bite = null;
+		const frame = () => { input.consumeLook(); game.update( 0.1 ); input.endFrame(); };
+		const press = () => emit( canvas, 'mousedown', { button: 0, clientX: 20, clientY: 30 } );
+		doc.pointerLockElement = canvas;
+		emit( doc, 'pointerlockchange' );
+		press();
+		frame();
+		assert( rod.state === 'windup', 'a fresh locked mouse press starts charging' );
+		emit( win, 'keydown', { code: 'KeyH' } );
+		ui.panelOpen = true;
+		doc.pointerLockElement = null;
+		emit( doc, 'pointerlockchange' );
+		assert( input.interrupted && input.hit( 'KeyH' ), 'unlock marks the cancelled mouse hold without clearing keyboard input' );
+		frame();
+		assert( rod.state === 'idle' && rod.releases === 0, 'opening settings while charging cancels the cast instead of releasing it' );
+		frame();
+		assert( ! game._fishingPaused, 'settings keep fishing live after the single interruption frame' );
+
+		ui.panelOpen = false;
+		press();
+		frame();
+		win.closest = () => ( {} );
+		emit( win, 'mousemove', { clientX: 40, clientY: 50 } );
+		frame();
+		assert( rod.state === 'idle' && rod.releases === 0, 'dragging a charged cast onto UI cancels safely' );
+		emit( win, 'mousemove', { clientX: 41, clientY: 51 } );
+		assert( ! input.interrupted, 'hovering UI without a held button does not repeatedly interrupt fishing' );
+		delete win.closest;
+		frame();
+		press();
+		frame();
+		emit( win, 'mouseup', { button: 0 } );
+		frame();
+		assert( rod.releases === 1, 'a fresh charge and physical release still casts after returning from UI' );
+
+		rod.state = 'fighting';
+		game.fight = {};
+		let reeling = null;
+		game.updateFight = ( dt, held ) => { reeling = held; };
+		press();
+		frame();
+		assert( reeling === true, 'holding a fresh press still reels the fish' );
+		doc.pointerLockElement = canvas;
+		emit( doc, 'pointerlockchange' );
+		frame();
+		frame();
+		assert( reeling === false, 'cancelled mouse hold does not leave reeling stuck on' );
+		press();
+		frame();
+		assert( reeling === true, 'reeling resumes on a new physical press after a lock transition' );
+
+	} finally {
+
+		if ( previousWindow === undefined ) delete globalThis.window;
+		else globalThis.window = previousWindow;
+		if ( previousDocument === undefined ) delete globalThis.document;
+		else globalThis.document = previousDocument;
+
+	}
 
 }
