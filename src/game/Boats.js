@@ -4,7 +4,7 @@ export const DEFAULT_BOAT_ID = 'coastal';
 export const BOATS = Object.freeze( {
 
 	coastal: Object.freeze( { id: 'coastal', name: '近岸渔船', length: 8.2, beam: 2.9, description: '灵活的小型渔船，适合近岸与码头垂钓。' } ),
-	offshore: Object.freeze( { id: 'offshore', name: '远海渔船', length: 13.12, beam: 3.915, description: '加长加宽的蓝白渔船，带遮阳棚和宽敞后甲板。' } ),
+	offshore: Object.freeze( { id: 'offshore', name: '远海渔船', length: 13.12, beam: 3.915, description: '宽体船身与增强的抗横摇能力，带遮阳棚和宽敞后甲板。' } ),
 
 } );
 

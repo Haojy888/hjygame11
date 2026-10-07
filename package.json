@@ -5,7 +5,7 @@
     "dev": "vite --host 127.0.0.1 --port 5189",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/game-logic.mjs && node test/campaign-integration.mjs && node test/story.mjs && node test/player-camera.mjs && node test/player-avatar.mjs && node test/world-map.mjs && node test/input-focus.mjs && node test/fishing-pause.mjs && node test/boat-rescue.mjs && node test/boat-profiles.mjs && node test/boat-selection.mjs && node test/ui-usability.mjs && node test/real-fish.mjs && node test/boat-wake.mjs && node test/engine-smoke.mjs"
+    "test": "node test/game-logic.mjs && node test/campaign-integration.mjs && node test/story.mjs && node test/player-camera.mjs && node test/player-avatar.mjs && node test/world-map.mjs && node test/input-focus.mjs && node test/fishing-pause.mjs && node test/boat-rescue.mjs && node test/boat-profiles.mjs && node test/boat-seakeeping.mjs && node test/boat-selection.mjs && node test/ui-usability.mjs && node test/real-fish.mjs && node test/boat-wake.mjs && node test/engine-smoke.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",

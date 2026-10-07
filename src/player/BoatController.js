@@ -62,6 +62,9 @@ export class BoatController {
 		this.forceScale = scale.x * scale.y * scale.z;
 		this.pitchDampingScale = this.forceScale * scale.z * scale.z;
 		this.rollDampingScale = this.forceScale * scale.x * scale.x;
+		// The wider hull gains restoring stiffness faster than damping. Keep its roll response
+		// near 0.6 of critical damping instead of allowing successive cross-seas to build resonance.
+		if ( model.profileId === 'offshore' ) this.rollDampingScale *= 1.8;
 
 		const hydro = model.hydro || {};
 		this.mass = hydro.suggestedMass || 3200;
