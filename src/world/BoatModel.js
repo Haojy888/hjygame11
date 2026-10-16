@@ -3,6 +3,7 @@ import { G } from '../engine/render/Frame.js';
 import { HullLines, RHO_SEAWATER } from './boat/HullLines.js';
 import { GeoKit, triangleCount } from './boat/GeoKit.js';
 import { BoatMaterials } from './boat/BoatMaterials.js';
+import { BoatOutfitting } from './boat/BoatOutfitting.js';
 import { buildHull, buildHullVolume, keelVolume, houseHalfWidth, KEEL } from './boat/HullBuilder.js';
 import { buildWheelhouse, wheelGeometry, throttleGeometry, radarArrayGeometry, HOUSE, roofTopY } from './boat/Wheelhouse.js';
 import { buildDeckGear, TRAPS, TRAP, HAULER } from './boat/DeckGear.js';
@@ -202,6 +203,13 @@ export class BoatModel {
 
 		this.setSteering( 0 );
 		this.setThrottle( 0 );
+
+	}
+
+	applyCustomization( config, upgrades ) {
+
+		this.outfitting ??= new BoatOutfitting( this );
+		this.outfitting.apply( config, upgrades );
 
 	}
 

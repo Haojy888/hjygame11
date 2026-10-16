@@ -4,6 +4,7 @@ import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { fishGround } from './Bites.js';
 import { freshStory, normalizeStory } from './Story.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
+import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -23,6 +24,7 @@ export class GameState {
 		this.upgrades = defaultUpgrades();
 		this.fuel = null; // litres left (null = full tank)
 		this.boatId = DEFAULT_BOAT_ID;
+		this.boatCustomizations = normalizeBoatCustomizations();
 		this.orderIndex = 0;
 		this._nextId = 1;
 		this.orderDelivered = 0;
@@ -43,6 +45,22 @@ export class GameState {
 	get stats() {
 
 		return gearStats( this.upgrades );
+
+	}
+
+	get boatCustomization() {
+
+		return this.boatCustomizations[ this.boatId ];
+
+	}
+
+	customizeBoat( input ) {
+
+		const previous = this.boatCustomization;
+		this.boatCustomizations[ this.boatId ] = normalizeBoatCustomization( input, this.boatId );
+		if ( ! this.save() ) { this.boatCustomizations[ this.boatId ] = previous; return false; }
+		this.emit();
+		return true;
 
 	}
 
@@ -232,7 +250,7 @@ export class GameState {
 	// buy the next level of an upgrade track; returns the new level entry or null
 	buy( key ) {
 
-		if ( ! UPGRADES[ key ] ) return null;
+		if ( ! Object.hasOwn( UPGRADES, key ) ) return null;
 		const next = nextLevel( this.upgrades, key );
 		if ( ! next || next.cost > this.money ) return null;
 		this.money -= next.cost;
@@ -294,7 +312,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
 
 	}
 
@@ -307,9 +325,15 @@ export class GameState {
 		for ( const f of this.inventory ) if ( ! Number.isFinite( f.cm ) ) f.cm = Math.round( fishLengthCm( f.species, f.kg ) );
 		this.log = d.log && typeof d.log === 'object' ? d.log : {};
 		for ( const [ k, v ] of Object.entries( this.log ) ) if ( FISH[ k ] && v && v.bestKg > 0 && ! Number.isFinite( v.bestCm ) ) v.bestCm = Math.round( fishLengthCm( k, v.bestKg ) );
-		this.upgrades = { ...defaultUpgrades(), ...( d.upgrades || {} ) };
+		this.upgrades = defaultUpgrades();
+		for ( const key of Object.keys( UPGRADES ) ) if ( Number.isSafeInteger( d.upgrades?.[ key ] ) ) {
+
+			this.upgrades[ key ] = Math.max( 0, Math.min( UPGRADES[ key ].levels.length - 1, d.upgrades[ key ] ) );
+
+		}
 		this.fuel = Number.isFinite( d.fuel ) ? d.fuel : null;
 		this.boatId = typeof d.boatId === 'string' ? getBoatProfile( d.boatId ).id : DEFAULT_BOAT_ID;
+		this.boatCustomizations = normalizeBoatCustomizations( d.boatCustomizations );
 		const savedIndex = Number.isSafeInteger( d.orderIndex ) && d.orderIndex >= 0 ? d.orderIndex : 0;
 		// Old requests had six single-fish steps and no locked water. Keep earned access and money.
 		this.orderIndex = d.v === 1 ? [ 0, 2, 3, 4, 5, 7, 8 ][ Math.min( 6, savedIndex ) ] : Math.min( ORDERS.length, savedIndex );
@@ -359,6 +383,7 @@ export class GameState {
 		this.upgrades = defaultUpgrades();
 		this.fuel = null;
 		this.boatId = DEFAULT_BOAT_ID;
+		this.boatCustomizations = normalizeBoatCustomizations();
 		this.orderIndex = 0;
 		this.orderDelivered = 0;
 		this.legacyAccess = false;

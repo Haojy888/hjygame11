@@ -46,6 +46,7 @@ export class Game {
 		// boat upgrades: engine (thrust / top speed) and deck floodlights for night fishing
 		const b = app.boatCtl;
 		this._engineBase = { maxThrust: b.baseMaxThrust ?? b.maxThrust, pitchSpeed: b.basePitchSpeed ?? b.pitchSpeed };
+		this._rollDampingBase = b.rollDampingScale;
 		this.floods = [];
 		if ( app.localLights ) this.addFloodlights( app.localLights, app.boat );
 		this._fuelOut = false;
@@ -74,10 +75,12 @@ export class Game {
 
 			b.maxThrust = this._engineBase.maxThrust * g.speedMul * g.speedMul;
 			b.pitchSpeed = this._engineBase.pitchSpeed * g.speedMul;
+			if ( this._rollDampingBase !== undefined ) b.rollDampingScale = this._rollDampingBase * g.rollDampingMul;
 
 		}
 
 		for ( const f of this.floods || [] ) f.scale = g.deckLights ? 1 : 0;
+		this.app.boat?.applyCustomization?.( this.hud?.workshop?.isOpen ? this.hud.workshop.draft : this.state.boatCustomization, this.state.upgrades );
 
 	}
 
@@ -170,6 +173,32 @@ export class Game {
 			return false;
 
 		}
+
+	}
+
+	canCustomizeBoat() {
+
+		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;
+		return !! ( this.hud?.standOpen && vendor === this.chandlery?.vendor && vendor?.kind === 'shop'
+			&& ! this._changingBoat && ! app.freeCam && ! this.worldMap?.open && ! this.guide?.open
+			&& ! ui?.helpOpen && ! ui?.panelOpen && ! ui?._photo && ! ui?._start
+			&& ! this.hud.invOpen && ! this.hud.catchOpen && ! this.fight && ! this.landing
+			&& app.input.enabled !== false && app.input.focused !== false
+			&& app.player.mode === 'walk' && vendor.inRange( app.player.position ) );
+
+	}
+
+	saveBoatCustomization( config ) {
+
+		if ( ! this.canCustomizeBoat() ) return false;
+		if ( ! this.state.customizeBoat( config ) ) {
+
+			this.toast( '外观暂未保存，请允许网站存储数据后重试。', 5000 );
+			return false;
+
+		}
+		this.toast( '涂装与外观部件已保存 · 登船即可使用' );
+		return true;
 
 	}
 
@@ -495,9 +524,10 @@ export class Game {
 	updateBoat( dt ) {
 
 		const app = this.app, b = app.boatCtl, p = app.player, s = this.state;
+		const stats = s.stats;
 		if ( b.driven ) {
 
-			const left = s.burn( fuelBurn( b.rpm ) * dt );
+			const left = s.burn( fuelBurn( b.rpm ) * stats.fuelBurnMul * dt );
 			if ( left <= 0 ) {
 
 				b.throttle = 0;
@@ -509,7 +539,7 @@ export class Game {
 		} else if ( this._wasDriven ) s.save();
 		this._wasDriven = b.driven;
 
-		if ( ( p.mode === 'boat' || p.mode === 'deck' ) && s.stats.finder ) {
+		if ( ( p.mode === 'boat' || p.mode === 'deck' ) && stats.finder ) {
 
 			this._sonarT -= dt;
 			if ( this._sonarT <= 0 ) {

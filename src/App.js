@@ -645,9 +645,14 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.boatCtl.update( dt );
 		this.boatSpray.update( dt );
 		this.wake.update( dt );
-		if ( this.freeCam ) this.fly.update( dt );
-		else this.player.update( dt );
+		if ( ! this.game.hud?.workshop?.isOpen ) {
+
+			if ( this.freeCam ) this.fly.update( dt );
+			else this.player.update( dt );
+
+		}
 		this.game.update( dt );
+		this.game.hud?.workshop?.updateCamera();
 		this.avatar.update( this, dt );
 		this.updateSun();
 

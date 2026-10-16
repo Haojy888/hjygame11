@@ -7,9 +7,11 @@ import { BoatController } from '../src/player/BoatController.js';
 import { BoatModel } from '../src/world/BoatModel.js';
 import { OffshoreBoatModel } from '../src/world/OffshoreBoatModel.js';
 import { Colliders } from '../src/world/Colliders.js';
+import { UPGRADES } from '../src/game/Gear.js';
 
 const G = 9.81, TAU = Math.PI * 2, DEG = 180 / Math.PI;
 const full = process.argv.includes( '--full' );
+const refit = process.argv.includes( '--refit' );
 // src/ui/AppUI.js SEA. Shore surf is amplitude (H/2), independent of offshore FFT energy.
 const seas = [
 	{ name: 'Breezy', wind: 7, fetch: 120, swell: 0.48 },
@@ -155,6 +157,7 @@ for ( const preset of [ ...seas, ...resonance ] ) for ( const [ heading, angle ]
 	if ( preset.period && ( heading !== 'beam' || mode !== 'drift' || model.profileId !== 'offshore' ) ) continue;
 	const sea = preset.period ? resonanceSea( preset.period ) : makeSea( preset, angle ), query = makeQuery( sea );
 	const boat = new BoatController( { model, query, terrain, colliders } );
+	if ( refit ) boat.rollDampingScale *= UPGRADES.stability.levels.at( - 1 ).rollDampingMul;
 	boat.position.set( 200, 0, 200 ); boat.moored = false; boat.driven = mode !== 'drift';
 	const record = { sea: preset.name, hull: model.profileId, heading, mode, hs: sea.height, period: sea.period,
 		roll: 0, pitch: 0, minUp: 1, sumRoll2: 0, samples: 0, capsize: false, reset: false, finite: true, maxSpeed: 0 };
@@ -206,4 +209,4 @@ for ( const r of records ) {
 	}
 
 }
-console.log( `Seakeeping passed: ${ records.length } scenarios; wind sea + swell, head/beam/quartering, drift/cruise/turn, asynchronous water results and slow frames. --full adds the three-minute matrix and extreme storm diagnostics.` );
+console.log( `Seakeeping passed (${ refit ? 'maximum stability refit' : 'factory' }): ${ records.length } scenarios; wind sea + swell, head/beam/quartering, drift/cruise/turn, asynchronous water results and slow frames. --full adds the three-minute matrix and extreme storm diagnostics.` );

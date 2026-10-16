@@ -1,6 +1,4 @@
-// Gear and upgrade data. The upgrade shop (a vendor by the boathouse) is not built yet; everything
-// the game reads goes through gearStats( state.upgrades ), so buying a level is just
-// state.upgrades[ key ]++ and the stats follow.
+// Tackle and boat upgrades sold by Marta. Gameplay reads the merged gearStats( state.upgrades ).
 //
 // Each track: levels[ 0 ] is what you start with; cost is the price of that level (0 for the first).
 export const UPGRADES = {
@@ -36,6 +34,16 @@ export const UPGRADES = {
 		{ cost: 0, label: '老旧柴油机', speedMul: 1 },
 		{ cost: 300, label: '翻新柴油机', speedMul: 1.15 },
 		{ cost: 700, label: '涡轮柴油机', speedMul: 1.3 },
+	] },
+	stability: { name: '稳航套件', levels: [
+		{ cost: 0, label: '原厂稳航', rollDampingMul: 1 },
+		{ cost: 200, label: '舭龙骨 · 横摇阻尼 +18%', rollDampingMul: 1.18 },
+		{ cost: 450, label: '加强舭龙骨 · 横摇阻尼 +35%', rollDampingMul: 1.35 },
+	] },
+	propeller: { name: '节油推进', levels: [
+		{ cost: 0, label: '原厂螺旋桨', fuelBurnMul: 1 },
+		{ cost: 180, label: '导流套件 · 耗油降低 12%', fuelBurnMul: 0.88 },
+		{ cost: 380, label: '精调导流套件 · 耗油降低 22%', fuelBurnMul: 0.78 },
 	] },
 	fishFinder: { name: '探鱼器', levels: [
 		{ cost: 0, label: '未安装', finder: false },

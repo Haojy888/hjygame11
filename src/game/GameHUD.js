@@ -4,6 +4,7 @@ import { FishPortrait } from './FishPortrait.js';
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
 import { BOATS } from './Boats.js';
+import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -12,7 +13,7 @@ import { BOATS } from './Boats.js';
 //   panels        inventory (I / Tab) and the fish stand's offer
 //   catch card    full screen: the world dims and blurs, the fish lies side-on in its own studio light
 //                 (FishPortrait) with the species above and length, weight, value, record below
-const CSS = /* css */`
+const CSS = WORKSHOP_CSS + /* css */`
 .gm-purse { position: absolute; top: var(--tw-edge); right: var(--tw-edge); display: flex; gap: var(--tw-3); align-items: center;
 	padding: var(--tw-2) var(--tw-4); border-radius: 999px; font: 500 var(--tw-fs-lg) var(--tw-font); color: var(--tw-ink); pointer-events: none;
 	transition: transform var(--tw-med) var(--tw-ease), right var(--tw-slow) var(--tw-ease); }
@@ -319,6 +320,7 @@ export class GameHUD {
 		ui.root.append( this.inv, this.stand );
 		this.invOpen = false;
 		this.standOpen = false;
+		this.workshop = new BoatWorkshop( this );
 		this._last = {};
 		game.state.onChange( () => this.refresh() );
 		this.refresh();
@@ -627,6 +629,7 @@ export class GameHUD {
 	// ---- fish stand
 	openStand( vendor ) {
 
+		this.workshop.hide();
 		this.standOpen = true;
 		this.boatView = false;
 		this.vendor = vendor;
@@ -640,6 +643,7 @@ export class GameHUD {
 
 	closeStand() {
 
+		this.workshop.hide();
 		this.standOpen = false;
 		this.boatView = false;
 		this.stand.classList.remove( 'gm-boats' );
@@ -675,6 +679,7 @@ export class GameHUD {
 
 GameHUD.prototype.renderShop = function () {
 
+	if ( this.workshop?.isOpen ) return this.workshop.render();
 	this.stand.classList?.toggle( 'gm-boats', !! this.boatView );
 	if ( this.boatView ) return this.renderBoats();
 	const s = this.game.state;
@@ -696,14 +701,17 @@ GameHUD.prototype.renderShop = function () {
 	const fuelLabel = full ? '已加满' : litres <= 0 ? '余额不足' : `${ litres >= missing ? '加满' : '加油' } ${ volume } 升 · $${ Math.ceil( litres * FUEL_PRICE ) }`;
 	const fuelRow = `<div class="gm-shop-row"><span>柴油 · $${ FUEL_PRICE.toFixed( 2 ) } / 升<small>油箱：${ s.fuelL.toFixed( 1 ) } / ${ s.stats.fuelL } 升</small></span><button class="gm-btn" data-fuel ${ full || litres <= 0 ? 'disabled' : '' }>${ fuelLabel }</button></div>`;
 	const boatSection = `<div class="gm-shop-row"><span>船只选择<small>当前：${ BOATS[ s.boatId ].name } · 两种船型均可免费使用</small></span><button class="gm-btn" data-boats>查看船只</button></div>`;
+	const workshopSection = '<div class="gm-shop-row"><span>船坞改装与涂色<small>实船预览 · 分区涂装 · 外观部件 · 性能改装</small></span><button class="gm-btn" data-workshop>进入改装</button></div>';
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ boatSection }${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );
 	const boatButton = this.stand.querySelector( '[data-boats]' );
+	const workshopButton = this.stand.querySelector( '[data-workshop]' );
+	if ( workshopButton ) workshopButton.onclick = () => this.workshop.show();
 	if ( boatButton ) boatButton.onclick = () => { this.boatView = true; this.renderShop(); this.stand.querySelector( '[data-shop]' ).focus(); };
 	const f = this.stand.querySelector( '[data-fuel]' );
 	if ( f ) f.onclick = () => this.game.refuel();

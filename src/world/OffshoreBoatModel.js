@@ -1,4 +1,4 @@
-import { Color, Group, Mesh, Vector3 } from '../engine/index.js';
+import { Group, Mesh, Vector3 } from '../engine/index.js';
 import { BoatModel } from './BoatModel.js';
 import { buildHullVolume } from './boat/HullBuilder.js';
 import { GeoKit, box, cylinder, rod, roundedBox, torus } from './boat/GeoKit.js';
@@ -101,11 +101,11 @@ export class OffshoreBoatModel extends BoatModel {
 		this.group.add( this.wheelPivot );
 		this.wheelPivot.position.set( oldWheel.x * SX, oldWheel.y, this.helmSeat.z + reach );
 
-		const blue = new Color( 0x125b85 ).toArray().map( ( value ) => value.toFixed( 6 ) ).join( ', ' );
+		this.materials.hull.uniforms.paintStripe.value.set( 0x125b85 );
 		this.materials.hull.name = 'offshoreHull';
 		this.materials.hull.surface += `
 	let offshoreBand = boatLstep( 0.17, 0.20, p.y ) * boatInvstep( 0.78, 0.81, p.y );
-	s.albedo = mix( s.albedo, vec3f( ${ blue } ) * ( 0.92 + 0.08 * n1 ), offshoreBand );
+	s.albedo = mix( s.albedo, mat.paintStripe * ( 0.92 + 0.08 * n1 ), offshoreBand );
 `;
 		// The flag keeps its original 3:2 shape and star geometry despite the enlarged hull.
 		this.materials.fittings.vertex += `

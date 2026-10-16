@@ -110,3 +110,7 @@ SMAA 区域纹理和搜索纹理（`public/textures/smaa/`）来自 three.js（M
 | 碎浪 | Guerrilla Games 的 *Horizon Forbidden West* 水体技术（SIGGRAPH 2022） |
 
 云层噪声、光照和采样方案（`src/sky/Clouds.js`）改编自 DRG Software Solutions 自有的 *Sky Pro WebGPU*。该部分由版权所有者按本仓库的 MIT 许可证发布。
+
+## 船坞改装设计参考
+
+开发船坞界面时查阅了 [RendercodeNinja/automotive-configurator](https://github.com/RendercodeNinja/automotive-configurator)（MIT，Copyright 2018 Sethu）以及其 [`src/app/interface.js`](https://github.com/RendercodeNinja/automotive-configurator/blob/main/src/app/interface.js)，参考分部件选色、分类配置与即时预览的交互组织。未导入该项目的模型、纹理、库或源码；船体涂装着色、附件几何体与存档逻辑均在本项目现有 WebGPU 引擎中实现。

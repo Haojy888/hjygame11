@@ -1,4 +1,4 @@
-import { Vector3, DoubleSide } from '../../engine/index.js';
+import { Color, Vector3, DoubleSide } from '../../engine/index.js';
 import { ShaderModule } from '../../engine/gpu/Shader.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { standard, physical } from '../../materials/Materials.js';
@@ -118,11 +118,27 @@ export class BoatMaterials {
 
 	}
 
+	applyCustomization( config ) {
+
+		const u = this.hull.uniforms;
+		u.paintHull.value.set( config.hull );
+		u.paintStripe.value.set( config.stripe );
+		u.paintBottom.value.set( config.bottom );
+		u.paintMatte.value = config.finish === 'matte' ? 1 : 0;
+		const tint = this.gelcoat.uniforms.cabinTint.value.set( config.cabin );
+		const original = new Color( 0xf1f0eb );
+		tint.setRGB( tint.r / original.r, tint.g / original.g, tint.b / original.b );
+		this.gelcoat.uniforms.paintMatte.value = u.paintMatte.value;
+
+	}
+
 	// Hull exterior: antifouling / boot stripe / white topsides painted by height in the
 	// boat frame (the hull mesh sits at the root with an identity transform).
 	createHull( shape ) {
 
-		const m = physical( { roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1, ...COMMON() } );
+		const m = physical( { roughness: 0.25, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1, ...COMMON(),
+			uniforms: { paintHull: [ 'vec3f', new Color( 0xf2efe6 ) ], paintStripe: [ 'vec3f', new Color( 0x0f1a30 ) ],
+				paintBottom: [ 'vec3f', new Color( 0x7a1d15 ) ], paintMatte: [ 'f32', 0 ] } } );
 		m.name = 'boatHull';
 
 		m.surface = /* wgsl */`
@@ -144,9 +160,9 @@ export class BoatMaterials {
 	let streakN = mx_noise_float3( vec3f( p.z * 7.0, p.y * 0.45, p.x * 7.0 ) );
 	let scuffN = mx_noise_float3( vec3f( p.z * 2.2, p.y * 34.0, p.x * 2.2 ) );
 
-	var c = mix( ${ col( 0x7a1d15 ) }, ${ col( 0x0f1a30 ) }, aboveBottom );
-	c = mix( c, ${ col( 0xf2efe6 ) }, aboveStripe );
-	c = mix( c, ${ col( 0x0f1a30 ) }, cove );
+	var c = mix( mat.paintBottom, mat.paintStripe, aboveBottom );
+	c = mix( c, mat.paintHull, aboveStripe );
+	c = mix( c, mat.paintStripe, cove );
 
 	// waterline scum on the white, algae on the antifouling just below the boot top
 	let scum = boatInvstep( 0.16, n1 * 0.09 + 0.42, boot ) * aboveStripe * sat( n1 * 0.6 + 0.7 );
@@ -167,6 +183,8 @@ export class BoatMaterials {
 	s.roughness = mix( mix( 0.75, 0.35, aboveBottom ), 0.2, aboveStripe ) + scum * 0.25 + scuff * 0.3;
 	s.clearcoat = aboveBottom * ( 1.0 - scum * 0.5 ) * ( 1.0 - scuff * 0.6 );
 	s.clearcoatRoughness = 0.08 + scum * 0.3;
+	s.roughness = min( 0.95, s.roughness + mat.paintMatte * aboveStripe * 0.38 );
+	s.clearcoat *= 1.0 - mat.paintMatte;
 `;
 		return m;
 
@@ -177,7 +195,8 @@ export class BoatMaterials {
 	// 3 = headliner (perforated vinyl between battens).
 	createGelcoat() {
 
-		const m = standard( { roughness: 0.35, metalness: 0, ...COMMON() } );
+		const m = standard( { roughness: 0.35, metalness: 0, ...COMMON(),
+			uniforms: { cabinTint: [ 'vec3f', new Color( 1, 1, 1 ) ], paintMatte: [ 'f32', 0 ] } } );
 		m.name = 'boatGelcoat';
 		m.surface = /* wgsl */`
 	let aux = in.vs.vAux;
@@ -271,8 +290,9 @@ export class BoatMaterials {
 		fill = hc * vec3f( 1.0, 0.95, 0.86 ) * ( skyL * 0.5 + sunL * 0.004 ) * head;
 		groove = seam * -0.0006 + screw * 0.0004 + ( perf * -0.0002 + quilt * 0.002 ) * head;
 	}
-	s.albedo = base;
-	s.roughness = rough;
+	let paintable = boatIsPattern( aux.z, 0.0 ) * step( 1.05, p.y );
+	s.albedo = base * mix( vec3f( 1.0 ), mat.cabinTint, paintable );
+	s.roughness = min( 0.95, rough + mat.paintMatte * paintable * 0.25 );
 	s.metalness = metal;
 	s.ao = interiorAO;
 	s.emissive = fill;
