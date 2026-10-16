@@ -26,6 +26,7 @@ export class Weather {
 		this._strikeIn = 2;
 		this._flashAge = Infinity;
 		this._active = true;
+		this._audioWeatherActive = false;
 		this._direction = new Vector3();
 
 	}
@@ -160,11 +161,24 @@ export class Weather {
 
 	updateEffects( dt, camera, { windSpeed, windDirection, underwater = false, boat = null } ) {
 
-		this.rainFx?.update( dt, camera, { intensity: this._active ? this.rainIntensity : 0,
-			windSpeed, windDirection, underwater, boat, flash: this.flash } );
-		this.lightning?.update( dt, camera, { intensity: underwater ? 0 : this.flash } );
-		this.audio?.setWeather( { rain: this._active ? this.rainIntensity : 0,
-			sheltered: this.rainFx?.sheltered ?? 0, underwater } );
+		const rain = this._active ? this.rainIntensity : 0;
+		if ( this.rainFx && ( rain > 0.001 || this.rainFx.group.visible ) ) {
+
+			this.rainFx.update( dt, camera, { intensity: rain, windSpeed, windDirection, underwater, boat, flash: this.flash } );
+
+		}
+		if ( this.lightning && ( this.flash > 0.001 || this.lightning.group.visible ) ) {
+
+			this.lightning.update( dt, camera, { intensity: underwater ? 0 : this.flash } );
+
+		}
+		// Do no per-frame audio work in clear weather; still send the final zero to fade the bed out.
+		if ( this.audio && ( rain > 0.001 || this._audioWeatherActive ) ) {
+
+			this.audio.setWeather( { rain, sheltered: this.rainFx?.sheltered ?? 0, underwater } );
+			this._audioWeatherActive = rain > 0.001;
+
+		}
 
 	}
 
