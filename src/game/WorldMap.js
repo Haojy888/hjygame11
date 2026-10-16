@@ -46,6 +46,7 @@ export function mapLocations( game ) {
 	];
 	if ( game.state.isGroundUnlocked( 'reef' ) ) entries.push( { id: 'reef', icon: '2', label: '珊瑚礁钓场', x: WORLD.reef.center.x, z: WORLD.reef.center.z, color: '#89ded9' } );
 	if ( game.state.isGroundUnlocked( 'deep' ) ) entries.push( { id: 'deep', icon: '3', label: '远海深水钓场', x: 55, z: 450, color: '#89ded9' } );
+	if ( game.state.isGroundUnlocked( 'deep' ) ) entries.push( { id: 'abyss', icon: '☉', label: '深海遗迹 · 沉睡古神', x: WORLD.abyss.center.x, z: WORLD.abyss.center.z, color: '#adcfb0' } );
 	if ( game.minimap?._goalPos ) entries.push( { id: 'task', icon: '◇', label: '当前主线目标', ...game.minimap._goalPos, color: '#ffd284' } );
 	if ( game.storyTarget ) entries.push( { id: 'story', icon: '☆', label: '当前剧情目标', ...game.storyTarget, color: '#c6b4ff' } );
 	if ( game.app.boatCtl ) entries.push( { id: 'boat', icon: '船', label: '你的船', ...game.app.boatCtl.position, color: '#d8edf5' } );

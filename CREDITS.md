@@ -114,3 +114,11 @@ SMAA 区域纹理和搜索纹理（`public/textures/smaa/`）来自 three.js（M
 ## 船坞改装设计参考
 
 开发船坞界面时查阅了 [RendercodeNinja/automotive-configurator](https://github.com/RendercodeNinja/automotive-configurator)（MIT，Copyright 2018 Sethu）以及其 [`src/app/interface.js`](https://github.com/RendercodeNinja/automotive-configurator/blob/main/src/app/interface.js)，参考分部件选色、分类配置与即时预览的交互组织。未导入该项目的模型、纹理、库或源码；船体涂装着色、附件几何体与存档逻辑均在本项目现有 WebGPU 引擎中实现。
+
+## 沉睡古神：深海巨章
+
+`src/world/DeepBeast.js`、导出脚本及几何体为本次新增的原创程序化模型，沿用本项目 MIT 许可证。模型、材质与动作由代码创建；游戏不下载第三方章鱼素材。Blender 仅用于导出可编辑源文件与带形态键预览动作的 GLB。
+
+造型查阅了 [SeaDoc Society 的大太平洋章鱼资料及 Jacqueline Winter、Bruce Kerwin 的照片](https://www.seadocsociety.org/giant-pacific-octopus-facts)，参考头胴部、卷曲腕足、水平瞳孔及双排吸盘；照片未下载或打包。发光纹路、巨型比例与冠状突起是幻想设计，不作为真实物种复原。
+
+还查阅了 [Nathan-ZigGameDev/OctopusTeacher](https://github.com/Nathan-ZigGameDev/OctopusTeacher)（MIT）的建模与触手动画记录，以及 [ScottieFox/caustic-volume](https://github.com/ScottieFox/caustic-volume)（MIT）的浏览器海洋生物场景说明；仅作为方案参考，未复制其模型、纹理或源码。触手曲线、框架运输和批处理使用本项目已有几何工具实现。

@@ -26,6 +26,7 @@ export const WORLD = {
 	village: { center: new THREE.Vector3( 40, 0, - 118 ), radius: 95 },
 
 	reef: { center: new THREE.Vector3( - 78, 0, 58 ), radius: 58 },
+	abyss: { center: new THREE.Vector3( - 20, 0, 440 ), radius: 22 },
 
 	spawn: { position: new THREE.Vector3( 18, 0, - 60 ), yaw: Math.PI }, // kept clear of rocks, plants and debris
 	// where the player starts: on the boardwalk up from the pier foot, looking down it toward the pier
