@@ -100,6 +100,8 @@ export class BoatController {
 		// state (position = model origin at the design waterline)
 		this.position = new THREE.Vector3().copy( this.dock.position );
 		this.quaternion = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3( 0, 1, 0 ), this.dock.heading );
+		this.previousPosition = this.position.clone();
+		this.previousQuaternion = this.quaternion.clone();
 		this.velocity = new THREE.Vector3();
 		this.angular = new THREE.Vector3();
 
@@ -250,6 +252,9 @@ export class BoatController {
 	update( dt ) {
 
 		if ( ! this.isFinite() ) this.reset();
+		// Character landings sweep against both poses, including the deck's heave and roll.
+		this.previousPosition.copy( this.position );
+		this.previousQuaternion.copy( this.quaternion );
 		this.updateCapsize( dt );
 		this.readQueries();
 		if ( ! this.hasWater ) {
@@ -490,6 +495,8 @@ export class BoatController {
 
 		this.position.copy( this.dock.position );
 		this.quaternion.setFromAxisAngle( new THREE.Vector3( 0, 1, 0 ), this.dock.heading );
+		this.previousPosition.copy( this.position );
+		this.previousQuaternion.copy( this.quaternion );
 		this.velocity.set( 0, 0, 0 );
 		this.angular.set( 0, 0, 0 );
 		this.throttle = this.throttleTarget = this.steer = this.rpm = this.thrust = 0;

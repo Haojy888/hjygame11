@@ -71,6 +71,124 @@ function advance( { boat, query }, frames, throttle = 0, steer = 0 ) {
 
 }
 
+function jumpFromPier( h ) {
+
+	const { boat, player, model, input, query, camera } = h;
+	for ( const dt of [ 1 / 144, 1 / 60, 1 / 30, 1 / 12 ] ) {
+
+		boat.reset();
+		advance( h, 30 );
+		player.rescueToHarbor();
+		player.position.set( 61.5, WORLD.pier.deckHeight, 35.15 );
+		player.yaw = - Math.PI / 2;
+		input.keys.add( 'KeyW' );
+		input.pressed.add( 'Space' );
+		let jumped = false;
+		for ( let t = 0; t < 2; t += dt ) {
+
+			boat.queueQueries();
+			query.reply();
+			boat.update( dt );
+			player.update( dt );
+			input.endFrame();
+			jumped ||= player.position.y > WORLD.pier.deckHeight + 0.1;
+			if ( player.position.x > boat.position.x - 0.45 ) input.keys.clear();
+			if ( player.mode === 'deck' ) break;
+
+		}
+		input.keys.clear();
+		assert.ok( jumped, model.profileId + ': the real pier jump leaves the ground' );
+		assert.equal( player.mode, 'deck', model.profileId + ': jump onto the boat without E at dt=' + dt );
+		assert.ok( Math.abs( player.yaw + Math.PI / 2 ) < 1e-8, 'Landing preserves the viewing direction' );
+		assert.ok( camera.position.distanceTo( player.position ) > 1.5, 'Landing uses standing eye height immediately' );
+		player.deckVel.set( 0, 0, 0 );
+		for ( let frame = 0; frame < 120; frame ++ ) {
+
+			boat.queueQueries();
+			query.reply();
+			boat.update( 1 / 60 );
+			player.update( 1 / 60 );
+			assert.equal( player.mode, 'deck' );
+			assert.ok( player.position.distanceTo( boat.toWorld( player.deckPos, new Vector3() ) ) < 1e-8, 'The landed player follows the moving hull' );
+
+		}
+
+	}
+	boat.reset();
+	advance( h, 30 );
+
+}
+
+function checkLandingEdges( h ) {
+
+	const { boat, player, model, input } = h;
+	const L = model.lines;
+	const label = model.profileId + ': ';
+	const drop = ( local, vy = - 30, moveBoat = () => {} ) => {
+
+		boat.reset();
+		boat.position.set( 200, 0, 200 );
+		boat.quaternion.setFromAxisAngle( new Vector3( 0, 1, 0 ), 0.7 );
+		boat.previousPosition.copy( boat.position );
+		boat.previousQuaternion.copy( boat.quaternion );
+		player.mode = 'walk';
+		boat.toWorld( local, player.position );
+		player.velocity.set( 0, vy, 0 );
+		player.grounded = false;
+		player.waterMean = 0;
+		input.keys.clear();
+		input.pressed.clear();
+		moveBoat();
+		player.update( 0.1 );
+
+	};
+	const deck = new Vector3( 0, L.deckY + 0.2, - 1.7 * model.visualScale.z );
+	drop( deck );
+	assert.equal( player.mode, 'deck', label + 'fast falling catches the thin deck before switching to swimming' );
+	assert.ok( player.deckPos.distanceTo( deck.clone().setY( L.deckY ) ) < 1e-8, label + 'landing retains the contact point, not the E boarding anchor' );
+	for ( const tag of [ 'roof', 'foredeck', 'canopyRoof' ] ) {
+
+		const c = model.colliders.find( ( c ) => c.tag === tag );
+		if ( ! c ) continue;
+		const top = c.center.y + c.half.y;
+		drop( c.center.clone().setY( top + 0.2 ) );
+		assert.equal( player.mode, 'deck', label + 'land on ' + tag );
+		assert.ok( Math.abs( player.deckPos.y - top ) < 1e-8, label + 'catch the first surface, without falling through to the cockpit' );
+
+	}
+	// Both endpoints lie outside the narrow roof, but the falling path crosses its top.
+	const roof = model.colliders.find( ( c ) => c.tag === 'roof' );
+	const roofTop = roof.center.y + roof.half.y;
+	drop( new Vector3( - 2, roofTop + 0.5, roof.center.z ), - 10, () => {
+
+		player.velocity.copy( new Vector3( 40 * Math.exp( 0.25 ), - 10, 0 ).applyQuaternion( boat.quaternion ) );
+
+	} );
+	assert.equal( player.mode, 'deck', label + 'sweep catches a contact missed by endpoint-only collision' );
+	assert.ok( Math.abs( player.deckPos.y - roofTop ) < 1e-8 );
+
+	drop( deck.clone().setY( L.deckY + 0.1 ), 0, () => {
+
+		boat.position.y += 0.2;
+		boat.quaternion.setFromAxisAngle( new Vector3( 0, 0, 1 ), 0.08 ).premultiply( boat.previousQuaternion );
+
+	} );
+	assert.equal( player.mode, 'deck', label + 'a heaving, rolling deck catches the feet using its previous pose' );
+	assert.ok( Math.abs( player.deckPos.y - L.deckY ) < 1e-8 );
+
+	drop( deck.clone().setX( model.dimensions.beam / 2 + 1 ) );
+	assert.equal( player.mode, 'swim', label + 'missing the hull still falls into the sea' );
+	drop( deck.clone().setY( L.deckY - 0.1 ), 4 );
+	assert.equal( player.mode, 'walk', label + 'ascending from below the deck cannot attach' );
+	drop( deck, - 30, () => { boat.capsized = true; } );
+	assert.notEqual( player.mode, 'deck', label + 'a capsized hull cannot be boarded by falling' );
+	drop( deck, - 30, () => { boat.quaternion.setFromAxisAngle( new Vector3( 0, 0, 1 ), Math.PI / 2 ); } );
+	assert.notEqual( player.mode, 'deck', label + 'a hull on its side cannot attach during the capsize delay' );
+	boat.reset();
+	advance( h, 30 );
+
+}
+
 const results = [];
 for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
 
@@ -83,6 +201,8 @@ for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
 	advance( h, 300 );
 	assert.ok( boat.position.distanceTo( model.dock.position ) < 0.1, id + ': actual pier does not hit the moored hull' );
 	assert.ok( Math.abs( boat.position.y ) < 0.03, id + ': waterline stays near its design level' );
+	jumpFromPier( h );
+	checkLandingEdges( h );
 
 	player.rescueToHarbor();
 	assert.equal( pier.groundHeightAt( player.position.x, player.position.z, 3 ), WORLD.pier.deckHeight );
@@ -178,4 +298,4 @@ for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
 assert.ok( results[ 1 ].mass > results[ 0 ].mass * 2 );
 assert.ok( results[ 1 ].thrust > results[ 0 ].thrust * 2 );
 assert.ok( Math.abs( results[ 0 ].speed - results[ 1 ].speed ) < 1, 'The larger engine keeps loaded acceleration useful' );
-console.log( 'Boat profiles passed: real hull buoyancy, pier boarding and landing, helm reach and character scale, framing, propulsion, steering and rescue.', results );
+console.log( 'Boat profiles passed: both hulls, pier jumps at 12/30/60/144 fps, swept deck/roof landings, heave/roll, missed jumps, capsize, helm, framing, propulsion and rescue.', results );

@@ -187,6 +187,12 @@ export class Player {
 		const prevMode = this.mode;
 		if ( this.mode === 'walk' ) this.updateWalk( dt );
 		else this.updateSwim( dt );
+		if ( this.mode === 'deck' ) {
+
+			this.updateDeckCamera();
+			return;
+
+		}
 
 		// camera. Wading out of your depth, finding your feet again or climbing out on a ladder
 		// changes the eye height: ease the view there (critically damped) instead of jumping
@@ -264,6 +270,8 @@ export class Player {
 			this.grounded = p.y - g < 0.06;
 
 		}
+
+		if ( this.landOnBoat( old ) ) return;
 
 		// head bob + footsteps
 		const moved = Math.hypot( p.x - old.x, p.z - old.z );
@@ -426,18 +434,57 @@ export class Player {
 
 	// ------------------------------------------------------------------ boat
 
+	// Sweep descending feet in the moving hull's frame; a nearby hull alone is not a landing.
+	landOnBoat( old ) {
+
+		const b = this.boat;
+		if ( ! b || b.capsized || _v.set( 0, 1, 0 ).applyQuaternion( b.quaternion ).y < 0.65 ) return false;
+		const from = old.clone().sub( b.previousPosition || b.position ).applyQuaternion( _qa.copy( b.previousQuaternion || b.quaternion ).invert() );
+		const to = this.position.clone().sub( b.position ).applyQuaternion( _qb.copy( b.quaternion ).invert() );
+		const drop = from.y - to.y;
+		if ( drop <= 0.000001 ) return false;
+
+		const L = b.model.lines;
+		let first = Infinity, landing = null;
+		for ( const c of b.model.colliders ) {
+
+			if ( ! c.walkable ) continue;
+			const top = c.center.y + c.half.y;
+			if ( from.y < top - 0.0001 || to.y > top ) continue;
+			const t = THREE.MathUtils.clamp( ( from.y - top ) / drop, 0, 1 );
+			if ( t >= first ) continue;
+			const hit = from.clone().lerp( to, t ).setY( top );
+			if ( Math.abs( hit.x - c.center.x ) > c.half.x || Math.abs( hit.z - c.center.z ) > c.half.z ) continue;
+			// Foredeck boxes are rectangular; reject their corners outside the curved bow.
+			if ( hit.z < L.zAft + L.shell || hit.z > ( b.model.deckForwardLimit ?? 4.0 ) ) continue;
+			const half = L.halfBreadth( L.tAtSheerZ( hit.z ), Math.max( top, L.deckY ) ) - L.shell;
+			if ( Math.abs( hit.x ) > half ) continue;
+			first = t;
+			landing = hit;
+
+		}
+		if ( ! landing ) return false;
+		this.boardBoat( landing );
+		return true;
+
+	}
+
 	// step aboard from the pier / beach / water: onto the cockpit sole at the boarding point
-	boardBoat() {
+	boardBoat( landing = this.boat.model.boardPoint ) {
 
 		const b = this.boat;
 		if ( b.capsized ) return;
 		this.mode = 'deck';
-		this.deckPos.copy( b.model.boardPoint );
+		this.deckPos.copy( landing );
 		this.deckVel.set( 0, 0, 0 );
 		// keep looking where you looked (relative to the boat)
 		this.deckYaw = this.yaw - ( b.getYaw() + Math.PI );
 		this.deckGrounded = true;
 		this._ashore = null;
+		this.grounded = true;
+		this.wade = 0;
+		this.surface = 'wood';
+		this.prompt = null;
 		this._ashoreT = 0;
 		this.velocity.set( 0, 0, 0 );
 		this._camY = null;
@@ -776,6 +823,13 @@ export class Player {
 
 		}
 
+		this.updateDeckCamera();
+
+	}
+
+	updateDeckCamera() {
+
+		const b = this.boat, p = this.deckPos;
 		// camera: eye above the feet, following the boat's motion
 		const eyeL = _v.set( p.x, p.y + EYE + Math.sin( this.bob ) * 0.02, p.z );
 		b.toWorld( eyeL, this.camera.position );
