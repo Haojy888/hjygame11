@@ -20,6 +20,7 @@ import { storyObjective, storyDialogue } from './Story.js';
 import { seaJournalObjective, seaJournalDialogue } from './SeaJournal.js';
 import { expeditionObjective, expeditionDialogue, CAVE_SITE } from './Expedition.js';
 import { FieldCamera, subjectVisible } from './FieldCamera.js';
+import { VoyageController } from './VoyageController.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -60,6 +61,7 @@ export class Game {
 		this._seaTarget = new Vector3();
 		this._seaDirection = new Vector3();
 		this.fieldCamera = new FieldCamera( this );
+		this.voyage = new VoyageController( this );
 		this._caveVisits = 0;
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
@@ -253,6 +255,7 @@ export class Game {
 		app.player.rescueToHarbor();
 		this._caveVisits = 0;
 		this.rescueHold = 0;
+		if ( this.voyage ) this.voyage.haul = this.voyage.world.haul = 0;
 		this.seaObservation = { progress: 0, eligible: false, ready: false };
 		this._lmb = this._rmb = this._wasDriven = false;
 		this._sonar = null;
@@ -274,6 +277,19 @@ export class Game {
 			if ( this.rescueHold >= 2 ) this.rescueToHarbor();
 
 		} else this.rescueHold = 0;
+
+	}
+
+	get voyageTarget() { return this.state.voyage?.station === 4 ? this.stand?.vendor.position : this.voyage?.target; }
+
+	returnStation() {
+
+		const app = this.app, ui = app.ui?.ui, vendor = this.hud?.vendor;
+		if ( ! this.hud?.standOpen || vendor !== this.stand?.vendor || vendor?.kind !== 'buyer' || app.player.mode !== 'walk' || ! vendor.inRange( app.player.position )
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open || this.hud.invOpen || this.hud.catchOpen
+			|| this.fight || this.landing || this.rescueHold > 0 || app.input.enabled === false || app.input.focused === false || app.input.interrupted ) return false;
+		if ( ! this.state.voyageAction( 'return', { hour: this.hour } ) ) return false;
+		this.toast( '乔：“下封信，我会告诉他们，海湾七号的灯又亮了。” · B 查看完整电台日志', 6500 ); return true;
 
 	}
 
@@ -640,6 +656,7 @@ export class Game {
 		this.updateSeaJournal( dt );
 		this.updateExpedition();
 		this.fieldCamera?.update( dt );
+		this.voyage?.update( dt );
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

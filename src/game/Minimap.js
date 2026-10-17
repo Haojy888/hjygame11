@@ -149,6 +149,7 @@ export class Minimap {
 			{ id: 'story', ...mk( 'story', '☆' ), pos: () => game.storyTarget },
 			{ id: 'seaJournal', ...mk( 'seaJournal', '◎' ), pos: () => game.seaJournalTarget },
 			{ id: 'expedition', ...mk( 'expedition', '⚓' ), pos: () => game.expeditionTarget },
+			{ id: 'voyage', ...mk( 'expedition', '▤' ), pos: () => game.voyageTarget },
 		];
 		this.goalLabel = h( 'div', 'gm-map-goal tw-glass' );
 		this.el.append( this.goalLabel );

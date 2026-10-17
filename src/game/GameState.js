@@ -6,6 +6,7 @@ import { freshStory, normalizeStory } from './Story.js';
 import { freshSeaJournal, normalizeSeaJournal } from './SeaJournal.js';
 import { freshExpedition, normalizeExpedition, normalizeFieldPhotos, FIELD_SUBJECTS } from './Expedition.js';
 import { normalizeSurveyClaims, surveyProgress } from './MarineSurvey.js';
+import { freshVoyage, normalizeVoyage, EVENT_TYPES, EVENT_SITES, SALVAGE } from './Voyage.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
@@ -37,6 +38,7 @@ export class GameState {
 		this.expedition = freshExpedition();
 		this.fieldPhotos = {};
 		this.surveyClaims = [];
+		this.voyage = freshVoyage();
 		this.listeners = new Set();
 
 	}
@@ -182,6 +184,70 @@ export class GameState {
 		const money = this.money, claims = this.surveyClaims;
 		this.money += progress.survey.reward; this.surveyClaims = [ ...claims, id ];
 		if ( ! this.save() ) { this.money = money; this.surveyClaims = claims; return false; }
+		this.emit(); return true;
+
+	}
+
+	voyageAction( action, payload = {} ) {
+
+		if ( ! payload || typeof payload !== 'object' ) return false;
+		const previous = structuredClone( this.voyage ), money = this.money, fuel = this.fuel, v = this.voyage;
+		const sequence = [ 'accept', 'buoy', 'record', 'repair', 'return' ];
+		let log = null;
+		if ( sequence.includes( action ) ) {
+
+			if ( sequence[ v.station ] !== action || ! this.isGroundUnlocked( 'reef' ) ) return false;
+			v.station ++; log = action;
+
+		} else if ( action === 'offer' ) {
+
+			if ( v.event || v.cooldown > 0 || ! Object.hasOwn( EVENT_TYPES, payload.type ) || ! Number.isInteger( payload.site ) || ! EVENT_SITES[ payload.site ] || ! this.isGroundUnlocked( 'reef' ) ) return false;
+			v.serial = ( v.serial + 1 ) % 1000000000;
+			v.event = { type: payload.type, site: payload.site, serial: v.serial, remaining: 600, accepted: false }; log = payload.type;
+
+		} else if ( [ 'respond', 'decline', 'expire', 'finish' ].includes( action ) ) {
+
+			const event = v.event;
+			if ( ! event || event.serial !== payload.serial ) return false;
+			if ( action === 'expire' && event.remaining > 0 ) return false;
+			if ( action === 'respond' ) { if ( event.accepted || event.remaining <= 0 ) return false; event.accepted = true; }
+			else {
+
+				if ( action === 'finish' ) {
+
+					if ( ! event.accepted || event.remaining <= 0 ) return false;
+					if ( event.type === 'supply' ) { if ( this.fuelL < 10 ) return false; this.fuel = this.fuelL - 5; this.money += 30; }
+					if ( event.type === 'drift' ) this.money += 15;
+					log = event.type + '-done';
+
+				} else log = action === 'decline' ? 'declined' : 'expired';
+				v.event = null; v.cooldown = 210;
+
+			}
+
+		} else if ( action === 'hook' || action === 'haul' ) {
+
+			if ( ! SALVAGE.some( ( s ) => s.id === payload.id ) || v.salvaged.includes( payload.id ) || ! this.isGroundUnlocked( 'reef' ) ) return false;
+			if ( action === 'hook' ) { if ( v.hooked ) return false; v.hooked = payload.id; }
+			else {
+
+				if ( v.hooked !== payload.id || this.boatId !== 'offshore' ) return false;
+				v.salvaged.push( payload.id ); v.hooked = null; v.display = payload.id; log = 'salvage-' + payload.id;
+
+			}
+
+		} else if ( action === 'display' ) {
+
+			if ( payload.id !== 'none' && ! v.salvaged.includes( payload.id ) ) return false; v.display = payload.id;
+
+		} else if ( action === 'photo' ) {
+
+			if ( payload.id !== 'none' && ( ! Object.hasOwn( FIELD_SUBJECTS, payload.id ) || ! this.fieldPhotos[ payload.id ] ) ) return false; v.photo = payload.id;
+
+		} else if ( action === 'notice' && [ 'weather', 'whale' ].includes( payload.kind ) ) log = payload.kind;
+		else return false;
+		if ( log ) v.log = [ ...v.log, { kind: log, hour: Number.isFinite( payload.hour ) ? ( payload.hour % 24 + 24 ) % 24 : 12 } ].slice( - 24 );
+		if ( ! this.save() ) { this.voyage = previous; this.money = money; this.fuel = fuel; return false; }
 		this.emit(); return true;
 
 	}
@@ -368,7 +434,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims, voyage: this.voyage };
 
 	}
 
@@ -401,6 +467,8 @@ export class GameState {
 		this.expedition = normalizeExpedition( d.expedition );
 		this.fieldPhotos = normalizeFieldPhotos( d.fieldPhotos );
 		this.surveyClaims = normalizeSurveyClaims( d.surveyClaims );
+		this.voyage = normalizeVoyage( d.voyage );
+		if ( ! Object.hasOwn( FIELD_SUBJECTS, this.voyage.photo ) || ! this.fieldPhotos[ this.voyage.photo ] ) this.voyage.photo = 'none';
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
@@ -452,6 +520,7 @@ export class GameState {
 		this.expedition = freshExpedition();
 		this.fieldPhotos = {};
 		this.surveyClaims = [];
+		this.voyage = freshVoyage();
 		this.save();
 		this.emit();
 

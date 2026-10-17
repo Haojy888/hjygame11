@@ -95,6 +95,12 @@
 
 方案查阅 [patrick-morrison/below-wrecksploration](https://github.com/patrick-morrison/below-wrecksploration) 的沉船潜水展示，以及 [holtsetio/aurelia](https://github.com/holtsetio/aurelia) 的水母脉动造型与触手表现。仅作为场景与动画设计参考，未复制其源码、模型或纹理。岩洞、珊瑚海草及动画使用本项目现有引擎与几何工具实现；「归潮号的最后一程」文本与摄影记录交互为本次新增。
 
+## 海湾七号观测站、海燕号、船员与打捞船钟
+
+`public/models/voyage/` 四个模型由用户直接调用授权的 Aholo Lux3D 国内文本建模任务生成：观测舱 `4178301`、补给小艇 `4178306`、旧船钟 `4178310`、写实坐姿船员 `4178542`，各提交一次，没有付费重试。未输入第三方照片或模型。F 盘 Blender 完成减面、轴向、尺寸和嵌入贴图，另在本机修复观测舱敞开的屋顶；生成模型和贴图按 Aholo 服务条款使用，新增代码沿用项目 MIT 许可证。
+
+平台与支柱、浮标、记录器、绞盘和绳索、罗盘、观测仪器、收藏架及鱼群使用本项目已有几何工具构建。船载文字电台、海上遭遇、「失联的海洋观测站」故事与驾驶舱照片陈列为本次新增。船体起伏、打捞位置和陈列变换在游戏中执行，源 GLB 不包含离线动画。
+
 ## 字体
 
 [Inter](https://rsms.me/inter/) 和 [JetBrains Mono](https://www.jetbrains.com/lp/mono/) 均采用 SIL Open Font License 1.1。运行时会从 Google Fonts 加载，这些字体文件不包含在本仓库中。

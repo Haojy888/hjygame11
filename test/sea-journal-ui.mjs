@@ -134,6 +134,18 @@ try {
 	state.surveyClaims = [ 'small-life' ]; hud.refresh();
 	assert.equal( hud.stand.querySelector( 'details.gm-marine-survey' ).open, true );
 	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-marine-survey > summary' ), 'claiming removes the button and returns focus to its survey summary' );
+	game.app = { player: { mode: 'boat' } }; game.voyage = { command: ( action ) => calls.push( 'radio:' + action ) };
+	hud.standOpen = false; hud.invOpen = true; hud.renderInventory();
+	hud.inv.querySelector( '[data-radio="accept"]' ).onclick(); assert.equal( calls.at( - 1 ), 'radio:accept' );
+	hud.inv.querySelector( 'details.gm-radio' ).open = true; hud.inv.querySelector( 'details.gm-cabin' ).open = true;
+	hud.inv.querySelector( '[data-radio="accept"]' ).focus(); state.voyage.station = 1; hud.refresh();
+	assert.equal( hud.inv.querySelector( 'details.gm-radio' ).open, true ); assert.equal( hud.inv.querySelector( 'details.gm-cabin' ).open, true );
+	assert.equal( document.activeElement, hud.inv.querySelector( 'details.gm-radio > summary' ), 'responding returns focus to radio summary when the button disappears' );
+	hud.invOpen = false; hud.standOpen = true; hud.vendor = { kind: 'buyer', name: '乔' }; state.voyage.station = 4;
+	game.returnStation = () => calls.push( 'station:return' ); hud.renderStand();
+	hud.stand.querySelector( '[data-station-return]' ).onclick(); assert.equal( calls.at( - 1 ), 'station:return' );
+	hud.stand.querySelector( '[data-station-return]' ).focus(); state.voyage.station = 5; hud.refresh();
+	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-station-dialogue > summary' ) );
 
 	const guide = Object.assign( Object.create( Guide.prototype ), {
 		ui: { _start: false }, game: { state, app: { player: { mode: 'walk', position: { x: 0, z: 0 } } }, rod: {}, vendors: [] },
