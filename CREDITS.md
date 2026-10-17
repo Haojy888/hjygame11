@@ -75,6 +75,12 @@
 
 本节登记生成素材的来源与加工过程，不为其额外声明第三方素材许可证。原项目的 `LICENSE`、程序化模型代码及既有第三方素材许可和署名保持原样。
 
+## 海龟与鹰鳐近景模型：`public/models/creatures/`
+
+2026-10-17 通过用户授权的 Aholo Lux3D 国内 API 文本建模：绿海龟任务 `4169673`，斑点鹰鳐任务 `4169678`。各生成一次，下载原始 GLB 和服务源包；未输入第三方模型或照片。F 盘 Blender 减面、整理为 1K 嵌入贴图，保留 UV，并把鹰鳐的错误分叉尾局部修为单根细长鞭尾。游戏保留原有动物数量、游泳、避让和海龟换气行为，仅在近景按需替换模型，远处和加载失败时保留程序化模型。生成模型和贴图按 Aholo 服务条款使用，代码沿用项目 MIT 许可证。
+
+外形核对参考 [NOAA 绿海龟资料](https://www.fisheries.noaa.gov/species/green-turtle/conservation-management?page=1) 中的小头、中央与侧甲片等特征，以及 [Florida Museum 的斑点鹰鳐资料](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/spotted-eagle-ray/) 中的菱形鳍盘、前突吻部、背部白斑与细长尾部。这些资料仅用于核对文字提示和生成结果，未下载或打包照片。模型为参考真实外形的游戏资产，未作为实物扫描或精确生物测量复原。
+
 ## 座头鲸：`public/models/whale/`
 
 这是原项目作者用自编脚本生成的原创程序化模型。模型比例参考已发表的座头鲸解剖资料，侧面轮廓描摹自 NOAA Fisheries 的插图；该插图是属于公共领域的美国政府作品。建模时参考的照片未包含在本仓库中。

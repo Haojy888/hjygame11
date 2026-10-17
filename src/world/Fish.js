@@ -6,6 +6,7 @@ import { SPECIES } from './fish/FishSpecies.js';
 import { fishGeometry } from './fish/FishGeometry.js';
 import { rayGeometry, turtleGeometry } from './fish/CreatureGeometry.js';
 import { createSwimMaterial } from './fish/FishMaterial.js';
+import { RealisticSwimmers } from './fish/RealisticSwimmers.js';
 import { bandFade } from '../materials/LODFade.js';
 import { WhaleWater } from '../ocean/WhaleWater.js';
 import { FrameUniforms } from '../engine/render/Frame.js';
@@ -226,6 +227,7 @@ export class FishSchools {
 		};
 
 		this.group.add( this.mesh );
+		this.realistic = new RealisticSwimmers( this.group );
 		this._frame = 0;
 		this._cullFrame = - 1;
 		this.dt = 1 / 60;
@@ -669,7 +671,7 @@ export class FishSchools {
 
 		this.mesh.visible = any;
 		if ( ! any ) this.batch.fadeMesh.visible = false;
-		if ( ! any ) return;
+		if ( ! any ) { this.realistic.begin(); this.realistic.end(); return; }
 		this.prev.set( this.pos );
 		const steps = dt > 1 / 30 ? Math.min( 3, Math.ceil( dt * 30 ) ) : 1;
 		const h = dt / steps;
@@ -1438,6 +1440,7 @@ export class FishSchools {
 		const P = this.pos, V = this.vel, H = this.head, R = this.prev;
 		const kHead = 1 - Math.exp( - dt * 6 ), kRoll = 1 - Math.exp( - dt * 3 );
 		batch.begin();
+		this.realistic.begin( dt );
 		for ( const g of this.groups ) {
 
 			if ( ! g.active ) continue;
@@ -1520,6 +1523,13 @@ export class FishSchools {
 				// switch; faded out over the last tenth of the draw distance
 				const lod = px > LOD_PX[ 0 ] ? 0 : px > LOD_PX[ 1 ] ? 1 : px > LOD_PX[ 2 ] ? 2 : 3;
 				const k0 = this.kind[ i ] + lod;
+				const realistic = this.realistic.add( sp.model, D, o, d );
+				if ( realistic > 0 ) {
+
+					if ( realistic < 1 ) batch.addFade( k0, i, realistic, true );
+					continue;
+
+				}
 				const far = RANGE * 0.9;
 				if ( d > far ) batch.addFade( k0, i, 1 - bandFade( d, far, RANGE + L ), false );
 				else if ( lod < 3 && px < LOD_PX[ lod ] * LOD_BAND ) {
@@ -1536,11 +1546,13 @@ export class FishSchools {
 
 		batch.commit();
 		batch.dataAttr.needsUpdate = true;
+		this.realistic.end();
 
 	}
 
 	dispose() {
 
+		this.realistic.dispose();
 		this.batch.dispose();
 		this.material.dispose();
 		this.fadeMaterial.dispose();
