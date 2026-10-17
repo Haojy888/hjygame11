@@ -122,3 +122,5 @@ SMAA 区域纹理和搜索纹理（`public/textures/smaa/`）来自 three.js（M
 造型查阅了 [SeaDoc Society 的大太平洋章鱼资料及 Jacqueline Winter、Bruce Kerwin 的照片](https://www.seadocsociety.org/giant-pacific-octopus-facts)，参考头胴部、卷曲腕足、水平瞳孔及双排吸盘；照片未下载或打包。发光纹路、巨型比例与冠状突起是幻想设计，不作为真实物种复原。
 
 还查阅了 [Nathan-ZigGameDev/OctopusTeacher](https://github.com/Nathan-ZigGameDev/OctopusTeacher)（MIT）的建模与触手动画记录，以及 [ScottieFox/caustic-volume](https://github.com/ScottieFox/caustic-volume)（MIT）的浏览器海洋生物场景说明；仅作为方案参考，未复制其模型、纹理或源码。触手曲线、框架运输和批处理使用本项目已有几何工具实现。
+
+`src/world/AbyssScene.js` 的裂谷、门廊、碎石与生物群落复用本项目几何工具及珊瑚海草生成器；章鱼巡游及场景接入代码沿用项目 MIT 许可证。`public/models/abyss/vent.glb`、`arch.glb`、`coral.glb` 分别通过用户授权的 Aholo Lux3D 国内文本建模任务 `4168824`、`4168829`、`4168834` 生成，再经本机 Blender 整理；未输入第三方模型或照片。生成模型和贴图按 Aholo 服务条款使用，不将服务条款归为本项目 MIT 代码许可证。每个模型复用多个实例，保留原始 GLB、服务源包及可编辑 Blender 工程。

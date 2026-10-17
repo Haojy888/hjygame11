@@ -13,6 +13,58 @@ const TAU = Math.PI * 2;
 const V = ( x, y, z ) => new Vector3( x, y, z );
 const up = V( 0, 1, 0 );
 const REALISTIC_URL = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/creatures/abyssal-elder.glb';
+const PATROL_RADIUS = 5, PATROL_SAMPLES = 720;
+
+function patrolPose( phase ) {
+
+	// Octopuses can glide sideways. Small turns preserve the slope-shaped arms;
+	// a full turn would swap the uphill/downhill sides of this terrain-fitted mesh.
+	return { x: 4.5 * Math.sin( phase ), z: 1.8 * Math.sin( phase * 2 ), yaw: 0.22 * Math.sin( phase ) + 0.08 * Math.sin( phase * 2 ) };
+
+}
+
+function patrolHeights( terrain, origin, geometry ) {
+
+	// One low point per half-metre footprint cell bounds every source vertex.
+	// Bake the static seabed once; moving the creature never rebuilds its mesh.
+	const p = geometry.attributes.position, cells = new Map();
+	let radius = 0;
+	for ( let i = 0; i < p.count; i ++ ) {
+
+		const x = p.getX( i ), y = p.getY( i ), z = p.getZ( i );
+		const cx = Math.floor( x * 2 ) / 2, cz = Math.floor( z * 2 ) / 2, key = cx + ',' + cz;
+		if ( ! cells.has( key ) || y < cells.get( key ).y ) cells.set( key, { x: cx + 0.25, y, z: cz + 0.25 } );
+		radius = Math.max( radius, Math.hypot( x, z ) );
+
+	}
+	// TerrainData is bilinear between texel centres. Bounds on both grid slopes
+	// also bound terrain between samples, including the shader's 0.65m arm sway.
+	const step = terrain.texel || 1, grid = ( terrain.origin || 0 ) + step / 2;
+	const reach = PATROL_RADIUS + radius + 0.67 + step * 2;
+	const x0 = grid + Math.floor( ( origin.x - reach - grid ) / step ) * step;
+	const z0 = grid + Math.floor( ( origin.z - reach - grid ) / step ) * step;
+	let slopeX = 0, slopeZ = 0;
+	for ( let z = z0; z <= origin.z + reach; z += step ) for ( let x = x0; x <= origin.x + reach; x += step ) {
+
+		const h = terrain.heightAt( x, z );
+		slopeX = Math.max( slopeX, Math.abs( terrain.heightAt( x + step, z ) - h ) / step );
+		slopeZ = Math.max( slopeZ, Math.abs( terrain.heightAt( x, z + step ) - h ) / step );
+
+	}
+	const phaseStep = TAU / PATROL_SAMPLES;
+	// The spline blends at most two neighbouring poses. Its travel derivative
+	// is <= hypot(4.5,3.6), and its yaw derivative <= 0.38 radians per phase.
+	const margin = Math.hypot( slopeX, slopeZ ) * ( Math.SQRT1_2 / 2 + 0.67 + 2 * phaseStep * ( Math.hypot( 4.5, 3.6 ) + ( radius + Math.SQRT1_2 / 2 ) * 0.38 ) ) + 0.4;
+	return Float32Array.from( { length: PATROL_SAMPLES }, ( _, i ) => {
+
+		const pose = patrolPose( i * phaseStep ), c = Math.cos( pose.yaw ), s = Math.sin( pose.yaw );
+		let height = - Infinity;
+		for ( const cell of cells.values() ) height = Math.max( height, terrain.heightAt( origin.x + pose.x + c * cell.x + s * cell.z, origin.z + pose.z - s * cell.x + c * cell.z ) - cell.y );
+		return height + margin;
+
+	} );
+
+}
 
 // Original metre-scale mesh; no downloaded models or textures. +Z is its face.
 // aux.z: skin / sucker / iris / pupil / luminous scar / ruins; aux.w: arm + longitudinal weight.
@@ -251,6 +303,9 @@ export class DeepBeast {
 		this.mesh = new Mesh( this.model.geometry, this.material );
 		this.mesh.name = '八臂古神'; this.mesh.castShadow = true;
 		this.group.add( this.mesh );
+		this.patrolRadius = PATROL_RADIUS; this.patrolPhase = 0;
+		this.creaturePosition = this.position.clone();
+		this._patrolHeights = patrolHeights( terrain, this.position, this.model.geometry );
 		// Broken megaliths stand on the actual seabed, beyond the creature's reach.
 		const ruins = new GeoKit();
 		for ( let i = 0; i < 9; i ++ ) {
@@ -265,6 +320,21 @@ export class DeepBeast {
 		scene.add( this.group );
 		this.time = 0; this.wake = 0; this.discovered = false; this.onDiscover = onDiscover;
 		this.ready = null; this.realistic = false;
+		this._moveCreature();
+
+	}
+
+	_moveCreature() {
+
+		const pose = patrolPose( this.patrolPhase ), heights = this._patrolHeights, n = heights.length;
+		const sample = this.patrolPhase / TAU * n, i = Math.floor( sample ), f = sample - i;
+		const h = ( offset ) => heights[ ( i + offset + n ) % n ];
+		// Uniform cubic B-spline: continuous position, velocity and acceleration,
+		// with positive weights so the baked conservative height bound is retained.
+		const height = ( ( 1 - f ) ** 3 * h( - 1 ) + ( 3 * f ** 3 - 6 * f * f + 4 ) * h( 0 ) + ( - 3 * f ** 3 + 3 * f * f + 3 * f + 1 ) * h( 1 ) + f ** 3 * h( 2 ) ) / 6;
+		this.mesh.position.set( pose.x, height - this.position.y + this.wake * 0.04 * ( 1 + Math.sin( this.time * 0.5 ) ), pose.z );
+		this.mesh.rotation.y = pose.yaw;
+		this.creaturePosition.copy( this.position ).add( this.mesh.position );
 
 	}
 
@@ -309,14 +379,20 @@ export class DeepBeast {
 		dt = Math.min( Math.max( Number.isFinite( dt ) ? dt : 0, 0 ), 0.1 );
 		const visitor = player?.position || camera.position;
 		const underwater = visitor.y < - 4;
-		const near = Math.hypot( visitor.x - this.position.x, visitor.z - this.position.z ) < 42 && Math.abs( visitor.y - this.position.y - 5 ) < 24;
+		const near = Math.hypot( visitor.x - this.creaturePosition.x, visitor.z - this.creaturePosition.z ) < 42 && Math.abs( visitor.y - this.creaturePosition.y - 5 ) < 24;
 		this.material.uniforms.previousWake.value = this.wake;
 		this.wake += ( ( near && underwater ? 1 : 0 ) - this.wake ) * ( 1 - Math.exp( - dt * 1.5 ) );
 		this.material.uniforms.previousAge.value = this.time;
 		this.time += dt;
+		// Slow breathing pauses between glides; sleep slows the same continuous
+		// route rather than snapping the creature back to its starting point.
+		this.patrolPhase = ( this.patrolPhase + dt * 0.045 * ( 0.18 + this.wake * 0.82 ) * ( 0.08 + 0.92 * Math.cos( this.time * 0.045 ) ** 2 ) ) % TAU;
+		this._moveCreature();
 		this.material.uniforms.age.value = this.time;
 		this.material.uniforms.wake.value = this.wake;
-		this.group.visible = camera.position.distanceToSquared( this.position ) < 190 ** 2;
+		const visible = camera.position.distanceToSquared( this.position ) < 190 ** 2;
+		if ( visible && ! this.group.visible ) this.mesh.resetVelocity = true; // no stale model matrix after distant culling
+		this.group.visible = visible;
 		if ( this.group.visible && ! this.ready && GPU.device ) this.loadRealistic();
 		if ( player && near && underwater && ! this.discovered ) {
 

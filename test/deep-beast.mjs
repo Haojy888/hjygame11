@@ -50,6 +50,67 @@ assert.equal( beast.group.visible, false, 'Harbor and distant cameras draw no cr
 const age = beast.time;
 for ( const dt of [ NaN, Infinity, - 1 ] ) beast.update( dt, camera, player );
 assert.equal( beast.time, age, 'Invalid elapsed time cannot poison the shader' );
+const home = beast.position.clone(), fixedRuins = beast.group.children[ 1 ];
+const originalPositions = p.array;
+beast.mesh.resetVelocity = false;
+let minSpeed = Infinity, maxSpeed = 0, maxTravel = 0, minClearance = Infinity, highestPoint = - Infinity;
+// Fifteen simulated minutes cover several complete patrols and their seam.
+// Check all deformed vertices against the actual bilinear island terrain at
+// intervals, rather than checking only the root or a flat test floor.
+for ( let frame = 0; frame < 9000; frame ++ ) {
+
+	player.position.copy( beast.creaturePosition ).add( new Vector3( 0, 5, 22 ) ); camera.position.copy( player.position );
+	const previous = beast.creaturePosition.clone(), yaw = beast.mesh.rotation.y, time = beast.time, wake = beast.wake;
+	beast.update( 0.1, camera, player );
+	if ( frame === 0 ) assert.equal( beast.mesh.resetVelocity, true, 'Re-entering visibility resets stale world velocity from the last distant draw' );
+	const speed = beast.creaturePosition.distanceTo( previous ) / 0.1;
+	if ( frame > 100 ) { minSpeed = Math.min( minSpeed, speed ); maxSpeed = Math.max( maxSpeed, speed ); }
+	assert.ok( speed < 0.65, 'The whole creature glides without position jumps: ' + speed );
+	assert.ok( Math.abs( beast.mesh.rotation.y - yaw ) / 0.1 < 0.03, 'Turns stay slow and continuous' );
+	assert.equal( beast.material.uniforms.previousAge.value, time );
+	assert.equal( beast.material.uniforms.previousWake.value, wake );
+	const travel = Math.hypot( beast.creaturePosition.x - home.x, beast.creaturePosition.z - home.z );
+	maxTravel = Math.max( maxTravel, travel );
+	assert.ok( travel <= beast.patrolRadius, 'Patrol remains inside its explicit radius' );
+	if ( frame % 150 !== 0 ) continue;
+	const c = Math.cos( beast.mesh.rotation.y ), s = Math.sin( beast.mesh.rotation.y );
+	for ( let i = 0; i < p.count; i ++ ) {
+
+		let x = p.getX( i ), y = p.getY( i ), z = p.getZ( i );
+		const arm = a.getW( i );
+		if ( arm < 1 ) {
+
+			const breath = 1 + 0.008 * Math.sin( beast.time * 0.48 );
+			x *= breath; y = y * breath + beast.wake * 0.28; z *= breath;
+
+		} else {
+
+			const id = Math.floor( arm ) - 1, t = ( arm % 1 ) / 0.9, angle = id * Math.PI / 4 + Math.PI / 8;
+			const w = t * t * ( 0.15 + beast.wake * 0.85 ), wave = Math.sin( beast.time * 0.65 - t * 5 + id * 1.7 );
+			x += Math.cos( angle ) * wave * 0.65 * w;
+			y += ( Math.sin( beast.time * 0.48 - t * 4 + id ) * 0.35 + beast.wake * 0.65 ) * w * w;
+			z -= Math.sin( angle ) * wave * 0.65 * w;
+
+		}
+		const wx = beast.creaturePosition.x + c * x + s * z, wy = beast.creaturePosition.y + y, wz = beast.creaturePosition.z - s * x + c * z;
+		minClearance = Math.min( minClearance, wy - terrain.heightAt( wx, wz ) );
+		highestPoint = Math.max( highestPoint, wy );
+
+	}
+
+}
+assert.ok( maxTravel > 4.4, 'The creature actually leaves its starting point' );
+assert.ok( minSpeed < 0.04 && maxSpeed > 0.2, 'Glides have visible slow pauses and acceleration' );
+assert.ok( minClearance > 0.1, 'Animated arms never intersect the sloping seabed: ' + minClearance );
+assert.ok( highestPoint < - 3, 'The entire moving creature stays safely underwater: ' + highestPoint );
+assert.deepEqual( beast.group.position, home, 'The ruins stay anchored while the creature moves' );
+assert.equal( beast.group.children[ 1 ], fixedRuins );
+assert.equal( beast.mesh.geometry.attributes.position.array, originalPositions, 'Patrol never rebuilds or deforms source geometry on the CPU' );
+assert.equal( messages.length, 1, 'Repeated patrol encounters do not repeat discovery' );
+player.position.set( 55, 2.3, 40 ); camera.position.copy( player.position );
+for ( let i = 0; i < 100; i ++ ) beast.update( 0.1, camera, player );
+assert.ok( beast.wake < 0.01 && ! beast.group.visible, 'Patrolling retains sleep and distant culling' );
+console.log( 'Patrol passed:', { minutes: 15, radius: beast.patrolRadius, maxTravel, minSpeed, maxSpeed, minClearance, highestPoint } );
 assert.equal( mapPoint( WORLD.abyss.center ).edge, false );
 const game = { state: { isGroundUnlocked: () => false }, app: { player } };
 assert.ok( ! mapLocations( game ).some( ( p ) => p.id === 'abyss' ) );
@@ -88,13 +149,16 @@ try {
 console.log( 'Deep beast passed: eight arms, 256 suckers, finite mesh, real seabed, underwater clearance, map, wake/sleep, discovery and culling.', { triangles, vertices: p.count, depth: - beast.position.y, buried } );
 
 const lux = process.argv.includes( '--lux' );
+const withScene = process.argv.includes( '--scene' );
 if ( lux ) {
 
 	await import( './smaa-shim.mjs' );
 	globalThis.__assetFile = async ( url ) => {
 
-		assert.ok( url.endsWith( '/models/creatures/abyssal-elder.glb' ) );
-		return bytes.buffer.slice( bytes.byteOffset, bytes.byteOffset + bytes.byteLength );
+		if ( url.endsWith( '/models/creatures/abyssal-elder.glb' ) ) return bytes.buffer.slice( bytes.byteOffset, bytes.byteOffset + bytes.byteLength );
+		assert.ok( withScene && /\/models\/abyss\/(vent|arch|coral)\.glb$/.test( url ) );
+		const prop = readFileSync( new URL( '../public/models/abyss/' + url.split( '/' ).pop(), import.meta.url ) );
+		return prop.buffer.slice( prop.byteOffset, prop.byteOffset + prop.byteLength );
 
 	};
 
@@ -123,7 +187,7 @@ if ( process.argv.includes( '--render' ) ) {
 	// Origin studio first; then the real seabed, keeping all engine material/shadow passes.
 	preview.group.position.set( 0, 0, 0 );
 	L.sky = [ 0.008, 0.026, 0.035, 1 ];
-	L.camera.position.copy( lux ? new Vector3( 14, 10, 22 ) : new Vector3( 20, 13, 29 ) ); L.camera.lookAt( 0, 4, 0 );
+	L.camera.position.copy( preview.mesh.position ).add( lux ? new Vector3( 14, 10, 22 ) : new Vector3( 20, 13, 29 ) ); L.camera.lookAt( preview.mesh.position.clone().add( new Vector3( 0, 4, 0 ) ) );
 	if ( lux ) preview.group.children[ 1 ].visible = false;
 	preview.material.uniforms.wake.value = 0.8;
 	await L.run( 3 );
@@ -141,8 +205,8 @@ if ( process.argv.includes( '--render' ) ) {
 	preview.group.position.copy( preview.position );
 	const { groundMesh } = await import( './life-harness.mjs' );
 	L.scene.add( groundMesh( terrain, preview.position.x, preview.position.z, 95, 1 ) );
-	L.camera.position.copy( preview.position ).add( new Vector3( 17, 11, 26 ) );
-	L.camera.lookAt( preview.position.clone().add( new Vector3( 0, 4, 0 ) ) );
+	L.camera.position.copy( preview.creaturePosition ).add( new Vector3( 17, 11, 26 ) );
+	L.camera.lookAt( preview.creaturePosition.clone().add( new Vector3( 0, 4, 0 ) ) );
 	await L.run( 3, ( dt ) => preview.update( dt, L.camera, { position: L.camera.position } ) );
 	await L.save( out + '/seabed.png' );
 	assert.deepEqual( errors, [], 'Native WebGPU main/shadow shader compilation has no validation errors' );
@@ -172,12 +236,23 @@ if ( process.argv.includes( '--ocean' ) ) {
 	const errors = []; GPU.device.addEventListener( 'uncapturederror', ( e ) => errors.push( e.error.message ) );
 	const preview = new DeepBeast( { scene: O.scene, terrain } );
 	if ( lux ) assert.equal( await preview.loadRealistic(), true );
+	let environment = null, scenery = null;
+	if ( withScene ) {
+
+		const { AbyssScene } = await import( '../src/world/AbyssScene.js' );
+		const { AbyssAssets } = await import( '../src/world/AbyssAssets.js' );
+		environment = new AbyssScene( { scene: O.scene, terrain } );
+		scenery = new AbyssAssets( { scene: O.scene, placements: environment.modelPlacements, terrain } );
+		assert.deepEqual( await Promise.all( [ 'vent', 'arch', 'coral' ].map( ( id ) => scenery.load( id ) ) ), [ true, true, true ] );
+
+	}
 	O.scene.add( groundMesh( terrain, preview.position.x, preview.position.z, 95 ) );
-	O.camera.position.copy( preview.position ).add( lux ? new Vector3( 4, 6, 11 ) : new Vector3( 10, 7, 19 ) );
-	O.camera.lookAt( preview.position.clone().add( new Vector3( 0, 4, 0 ) ) );
+	O.camera.position.copy( preview.creaturePosition ).add( lux ? new Vector3( 4, 6, 11 ) : new Vector3( 10, 7, 19 ) );
+	if ( withScene ) O.camera.position.copy( preview.creaturePosition ).add( new Vector3( 8, 9, 34 ) );
+	O.camera.lookAt( preview.creaturePosition.clone().add( new Vector3( 0, 4, 0 ) ) );
 	const lighting = installUnderwaterLighting( { fft: O.fft, caustics: O.caustics, surface: O.surface } );
 	const lamps = new LocalLights(); lamps.toggleFlashlight( true );
-	O.before.push( ( dt ) => { lighting.update( O.camera ); lamps.update( O.camera, dt ); preview.update( dt, O.camera, { position: O.camera.position } ); } );
+	O.before.push( ( dt ) => { lighting.update( O.camera ); lamps.update( O.camera, dt ); preview.update( dt, O.camera, { position: O.camera.position } ); environment?.update( dt, O.camera ); scenery?.update( dt, O.camera ); } );
 	const query = { module: new ShaderModule( { name: 'preview-flat-water-query', code: 'fn waterQueryCameraState() -> vec4f { return vec4f( 0.0 ); } fn waterQueryHeightAtXZ( xz: vec2f ) -> f32 { return 0.0; }' } ) };
 	const uw = new Underwater( { depthTexture: O.sr.sceneRT.depthTexture, maskTexture: O.sr.waterMaskTexture, query, caustics: O.caustics, fft: O.fft } );
 	uw.setSize( W, H );
@@ -196,7 +271,7 @@ fn fragment( in: FSIn ) -> vec4f {
 	mediumPass.render( { colorViews: [ medium.texture ] } ); uw.renderShafts( true );
 	composite.render( { colorViews: [ ldr.texture ] } ); GPU.submit();
 	const img = await readTexture( ldr.texture );
-	const out = resolve( lux ? '../deep-beast-lux3d' : '../deep-beast' ); mkdirSync( out, { recursive: true } );
+	const out = resolve( withScene ? '../abyss-scene' : lux ? '../deep-beast-lux3d' : '../deep-beast' ); mkdirSync( out, { recursive: true } );
 	writePNG( out + '/underwater.png', W, H, new Uint8Array( img.data ) );
 	assert.deepEqual( errors, [], 'Actual FFT, caustics, water lighting, flashlight and underwater composite compile together' );
 	console.log( 'Underwater preview:', out + '/underwater.png' );

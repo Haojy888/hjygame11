@@ -30,6 +30,8 @@ import { Colliders } from './world/Colliders.js';
 import { Village } from './world/Village.js';
 import { Reef } from './world/Reef.js';
 import { DeepBeast } from './world/DeepBeast.js';
+import { AbyssScene } from './world/AbyssScene.js';
+import { AbyssAssets } from './world/AbyssAssets.js';
 import { BoatModel } from './world/BoatModel.js';
 import { OffshoreBoatModel } from './world/OffshoreBoatModel.js';
 import { Rocks } from './world/Rocks.js';
@@ -170,6 +172,8 @@ export class App {
 		await progress( 0.23, '正在生成珊瑚礁…' );
 		this.reef = new Reef( { scene, terrain: this.terrainData, shoreField: this.shoreField } );
 		this.deepBeast = new DeepBeast( { scene, terrain: this.terrainData, onDiscover: ( message ) => this.game?.toast( message, 6500 ) } );
+		this.abyssScene = new AbyssScene( { scene, terrain: this.terrainData, colliders: this.colliders } );
+		this.abyssAssets = new AbyssAssets( { scene, placements: this.abyssScene.modelPlacements, colliders: this.colliders, terrain: this.terrainData } );
 
 		// Build every boat-dependent system from the same persisted selection.
 		this.gameState = GameState.load();
@@ -702,6 +706,8 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.debris.update( this.camera );
 		this.reef.update( dt, this.camera.position );
 		this.deepBeast?.update( dt, this.camera, this.freeCam ? null : this.player );
+		this.abyssScene?.update( dt, this.camera );
+		this.abyssAssets?.update( dt, this.camera );
 		this.village.update( dt );
 		if ( this.vegetation ) this.vegetation.update( dt, this.camera );
 		if ( this.whale ) this.whale.update( dt, this.camera );
