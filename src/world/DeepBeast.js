@@ -1,6 +1,10 @@
 import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Group, Mesh, TubeGeometry, Vector3 } from '../engine/index.js';
 import { Material } from '../engine/render/Material.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
+import { Texture } from '../engine/gpu/Texture.js';
+import { GPU } from '../engine/gpu/GPU.js';
+import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
+import { loadGLB, decodeImage } from '../engine/loaders/GLTF.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { GeoKit, alignY, roundedBox, lathe, sphere, tube } from './boat/GeoKit.js';
 import { WORLD } from './WorldLayout.js';
@@ -8,6 +12,7 @@ import { WORLD } from './WorldLayout.js';
 const TAU = Math.PI * 2;
 const V = ( x, y, z ) => new Vector3( x, y, z );
 const up = V( 0, 1, 0 );
+const REALISTIC_URL = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/creatures/abyssal-elder.glb';
 
 // Original metre-scale mesh; no downloaded models or textures. +Z is its face.
 // aux.z: skin / sucker / iris / pupil / luminous scar / ruins; aux.w: arm + longitudinal weight.
@@ -156,10 +161,40 @@ fn abyssPose( p: vec3f, arm: f32, time: f32, wake: f32 ) -> vec3f {
 `,
 } );
 
-function beastMaterial() {
+// Lux3D may split vertices at UV seams. Blender records each original vertex ID,
+// so skin, suckers, eyes and arms keep their exact terrain placement and animation.
+export function retargetDeepBeast( gltf, original ) {
+
+	if ( gltf.meshes.length !== 1 || gltf.meshes[ 0 ].length !== 1 ) throw new Error( 'Expected one octopus primitive' );
+	const p = gltf.meshes[ 0 ][ 0 ], A = p.attributes;
+	if ( p.mode !== 4 || ! p.indices || ! A._SOURCE || ! A.TEXCOORD_0 || A._SOURCE.array.length * 2 !== A.TEXCOORD_0.array.length ) throw new Error( 'Missing octopus UV or source vertex IDs' );
+	const n = A._SOURCE.array.length, geo = new BufferGeometry();
+	for ( const name of [ 'position', 'normal', 'color', 'aux' ] ) {
+
+		const source = original.attributes[ name ], size = source.itemSize, values = new Float32Array( n * size );
+		for ( let i = 0; i < n; i ++ ) {
+
+			const index = A._SOURCE.array[ i ];
+			if ( ! Number.isInteger( index ) || index < 0 || index >= source.count ) throw new Error( 'Invalid octopus source vertex ID' );
+			values.set( source.array.subarray( index * size, ( index + 1 ) * size ), i * size );
+
+		}
+		geo.setAttribute( name, new Float32BufferAttribute( values, size ) );
+
+	}
+	if ( ! A.TEXCOORD_0.array.every( Number.isFinite ) || p.indices.some( ( i ) => i < 0 || i >= n ) ) throw new Error( 'Invalid octopus UV or triangle' );
+	geo.setAttribute( 'uv', new Float32BufferAttribute( A.TEXCOORD_0.array, 2 ) );
+	geo.setIndex( Array.from( p.indices ) ); geo.computeBoundingBox(); geo.computeBoundingSphere();
+	geo.boundingSphere.radius += 2;
+	return geo;
+
+}
+
+function beastMaterial( textures = null ) {
 
 	return new Material( {
-		name: 'Abyssal elder · living skin', vertexColors: true, side: 'double',
+		name: textures ? 'Abyssal elder · Lux3D skin' : 'Abyssal elder · living skin', vertexColors: ! textures, side: 'double',
+		textures: textures || {},
 		modules: [ animation ], attributes: { aux: 'vec4f' },
 		varyings: { localP: 'vec3f', part: 'f32' },
 		uniforms: { wake: [ 'f32', 0 ], previousWake: [ 'f32', 0 ], age: [ 'f32', 0 ], previousAge: [ 'f32', 0 ] },
@@ -177,6 +212,18 @@ function beastMaterial() {
 		let folds = sin( p.y * 11.0 + perlin3( p * 2.3 ) * 5.0 ) * 0.5 + 0.5;
 		let relief = pores * 0.025 + folds * 0.035;
 		s.normal = perturbNormalByHeight( in.P, in.N, dpdx( relief ), dpdy( relief ), 0.7 );
+		${ textures ? /* wgsl */`
+		s.albedo = textureSample( beastAlbedo, smpAnisoRepeat, in.uv ).rgb;
+		let orm = textureSample( beastOrm, smpAnisoRepeat, in.uv );
+		s.roughness = clamp( 0.52 + orm.g * 0.35, 0.55, 0.87 ); s.metalness = 0.0;
+		s.specularIntensity = 0.4; s.translucency = s.albedo * 0.1;
+		s.clearcoat = 0.12; s.clearcoatRoughness = 0.35;
+		s.emissive = s.albedo * 0.05;
+		if ( in.vs.part > 0.5 && in.vs.part < 1.5 ) { s.albedo = mix( s.albedo, vec3f( 0.52, 0.32, 0.22 ) * ( 0.85 + blotch * 0.15 ), 0.78 ); s.roughness = 0.56; s.normal = in.N; }
+		if ( in.vs.part > 1.5 && in.vs.part < 2.5 ) { s.albedo = mix( s.albedo, vec3f( 0.32, 0.22, 0.06 ), 0.65 ); s.emissive = s.albedo * ( 0.12 + mat.wake * 0.7 ); s.roughness = 0.22; s.normal = in.N; }
+		if ( in.vs.part > 2.5 && in.vs.part < 3.5 ) { s.albedo = vec3f( 0.002, 0.005, 0.004 ); s.emissive = vec3f( 0.0 ); s.roughness = 0.16; s.normal = in.N; }
+		if ( in.vs.part > 3.5 ) { s.emissive = vec3f( 0.025, 0.18, 0.13 ) * ( 0.12 + mat.wake * 0.65 ); }
+` : /* wgsl */`
 		s.albedo *= mix( vec3f( 0.28, 0.42, 0.35 ), vec3f( 1.05, 0.90, 0.68 ), blotch );
 		s.roughness = 0.54 + blotch * 0.20; s.specularIntensity = 0.35; s.translucency = s.albedo * 0.12;
 		s.emissive = s.albedo * 0.08 + vec3f( 0.0, 0.008, 0.011 ) * blotch * ( 0.4 + mat.wake * 0.6 );
@@ -184,6 +231,7 @@ function beastMaterial() {
 		if ( in.vs.part > 1.5 && in.vs.part < 2.5 ) { s.albedo = in.color.rgb; s.emissive = in.color.rgb * ( 0.16 + mat.wake * 1.2 ); s.roughness = 0.2; }
 		if ( in.vs.part > 2.5 && in.vs.part < 3.5 ) { s.albedo = vec3f( 0.001, 0.006, 0.005 ); s.emissive = vec3f( 0.0 ); s.roughness = 0.14; }
 		if ( in.vs.part > 3.5 ) { s.albedo = in.color.rgb * 0.3; s.emissive = in.color.rgb * ( 0.10 + mat.wake * 0.65 ); }
+` }
 `,
 	} );
 
@@ -216,6 +264,43 @@ export class DeepBeast {
 		stones.name = '深海遗迹'; stones.castShadow = true; this.group.add( stones );
 		scene.add( this.group );
 		this.time = 0; this.wake = 0; this.discovered = false; this.onDiscover = onDiscover;
+		this.ready = null; this.realistic = false;
+
+	}
+
+	loadRealistic() {
+
+		if ( this.ready ) return this.ready;
+		const textures = [];
+		this.ready = loadGLB( REALISTIC_URL ).then( async ( gltf ) => {
+
+			const geometry = retargetDeepBeast( gltf, this.model.geometry );
+			const gm = gltf.materials[ gltf.meshes[ 0 ][ 0 ].material ]?.pbrMetallicRoughness;
+			const bindings = {};
+			for ( const [ name, info, srgb ] of [ [ 'beastAlbedo', gm?.baseColorTexture, true ], [ 'beastOrm', gm?.metallicRoughnessTexture, false ] ] ) {
+
+				const image = gltf.images[ gltf.textures[ info?.index ]?.source ];
+				if ( ! image?.bytes ) throw new Error( 'Missing embedded octopus texture' );
+				const px = await decodeImage( image.bytes, image.mimeType );
+				const texture = new Texture( { label: name, width: px.width, height: px.height, format: srgb ? 'rgba8unorm-srgb' : 'rgba8unorm', data: px.data, mips: true, sampler: 'anisoRepeat' } );
+				textures.push( texture ); texture.getGPU(); generateMipmaps( texture ); bindings[ name ] = texture;
+
+			}
+			const material = beastMaterial( bindings );
+			for ( const key of [ 'wake', 'previousWake', 'age', 'previousAge' ] ) material.uniforms[ key ].value = this.material.uniforms[ key ].value;
+			this.mesh.geometry.dispose();
+			this.material = material; this.mesh.material = material; this.mesh.geometry = geometry;
+			this.realistic = true;
+			return true;
+
+		} ).catch( ( error ) => {
+
+			for ( const texture of textures ) texture.destroy();
+			console.warn( 'DeepBeast: original model retained', error );
+			return false;
+
+		} );
+		return this.ready;
 
 	}
 
@@ -232,6 +317,7 @@ export class DeepBeast {
 		this.material.uniforms.age.value = this.time;
 		this.material.uniforms.wake.value = this.wake;
 		this.group.visible = camera.position.distanceToSquared( this.position ) < 190 ** 2;
+		if ( this.group.visible && ! this.ready && GPU.device ) this.loadRealistic();
 		if ( player && near && underwater && ! this.discovered ) {
 
 			this.discovered = true;

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { Scene, PerspectiveCamera, Vector3 } from '../src/engine/index.js';
 import { TerrainData } from '../src/world/TerrainData.js';
-import { DeepBeast } from '../src/world/DeepBeast.js';
+import { DeepBeast, retargetDeepBeast } from '../src/world/DeepBeast.js';
+import { parseGLB } from '../src/engine/loaders/GLTF.js';
+import { readFileSync } from 'node:fs';
 import { WORLD } from '../src/world/WorldLayout.js';
 import { mapPoint, mapLocations } from '../src/game/WorldMap.js';
 
@@ -53,7 +55,50 @@ const game = { state: { isGroundUnlocked: () => false }, app: { player } };
 assert.ok( ! mapLocations( game ).some( ( p ) => p.id === 'abyss' ) );
 game.state.isGroundUnlocked = () => true;
 assert.equal( mapLocations( game ).find( ( p ) => p.id === 'abyss' ).x, WORLD.abyss.center.x );
+const bytes = readFileSync( new URL( '../public/models/creatures/abyssal-elder.glb', import.meta.url ) );
+const gltf = parseGLB( bytes.buffer.slice( bytes.byteOffset, bytes.byteOffset + bytes.byteLength ) );
+const realistic = retargetDeepBeast( gltf, g );
+assert.equal( realistic.index.count, g.index.count, 'Material transfer preserves all original triangles' );
+const sourceIds = gltf.meshes[ 0 ][ 0 ].attributes._SOURCE.array;
+for ( let i = 0; i < sourceIds.length; i ++ ) {
+
+	const source = sourceIds[ i ];
+	assert.equal( realistic.attributes.position.getY( i ), p.getY( source ), 'UV seams retain exact real seabed adaptation' );
+	assert.equal( realistic.attributes.aux.getW( i ), a.getW( source ), 'Arm and sucker vertices retain the original motion weights' );
+	assert.equal( realistic.attributes.aux.getZ( i ), a.getZ( source ), 'Eye and scar regions retain their material identity' );
+
+}
+assert.equal( gltf.images.length, 2 );
+assert.ok( gltf.images.every( ( image ) => image.bytes.length > 10000 ), 'Real embedded albedo and roughness maps are present' );
+const savedId = sourceIds[ 0 ]; sourceIds[ 0 ] = - 1;
+assert.throws( () => retargetDeepBeast( gltf, g ), /source vertex ID/ ); sourceIds[ 0 ] = savedId;
+let failedRequests = 0;
+globalThis.__assetFile = async () => { failedRequests ++; throw new Error( 'simulated unavailable creature asset' ); };
+const warn = console.warn; console.warn = () => {};
+try {
+
+	const pending = beast.loadRealistic();
+	assert.equal( beast.loadRealistic(), pending, 'Repeated encounters share a single load attempt' );
+	assert.equal( await pending, false );
+	assert.equal( beast.mesh.geometry, g, 'Offline asset loading keeps the animated original mesh' );
+	assert.equal( beast.realistic, false );
+	assert.equal( failedRequests, 1 );
+
+} finally { console.warn = warn; delete globalThis.__assetFile; }
 console.log( 'Deep beast passed: eight arms, 256 suckers, finite mesh, real seabed, underwater clearance, map, wake/sleep, discovery and culling.', { triangles, vertices: p.count, depth: - beast.position.y, buried } );
+
+const lux = process.argv.includes( '--lux' );
+if ( lux ) {
+
+	await import( './smaa-shim.mjs' );
+	globalThis.__assetFile = async ( url ) => {
+
+		assert.ok( url.endsWith( '/models/creatures/abyssal-elder.glb' ) );
+		return bytes.buffer.slice( bytes.byteOffset, bytes.byteOffset + bytes.byteLength );
+
+	};
+
+}
 
 if ( process.argv.includes( '--render' ) ) {
 
@@ -64,12 +109,22 @@ if ( process.argv.includes( '--render' ) ) {
 	GPU.device.addEventListener( 'uncapturederror', ( e ) => errors.push( e.error.message ) );
 	const { mkdirSync } = await import( 'node:fs' );
 	const { resolve } = await import( 'node:path' );
-	const out = resolve( '../deep-beast' ); mkdirSync( out, { recursive: true } );
+	const out = resolve( lux ? '../deep-beast-lux3d' : '../deep-beast' ); mkdirSync( out, { recursive: true } );
 	const preview = new DeepBeast( { scene: L.scene, terrain } );
+	if ( lux ) {
+
+		const pending = preview.loadRealistic();
+		assert.equal( preview.loadRealistic(), pending ); assert.equal( await pending, true );
+		assert.equal( preview.material.vertexColors, false, 'The generated texture is not multiplied by fallback vertex colors' );
+		assert.equal( preview.material.bindings.beastAlbedo.texture.format, 'rgba8unorm-srgb' );
+		assert.equal( preview.material.bindings.beastOrm.texture.format, 'rgba8unorm' );
+
+	}
 	// Origin studio first; then the real seabed, keeping all engine material/shadow passes.
 	preview.group.position.set( 0, 0, 0 );
 	L.sky = [ 0.008, 0.026, 0.035, 1 ];
-	L.camera.position.set( 20, 13, 29 ); L.camera.lookAt( 0, 4, 0 );
+	L.camera.position.copy( lux ? new Vector3( 14, 10, 22 ) : new Vector3( 20, 13, 29 ) ); L.camera.lookAt( 0, 4, 0 );
+	if ( lux ) preview.group.children[ 1 ].visible = false;
 	preview.material.uniforms.wake.value = 0.8;
 	await L.run( 3 );
 	preview.material.uniforms.previousAge.value = 1;
@@ -82,6 +137,7 @@ if ( process.argv.includes( '--render' ) ) {
 	for ( let i = 0; i < velocity.length; i += 4 ) if ( ( velocity[ i ] & 0x7fff ) > 0 || ( velocity[ i + 1 ] & 0x7fff ) > 0 ) movingPixels ++;
 	assert.ok( movingPixels > 100, 'A stationary camera still receives the creatures own motion vectors, preventing TAA ghost trails' );
 	await L.save( out + '/studio.png' );
+	preview.group.children[ 1 ].visible = true;
 	preview.group.position.copy( preview.position );
 	const { groundMesh } = await import( './life-harness.mjs' );
 	L.scene.add( groundMesh( terrain, preview.position.x, preview.position.z, 95, 1 ) );
@@ -115,8 +171,9 @@ if ( process.argv.includes( '--ocean' ) ) {
 	const O = await makeOceanScene( { W, H, terrain: false, floor: false } );
 	const errors = []; GPU.device.addEventListener( 'uncapturederror', ( e ) => errors.push( e.error.message ) );
 	const preview = new DeepBeast( { scene: O.scene, terrain } );
+	if ( lux ) assert.equal( await preview.loadRealistic(), true );
 	O.scene.add( groundMesh( terrain, preview.position.x, preview.position.z, 95 ) );
-	O.camera.position.copy( preview.position ).add( new Vector3( 10, 7, 19 ) );
+	O.camera.position.copy( preview.position ).add( lux ? new Vector3( 4, 6, 11 ) : new Vector3( 10, 7, 19 ) );
 	O.camera.lookAt( preview.position.clone().add( new Vector3( 0, 4, 0 ) ) );
 	const lighting = installUnderwaterLighting( { fft: O.fft, caustics: O.caustics, surface: O.surface } );
 	const lamps = new LocalLights(); lamps.toggleFlashlight( true );
@@ -139,7 +196,7 @@ fn fragment( in: FSIn ) -> vec4f {
 	mediumPass.render( { colorViews: [ medium.texture ] } ); uw.renderShafts( true );
 	composite.render( { colorViews: [ ldr.texture ] } ); GPU.submit();
 	const img = await readTexture( ldr.texture );
-	const out = resolve( '../deep-beast' ); mkdirSync( out, { recursive: true } );
+	const out = resolve( lux ? '../deep-beast-lux3d' : '../deep-beast' ); mkdirSync( out, { recursive: true } );
 	writePNG( out + '/underwater.png', W, H, new Uint8Array( img.data ) );
 	assert.deepEqual( errors, [], 'Actual FFT, caustics, water lighting, flashlight and underwater composite compile together' );
 	console.log( 'Underwater preview:', out + '/underwater.png' );

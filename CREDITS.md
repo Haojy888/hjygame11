@@ -117,7 +117,7 @@ SMAA 区域纹理和搜索纹理（`public/textures/smaa/`）来自 three.js（M
 
 ## 沉睡古神：深海巨章
 
-`src/world/DeepBeast.js`、导出脚本及几何体为本次新增的原创程序化模型，沿用本项目 MIT 许可证。模型、材质与动作由代码创建；游戏不下载第三方章鱼素材。Blender 仅用于导出可编辑源文件与带形态键预览动作的 GLB。
+`src/world/DeepBeast.js`、导出脚本及几何体为本次新增的原创程序化模型，沿用本项目 MIT 许可证。原始模型、回退材质及动作由代码创建。2026-10-17 通过用户授权的 Aholo Lux3D 国内 API（任务 `4163910`）处理现有模型材质；参考图由内置 imagegen 根据原模型预览生成，未使用第三方照片作为输入。`public/models/creatures/abyssal-elder.glb` 为 Blender 整理后的带贴图资源，保留八臂、吸盘和原始动画权重映射。生成材质按 Aholo 服务条款使用，不将服务条款归为项目 MIT 代码许可证。
 
 造型查阅了 [SeaDoc Society 的大太平洋章鱼资料及 Jacqueline Winter、Bruce Kerwin 的照片](https://www.seadocsociety.org/giant-pacific-octopus-facts)，参考头胴部、卷曲腕足、水平瞳孔及双排吸盘；照片未下载或打包。发光纹路、巨型比例与冠状突起是幻想设计，不作为真实物种复原。
 
