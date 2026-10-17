@@ -31,6 +31,8 @@ export class Input {
 		window.addEventListener( 'keydown', ( e ) => {
 
 			if ( e.target && ( e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' ) ) return;
+			// Let focused menu controls use native activation and keyboard navigation.
+			if ( e.target?.closest?.( 'button, summary, a, [role="button"]' ) && [ 'Space', 'Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight' ].includes( e.code ) ) return;
 			if ( [ 'Space', 'ArrowUp', 'ArrowDown', 'Tab' ].includes( e.code ) ) e.preventDefault();
 			// A cleared input (focus loss or rescue) needs a fresh physical press.
 			if ( e.repeat ) return;

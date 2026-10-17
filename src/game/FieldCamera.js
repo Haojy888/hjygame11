@@ -1,12 +1,14 @@
 import { Vector3 } from '../engine/index.js';
 import { FIELD_SUBJECTS } from './Expedition.js';
 
-export function subjectVisible( app, point, range, cone = 0.7 ) {
+export function subjectVisible( app, point, range, cone = 0.7, reachFrom = app.camera?.position ) {
 
 	const camera = app.camera, from = camera?.position;
-	if ( ! from || ! point || ! [ from.x, from.y, from.z, point.x, point.y, point.z ].every( Number.isFinite ) ) return false;
+	if ( ! from || ! point || ! reachFrom || ! [ from.x, from.y, from.z, point.x, point.y, point.z, reachFrom.x, reachFrom.y, reachFrom.z ].every( Number.isFinite ) ) return false;
 	const direction = new Vector3().subVectors( point, from ), distance = direction.length();
-	if ( distance < 0.4 || distance > range || camera.getWorldDirection( new Vector3() ).dot( direction.normalize() ) < cone ) return false;
+	// A chase camera can be far behind a nearby player. Photography still uses
+	// the camera origin by default; hand interactions may supply the player's reach.
+	if ( distance < 0.4 || point.distanceTo( reachFrom ) > range || camera.getWorldDirection( new Vector3() ).dot( direction.normalize() ) < cone ) return false;
 	const ndc = point.clone().project( camera );
 	if ( Math.abs( ndc.x ) > 0.78 || Math.abs( ndc.y ) > 0.75 || ndc.z < 0 || ndc.z > 1 ) return false;
 	if ( app.colliders?.raycast( from, direction, distance ) < distance - 0.65 ) return false;

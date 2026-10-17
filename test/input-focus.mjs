@@ -266,6 +266,18 @@ try {
 	doc.pointerLockElement = canvas;
 	await input.requestLock();
 	assert.equal( requests.length, 1, 'the actual locked element prevents a request before the change event arrives' );
+	input.clear(); input.endFrame(); win.closest = () => ( {} );
+	for ( const code of [ 'Space', 'Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight' ] ) {
+
+		const event = Object.assign( new Event( 'keydown', { cancelable: true } ), { code } ); win.dispatchEvent( event );
+		assert.equal( input.hit( code ), false, 'focused menu keys do not jump, steer or toggle inventory behind the UI' );
+		assert.equal( event.defaultPrevented, false, 'native button activation, details toggling and Tab navigation remain available' );
+
+	}
+	emit( win, 'keydown', { code: 'KeyI' } ); assert.equal( input.hit( 'KeyI' ), true, 'I can still close the inventory while a menu control has focus' );
+	delete win.closest; input.clear(); input.endFrame();
+	const jump = Object.assign( new Event( 'keydown', { cancelable: true } ), { code: 'Space' } ); win.dispatchEvent( jump );
+	assert.equal( input.hit( 'Space' ), true ); assert.equal( jump.defaultPrevented, true, 'Space still jumps without scrolling the page during gameplay' );
 	console.log( 'Input passed: lock/focus/UI/warp isolation, raw-input fallback, bounded turns without a tail, frame-rate-independent normal motion and safe saved sensitivity.' );
 
 } finally {

@@ -123,6 +123,19 @@ function harness( state = 'floating' ) {
 
 }
 
+// Opening the radio must pause the rod before processing this frame's mouse release.
+{
+
+	const { game, input, player, hud, rod } = harness( 'windup' );
+	player.mode = 'deck'; game.bite = null; game._lmb = true; game.state = { fuelL: 30, stats: { fuelL: 40 } };
+	input.hit = ( code ) => code === 'KeyB';
+	game.voyage = { openRadio() { hud.invOpen = true; }, update() {} };
+	game.update( 0.1 );
+	assert( hud.invOpen && rod.state === 'idle' && rod.releases === 0 && rod.elapsed === 0,
+		'B opens the radio before a pending mouse release can cast the rod' );
+
+}
+
 // The full map uses the same fishing pause as the inventory, including a real fight.
 {
 

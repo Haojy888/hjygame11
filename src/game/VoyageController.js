@@ -48,18 +48,24 @@ export class VoyageController {
 
 	}
 
+	openRadio() {
+
+		const g = this.game;
+		if ( ! this.aboard || ! this.available( true ) || ! g.hud ) return false;
+		g.hud.toggleInventory( true );
+		const details = g.hud.inv?.querySelector( 'details.gm-radio' );
+		if ( details ) { details.open = true; details.querySelector?.( 'summary' )?.focus(); details.scrollIntoView?.( { block: 'nearest' } ); }
+		return true;
+
+	}
+
 	update( dt ) {
 
-		const g = this.game, a = g.app, input = a.input;
+		const g = this.game, a = g.app;
 		const step = Number.isFinite( dt ) ? Math.min( 0.1, Math.max( 0, dt ) ) : 0;
-		if ( input.hit( 'KeyB' ) && this.aboard && this.available( true ) ) {
-
-			g.hud?.toggleInventory( true );
-			const details = g.hud?.inv?.querySelector( 'details.gm-radio' );
-			if ( details ) { details.open = true; details.querySelector?.( 'summary' )?.focus(); details.scrollIntoView?.( { block: 'nearest' } ); }
-
-		}
 		const v = g.state.voyage;
+		const hook = this.world.salvage.get( v.hooked );
+		if ( ! hook || Math.hypot( a.boatCtl.position.x - hook.point.x, a.boatCtl.position.z - hook.point.z ) > 12 ) this.haul = this.world.haul = 0;
 		if ( ! this.available() ) {
 
 			if ( this.checkpoint > 0 ) { g.state.save(); this.checkpoint = 0; }
@@ -138,7 +144,7 @@ export class VoyageController {
 		if ( ! g.state.isGroundUnlocked( 'reef' ) || stage < 1 || stage > 3 ) return;
 		const point = this.world.targets[ [ '', 'buoy', 'record', 'repair' ][ stage ] ];
 		if ( stage === 2 ? a.player.mode !== 'swim' || a.camera.position.y > - 1 : ! this.aboard ) return;
-		if ( ! subjectVisible( a, point, stage === 2 ? 4 : 8, 0.55 ) ) return;
+		if ( ! subjectVisible( a, point, stage === 2 ? 4 : 8, 0.55, stage === 2 ? a.camera.position : a.player.position ) ) return;
 		if ( stage === 3 && ( a.boatCtl.velocity.length() > 0.8 || a.weather?.thunderstorm ) ) {
 
 			a.player.prompt = { key: '停船', text: '观测站控制台 · 降低船速，等雷暴过去再接通' }; return;
@@ -158,7 +164,7 @@ export class VoyageController {
 		const g = this.game, a = g.app, event = g.state.voyage.event;
 		if ( ! event?.accepted || ! this.aboard ) return;
 		const point = V( EVENT_SITES[ event.site ], event.type === 'shoal' ? - 1.6 : 0.6 + this.world.eventSurfaceY );
-		if ( ! subjectVisible( a, point, event.type === 'shoal' ? 14 : 8, 0.45 ) ) return;
+		if ( ! subjectVisible( a, point, event.type === 'shoal' ? 14 : 8, 0.45, a.player.position ) ) return;
 		const moving = a.boatCtl.velocity.length() > 0.9;
 		if ( moving ) { a.player.prompt = { key: '停船', text: '靠近电台目标 · 降低船速再互动' }; return; }
 		if ( event.type === 'supply' && g.state.fuelL < 10 ) { a.player.prompt = { key: '柴油不足', text: '需要 5 升转交，并留下至少 5 升自用；可稍后再来' }; return; }
@@ -182,7 +188,7 @@ export class VoyageController {
 		}
 		if ( ! this.aboard || ! v.hooked ) return;
 		const item = this.world.salvage.get( v.hooked );
-		if ( Math.hypot( a.boatCtl.position.x - item.point.x, a.boatCtl.position.z - item.point.z ) > 12 ) { this.haul = this.world.haul = 0; return; }
+		if ( Math.hypot( a.boatCtl.position.x - item.point.x, a.boatCtl.position.z - item.point.z ) > 12 ) return;
 		if ( g.state.boatId !== 'offshore' ) { a.player.prompt = { key: '大船绞盘', text: '此物件已挂绳 · 到玛尔塔处换远海大船后再来起吊' }; return; }
 		const boat = a.boatCtl, up = new Vector3( 0, 1, 0 ).applyQuaternion( boat.quaternion );
 		const unsafe = boat.velocity.length() > 0.8 || up.y < Math.cos( 0.22 ) || a.weather?.thunderstorm;

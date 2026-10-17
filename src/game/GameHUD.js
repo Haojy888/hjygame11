@@ -101,10 +101,10 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-rescue progress::-webkit-progress-value { background: var(--tw-sun); }
 .gm-rescue progress::-moz-progress-bar { background: var(--tw-sun); }
 .tw-root[data-panel='open'] .gm-rescue { left: calc((100vw - var(--tw-panel-w) - var(--tw-3)) / 2); }
-.gm-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -48%); width: calc(460 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); max-height: 76vh; display: flex; flex-direction: column;
+.gm-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -48%); width: calc(460 * var(--tw-u)); max-width: calc(100vw - 2 * var(--tw-edge)); max-height: 76vh; display: flex; flex-direction: column; visibility: hidden;
 	padding: var(--tw-4) var(--tw-5); border-radius: var(--tw-r-lg); font: 500 var(--tw-fs-md) var(--tw-font); color: var(--tw-ink);
 	opacity: 0; pointer-events: none; transition: opacity var(--tw-med) var(--tw-ease), transform var(--tw-slow) var(--tw-ease); }
-.gm-panel.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+.gm-panel.is-open { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%); }
 .gm-panel h2 { margin: 0 0 var(--tw-1); font-size: calc(17 * var(--tw-u)); font-weight: 600; }
 .gm-panel p.gm-sub { margin: 0 0 var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); }
 .gm-panel > h2, .gm-panel > .gm-sub, .gm-foot { flex-shrink: 0; }
@@ -401,6 +401,7 @@ export class GameHUD {
 			const details = panel?.querySelector( selector ); if ( details ) details.open = open;
 
 		}
+		for ( const [ cls, open ] of voyageOpen ) { const el = panel?.querySelector( `details.${ cls }` ); if ( el ) el.open = open; }
 		if ( focusSelector ) {
 
 			const nextFocus = panel.querySelector( focusSelector.startsWith( '[' ) ? focusSelector : `details.${ focusSelector } > summary` )
@@ -409,7 +410,6 @@ export class GameHUD {
 
 		}
 		const list = panel?.querySelector( '.gm-list' );
-		for ( const [ cls, open ] of voyageOpen ) { const el = panel?.querySelector( `details.${ cls }` ); if ( el ) el.open = open; }
 		if ( list ) list.scrollTop = scrollTop;
 
 	}
@@ -748,11 +748,12 @@ export class GameHUD {
 
 			this.closeStand();
 			this.renderInventory();
-			releaseMouse();
+			releaseMouse( this.game.app?.input );
 
 		}
 
 		this.inv.classList.toggle( 'is-open', this.invOpen );
+		if ( this.invOpen ) this.inv.querySelector( '[data-close]' )?.focus?.();
 
 	}
 
@@ -797,7 +798,8 @@ export class GameHUD {
 		if ( vendor.kind === 'shop' ) this.renderShop();
 		else this.renderStand();
 		this.stand.classList.add( 'is-open' );
-		releaseMouse();
+		releaseMouse( this.game.app?.input );
+		this.stand.querySelector( '[data-close]' )?.focus?.();
 
 	}
 
@@ -905,7 +907,9 @@ GameHUD.prototype.renderBoats = function () {
 
 };
 
-function releaseMouse() {
+function releaseMouse( input ) {
+
+	input?.clear?.();
 
 	try {
 

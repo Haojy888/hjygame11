@@ -547,6 +547,7 @@ export class Game {
 			this.hud.closeStand();
 
 		}
+		if ( inp.hit( 'KeyB' ) ) this.voyage?.openRadio();
 
 		const panelOpen = this.worldMap?.open || this.hud && ( this.hud.invOpen || this.hud.standOpen );
 		const fishingPaused = !! ( panelOpen || ui?.helpOpen || inp.focused === false || inp.interrupted );

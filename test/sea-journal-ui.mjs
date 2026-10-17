@@ -34,7 +34,12 @@ class Panel {
 			const attr = match[ 1 ], value = match[ 2 ] || '';
 			const key = attr.slice( 5 ).replace( /-([a-z])/g, ( _, c ) => c.toUpperCase() );
 			const node = { dataset: { [ key ]: value }, hasAttribute: ( name ) => name === attr,
-				getAttribute: () => value, focus() { document.activeElement = this; } };
+				getAttribute: () => value, focus: () => {
+
+					if ( [ 'data-exhibit', 'data-cabin-photo' ].includes( attr ) && ! this.nodes[ 'details.gm-cabin' ]?.open ) return;
+					document.activeElement = node;
+
+				} };
 			this.nodes[ `[${ attr }]` ] ||= node;
 			this.nodes[ `[${ attr }="${ value }"]` ] = node;
 			this.buttons.push( node );
@@ -141,6 +146,9 @@ try {
 	hud.inv.querySelector( '[data-radio="accept"]' ).focus(); state.voyage.station = 1; hud.refresh();
 	assert.equal( hud.inv.querySelector( 'details.gm-radio' ).open, true ); assert.equal( hud.inv.querySelector( 'details.gm-cabin' ).open, true );
 	assert.equal( document.activeElement, hud.inv.querySelector( 'details.gm-radio > summary' ), 'responding returns focus to radio summary when the button disappears' );
+	state.voyage.salvaged = [ 'bell' ]; hud.refresh(); hud.inv.querySelector( 'details.gm-cabin' ).open = true;
+	hud.inv.querySelector( '[data-exhibit="bell"]' ).focus(); state.voyage.display = 'bell'; hud.refresh();
+	assert.equal( document.activeElement, hud.inv.querySelector( '[data-exhibit="bell"]' ), 'cabin details reopen before restoring focus to a display button' );
 	hud.invOpen = false; hud.standOpen = true; hud.vendor = { kind: 'buyer', name: '乔' }; state.voyage.station = 4;
 	game.returnStation = () => calls.push( 'station:return' ); hud.renderStand();
 	hud.stand.querySelector( '[data-station-return]' ).onclick(); assert.equal( calls.at( - 1 ), 'station:return' );

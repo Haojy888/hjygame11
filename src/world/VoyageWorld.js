@@ -116,6 +116,8 @@ export class VoyageWorld {
 			[ rod( V( 0.65 * sx + 0.27, 0.7, - 0.88 * sz ), V( 0.65 * sx + 0.27, 2.2, - 0.88 * sz ), 0.02, 7 ), 0x657779 ],
 		], this.cabin );
 		this.photoMesh = new Mesh( new PlaneGeometry( 0.61, 0.40 ), new Material( { color: 0x38565f, roughness: 1 } ) );
+		const photoUV = this.photoMesh.geometry.attributes.uv;
+		for ( let i = 0; i < photoUV.count; i ++ ) photoUV.setY( i, 1 - photoUV.getY( i ) ); // Decoded photos upload their top row first.
 		this.photoMesh.position.set( 0.65 * sx, 1.97, - 0.85 * sz ); this.photoMesh.visible = false; this.cabin.add( this.photoMesh );
 		this.exhibits = new Map();
 		for ( const item of SALVAGE ) {
@@ -255,7 +257,8 @@ export class VoyageWorld {
 	async loadPhoto( image ) {
 
 		this.photoKey = image; const version = ++ this.photoVersion;
-		if ( ! image ) { this.photoMesh.visible = false; return; }
+		this.photoMesh.visible = false;
+		if ( ! image ) { this.photoTexture?.destroy(); this.photoTexture = null; return; }
 		try {
 
 			const bytes = Uint8Array.from( atob( image.split( ',' )[ 1 ] ), ( c ) => c.charCodeAt( 0 ) );
@@ -264,6 +267,8 @@ export class VoyageWorld {
 			this.photoTexture?.destroy(); this.photoTexture = new Texture( { width: px.width, height: px.height, format: 'rgba8unorm-srgb', data: px.data } );
 			this.photoMesh.material = new Material( { name: '亲自拍摄的航海照片', roughness: 1, textures: { exhibitPhoto: this.photoTexture },
 				surface: 's.albedo = textureSample( exhibitPhoto, smpLinearClamp, in.uv ).rgb; s.specularIntensity = 0.0;' } );
+			const aspect = px.width / px.height, frameAspect = 0.61 / 0.40;
+			this.photoMesh.scale.set( Math.min( 1, aspect / frameAspect ), Math.min( 1, frameAspect / aspect ), 1 );
 			this.photoMesh.visible = true;
 
 		} catch { if ( version === this.photoVersion ) this.photoMesh.visible = false; }

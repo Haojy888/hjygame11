@@ -28,11 +28,12 @@ try {
 }
 
 class Panel {
+	classList = classList;
 
 	set innerHTML( html ) {
 
 		this.html = html;
-		this.nodes = { '.gm-list': { scrollTop: 0 }, '[data-close]': {}, '[data-all]': {} };
+		this.nodes = { '.gm-list': { scrollTop: 0 }, '[data-close]': { focus: () => this.onCloseFocus?.() }, '[data-all]': {} };
 		if ( html.includes( '<details' ) ) this.nodes[ 'details.gm-journey' ] = { open: false };
 		const fuel = html.match( /<button[^>]*data-fuel([^>]*)>([^<]*)<\/button>/ );
 		if ( fuel ) this.nodes[ '[data-fuel]' ] = { disabled: fuel[ 1 ].includes( 'disabled' ), textContent: fuel[ 2 ] };
@@ -50,6 +51,7 @@ function makeHUD( state ) {
 		game: { state, refuel: () => state.refuel() }, _last: {},
 		moneyEl: {}, coolerLabel: {}, coolerKg: {}, coolerBar: { style: {} }, coolerEl: { classList }, purse: { classList }, orderCard: {},
 		inv: new Panel(), stand: new Panel(), invOpen: false, standOpen: false,
+		workshop: { hide() {} },
 		vendor: { kind: 'shop', name: '玛尔塔', greeting: '欢迎' },
 	} );
 	state.onChange( () => hud.refresh() );
@@ -63,6 +65,22 @@ const fish = [ state.addFish( 'grunt', 0.9 ), state.addFish( 'mullet', 0.8 ) ];
 const hud = makeHUD( state );
 hud.invOpen = true;
 hud.refresh();
+let inputClears = 0; hud.game.app = { player: { mode: 'walk' }, input: { clear() { inputClears ++; } } };
+let panelVisible = false, closeFocuses = 0;
+hud.inv.classList = { toggle( name, on ) { panelVisible = on; } };
+hud.inv.onCloseFocus = () => { assert.equal( panelVisible, true, 'inventory becomes visible before keyboard focus is placed inside it' ); closeFocuses ++; };
+globalThis.document = { pointerLockElement: null };
+try {
+
+	hud.toggleInventory( true ); assert.equal( inputClears, 1, 'opening the inventory releases held movement, mouse buttons and queued look input' );
+	assert.equal( closeFocuses, 1 );
+
+} finally {
+
+	if ( previousDocument === undefined ) delete globalThis.document;
+	else globalThis.document = previousDocument;
+
+}
 const oldList = hud.inv.querySelector( '.gm-list' );
 oldList.scrollTop = 240;
 hud.inv.querySelector( 'details.gm-journey' ).open = true;

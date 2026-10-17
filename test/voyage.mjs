@@ -61,6 +61,8 @@ app.ui = { ui };
 const game = Object.assign( Object.create( Game.prototype ), { app, state, rod: { equipped: false }, stand: { vendor: joe }, guide: { open: false },
 	hud: { invOpen: false, standOpen: false, catchOpen: false, inv: { querySelector: () => null }, toggleInventory( value ) { this.invOpen = value; } }, worldMap: { open: false }, messages: [], toast( message ) { this.messages.push( message ); } } );
 const world = new VoyageWorld( app ), controller = game.voyage = new VoyageController( game, { world, random: () => 0 } );
+const photoPosition = world.photoMesh.geometry.attributes.position, photoUV = world.photoMesh.geometry.attributes.uv;
+for ( let i = 0; i < photoPosition.count; i ++ ) assert.equal( photoUV.getY( i ), photoPosition.getY( i ) > 0 ? 0 : 1, 'photo top edge samples the uploaded first row, not the bottom row' );
 for ( const root of [ world.group, world.cabin ] ) root.traverse( ( object ) => {
 
 	const geometry = object.geometry;
@@ -138,6 +140,14 @@ for ( const [ stage, key, mode ] of [ [ 1, 'buoy', 'boat' ], [ 2, 'record', 'swi
 
 	}
 	if ( stage === 3 ) { app.weather.thunderstorm = true; press(); assert.equal( state.voyage.station, 3 ); app.weather.thunderstorm = false; }
+	if ( mode === 'boat' ) {
+
+		const near = player.position.clone(); camera.position.copy( world.targets[ key ] ).add( new Vector3( 0, 1, - 3 ) ); camera.lookAt( world.targets[ key ] ); camera.updateMatrixWorld();
+		player.position.z -= 20; press(); assert.equal( state.voyage.station, stage, 'a nearby camera cannot interact while the player is too far away' ); player.position.copy( near );
+		camera.position.copy( player.position ).add( new Vector3( 0, 3, - 13 ) ); camera.lookAt( world.targets[ key ] ); camera.updateMatrixWorld();
+		assert.ok( camera.position.distanceTo( world.targets[ key ] ) > 8, 'normal third-person chase distance exceeds hand interaction range' );
+
+	}
 	press(); assert.equal( state.voyage.station, stage + 1, 'actual target, mode, camera framing and collider checks advance the station' );
 
 }
@@ -148,7 +158,9 @@ state.voyage.cooldown = 0; player.mode = 'boat'; player.position.set( 80, 1, 160
 assert.equal( controller.offer(), true ); assert.equal( state.voyage.event.type, 'shoal' );
 const remaining = state.voyage.event.remaining; game.hud.invOpen = true; controller.update( 0.1 ); assert.equal( state.voyage.event.remaining, remaining );
 assert.equal( controller.command( 'respond' ), true ); game.hud.invOpen = false;
-const site = EVENT_SITES[ state.voyage.event.site ]; arrive( new Vector3( site.x, - 1.6, site.z ) ); press(); assert.equal( state.voyage.event, null );
+const site = EVENT_SITES[ state.voyage.event.site ]; arrive( new Vector3( site.x, - 1.6, site.z ) );
+camera.position.copy( player.position ).add( new Vector3( 0, 3, - 13 ) ); camera.lookAt( site.x, - 1.6, site.z ); camera.updateMatrixWorld();
+press(); assert.equal( state.voyage.event, null, 'accepted radio encounters can also be completed from a third-person chase camera' );
 
 state.boatId = 'offshore';
 const bell = world.salvage.get( 'bell' ); arrive( bell.point, 'swim' ); press(); assert.equal( state.voyage.hooked, 'bell' );
@@ -164,6 +176,11 @@ app.boatCtl.quaternion.setFromAxisAngle( new Vector3( 0, 0, 1 ), 0.3 ); controll
 for ( let i = 0; i < 50; i ++ ) controller.update( 0.1 );
 const partial = controller.haul; assert.ok( partial > 0.4 && partial < 0.5 );
 input.keys.delete( 'KeyG' ); controller.update( 0.1 ); assert.equal( controller.haul, partial ); input.keys.add( 'KeyG' );
+game.hud.invOpen = true; app.boatCtl.position.x += 20; controller.update( 0.1 );
+assert.equal( controller.haul, 0, 'drifting out of winch range resets partial lifting even while the inventory is open' );
+assert.equal( world.haul, 0 ); assert.equal( state.voyage.hooked, 'bell' ); assert.equal( world.rope.visible, false );
+app.boatCtl.position.x -= 20; game.hud.invOpen = false;
+for ( let i = 0; i < 50; i ++ ) controller.update( 0.1 );
 for ( let i = 0; i < 75; i ++ ) controller.update( 0.1 );
 assert.deepEqual( state.voyage.salvaged, [ 'bell' ] ); assert.equal( state.voyage.hooked, null ); assert.equal( world.exhibits.get( 'bell' ).visible, true );
 assert.ok( GameState.load( storage ).voyage.salvaged.includes( 'bell' ) );
@@ -222,8 +239,16 @@ if ( process.argv.includes( '--render' ) ) {
 	L.camera.position.copy( boat.group.position ).add( new Vector3( - 0.35, 1.9, 1.1 ) );
 	L.camera.lookAt( boat.group.position.clone().add( new Vector3( 0.85, 1.73, - 1.1 ) ) );
 	// Decoded RGBA fixture checks the real exhibit texture path. Browser JPEG decoding is separate.
+	for ( const [ width, height ] of [ [ 4, 2 ], [ 2, 4 ] ] ) {
+
+		globalThis.__assetImage = async () => ( { width, height, data: new Uint8Array( width * height * 4 ).fill( 255 ) } );
+		await preview.loadPhoto( 'data:image/jpeg;base64,AAAA' );
+		assert.ok( Math.abs( 0.61 * preview.photoMesh.scale.x / ( 0.40 * preview.photoMesh.scale.y ) - width / height ) < 0.001, 'landscape and portrait photos fit the frame without stretching or cropping' );
+
+	}
 	globalThis.__assetImage = async () => ( { width: 2, height: 2, data: new Uint8Array( [ 40, 180, 170, 255, 220, 160, 60, 255, 15, 70, 100, 255, 140, 210, 190, 255 ] ) } );
 	await preview.loadPhoto( 'data:image/jpeg;base64,AAAA' );
+	assert.ok( Math.abs( preview.photoMesh.geometry.parameters.width * preview.photoMesh.scale.x / ( preview.photoMesh.geometry.parameters.height * preview.photoMesh.scale.y ) - 1 ) < 0.001, 'square photography fixture retains its aspect inside the rectangular frame' );
 	previewState.fieldPhotos.jelly = { image: 'data:image/jpeg;base64,AAAA' }; v.photo = 'jelly';
 	await L.run( 5, update ); await L.save( out + '/cabin-collection.png' );
 	assert.equal( preview.photoMesh.visible, true ); assert.equal( preview.exhibits.get( 'bell' ).visible, ! lux );
@@ -236,6 +261,10 @@ if ( process.argv.includes( '--render' ) ) {
 
 	}
 	const data = await readTexture( L.ldr.texture ); assert.ok( new Uint8Array( data.data ).some( ( value ) => value > 30 ) );
+	let finishDecode; globalThis.__assetImage = () => new Promise( ( resolve ) => { finishDecode = resolve; } );
+	const pendingPhoto = preview.loadPhoto( 'data:image/jpeg;base64,AAAA' ); await preview.loadPhoto( null );
+	finishDecode( { width: 1, height: 1, data: new Uint8Array( [ 255, 255, 255, 255 ] ) } ); await pendingPhoto;
+	assert.equal( preview.photoMesh.visible, false ); assert.equal( preview.photoTexture, null, 'removing a photo releases its texture and an old decode cannot restore it' );
 	assert.deepEqual( errors, [], 'station, boat radio, shoal, moving rope, actual cabin photo material and collectibles render together' );
 	console.log( 'Native voyage passed:', L.mr.stats ); await L.exit();
 
