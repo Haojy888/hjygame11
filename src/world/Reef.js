@@ -7,6 +7,7 @@ import { createReefMaterials, createReefView, SURFACE, packColor } from './reef/
 import { bandFade } from '../materials/LODFade.js';
 import { createNoiseVolume } from './reef/ReefNoise.js';
 import { FishSchools } from './Fish.js';
+import { SURVEY_SITES } from '../game/MarineSurvey.js';
 
 // Caribbean fringing reef around WORLD.reef, 1.5 - 12 m deep.
 //
@@ -274,6 +275,7 @@ export class Reef {
 		this.initFields();
 		this.items = { hard: [], soft: [] };
 		this.placeLayers();
+		this.placeSurveySites();
 		this.timings.place = performance.now() - t0;
 		this.buildBatches();
 		this.buildCells();
@@ -291,6 +293,37 @@ export class Reef {
 		this._cullFrame = - 1;
 		this.frame = 0;
 		this.timings.total = performance.now() - t0;
+
+	}
+
+	placeSurveySites() {
+
+		const rng = mulberry32( 20261018 );
+		this.surveySubjects = [];
+		for ( const site of SURVEY_SITES ) {
+
+			// Use the same placement, LOD batches, terrain seating and animated
+			// materials as the surrounding reef. Keep all observation points open.
+			let count = 0;
+			for ( let i = 0; i < 256 && count < 12; i ++ ) {
+
+				const angle = rng() * TAU, radius = Math.sqrt( rng() ) * 4.5;
+				const x = site.x + Math.cos( angle ) * radius, z = site.z + Math.sin( angle ) * radius;
+				if ( this.groundAt( x, z ) > this.terrain.heightAt( x, z ) + 0.12 || this.occupied( 0, x, z, 0.65, 0 ) || this.occupied( 1, x, z, 0.65, 0 ) ) continue;
+				if ( ! this.place( site.id, x, z, rng, { layer: 2, allow: 0.1, onGround: true } ) ) continue;
+				const item = this.items.hard.at( - 1 );
+				const point = new THREE.Vector3( 0, item.model.top * item.s * item.sy * 0.6, 0 ).applyQuaternion( item.q ).add( new THREE.Vector3( item.x, item.y, item.z ) );
+				this.surveySubjects.push( { id: site.id, point, item } ); count ++;
+
+			}
+			for ( let i = 0; i < 32; i ++ ) {
+
+				const angle = rng() * TAU, radius = 5.5 + rng() * 4;
+				this.place( site.companions[ i % site.companions.length ], site.x + Math.cos( angle ) * radius, site.z + Math.sin( angle ) * radius, rng, { layer: 2, allow: 0.1 } );
+
+			}
+
+		}
 
 	}
 

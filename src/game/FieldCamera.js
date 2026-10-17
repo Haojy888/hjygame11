@@ -12,7 +12,7 @@ export function subjectVisible( app, point, range, cone = 0.7 ) {
 	if ( app.colliders?.raycast( from, direction, distance ) < distance - 0.65 ) return false;
 	if ( app.terrainData ) for ( let i = 1; i < 10; i ++ ) {
 
-		const p = from.clone().lerp( point, i / 10 ), ground = app.terrainData.heightAt( p.x, p.z );
+		const p = from.clone().lerp( point, i / 10 ), ground = Math.max( app.terrainData.heightAt( p.x, p.z ), app.reef?.floorHeightAt?.( p.x, p.z ) ?? - Infinity );
 		if ( ! Number.isFinite( ground ) || ground + 0.1 > p.y ) return false;
 
 	}
@@ -23,6 +23,7 @@ export function subjectVisible( app, point, range, cone = 0.7 ) {
 export function fieldSubjects( app ) {
 
 	const subjects = [], fish = app.reef?.fish;
+	for ( const subject of app.reef?.surveySubjects || [] ) subjects.push( { id: subject.id, point: subject.point } );
 	for ( const group of fish?.groups || [] ) if ( [ 'turtle', 'eagleRay' ].includes( group.sp.model ) ) {
 
 		const point = new Vector3().fromArray( fish.pos, group.offset * 3 );

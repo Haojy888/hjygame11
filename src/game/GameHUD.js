@@ -5,6 +5,7 @@ import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
 import { SEA_JOURNAL_TITLE, seaJournalObjective, seaJournalEntries, seaJournalDialogue } from './SeaJournal.js';
 import { expeditionObjective, expeditionDialogue, expeditionEntries, FIELD_SUBJECTS } from './Expedition.js';
+import { MARINE_SURVEYS, surveyProgress } from './MarineSurvey.js';
 import { BOATS } from './Boats.js';
 import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
 
@@ -49,6 +50,7 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-field-card img { width: 100%; height: auto; aspect-ratio: 8 / 5; object-fit: contain; display: block; background: #0b2330; border-radius: 4px; }
 .gm-field-card p { margin: 6px 0; font-size: var(--tw-fs-xs); color: var(--tw-ink-2); line-height: 1.6; }
 .gm-field-card a { color: var(--tw-aqua); font-size: var(--tw-fs-xs); }
+.gm-marine-survey .gm-field-card { margin-top: var(--tw-2); }
 .gm-order { max-height: 56vh; overflow: auto; scrollbar-width: thin; }
 .tw-root:has(.gm-catch.is-on) .gm-order { opacity: 0; visibility: hidden; }
 .gm-money { font-family: var(--tw-mono); color: var(--tw-sun); font-weight: 600; }
@@ -377,10 +379,11 @@ export class GameHUD {
 		const expeditionOpen = panel?.querySelector( 'details.gm-expedition-journal' )?.open || false;
 		const fieldOpen = panel?.querySelector( 'details.gm-field-guide' )?.open || false;
 		const wreckDialogueOpen = panel?.querySelector( 'details.gm-expedition-dialogue' )?.open || false;
+		const surveyOpen = panel?.querySelector( 'details.gm-marine-survey' )?.open || false;
 		const focused = typeof document !== 'undefined' && panel?.contains?.( document.activeElement ) ? document.activeElement : null;
-		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition' ].find( ( name ) => focused.hasAttribute( name ) );
+		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey' ].find( ( name ) => focused.hasAttribute( name ) );
 		const focusSelector = focusAttribute ? `[${ focusAttribute }="${ focused.getAttribute( focusAttribute ) }"]`
-			: focused?.tagName === 'SUMMARY' ? [ 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
+			: focused?.tagName === 'SUMMARY' ? [ 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
 		const journey = panel?.querySelector( 'details.gm-journey' );
@@ -391,7 +394,7 @@ export class GameHUD {
 		if ( sea ) sea.open = seaOpen;
 		const dialogue = panel?.querySelector( 'details.gm-sea-dialogue' );
 		if ( dialogue ) dialogue.open = dialogueOpen;
-		for ( const [ selector, open ] of [ [ 'details.gm-expedition-journal', expeditionOpen ], [ 'details.gm-field-guide', fieldOpen ], [ 'details.gm-expedition-dialogue', wreckDialogueOpen ] ] ) {
+		for ( const [ selector, open ] of [ [ 'details.gm-expedition-journal', expeditionOpen ], [ 'details.gm-field-guide', fieldOpen ], [ 'details.gm-expedition-dialogue', wreckDialogueOpen ], [ 'details.gm-marine-survey', surveyOpen ] ] ) {
 
 			const details = panel?.querySelector( selector ); if ( details ) details.open = open;
 
@@ -399,7 +402,7 @@ export class GameHUD {
 		if ( focusSelector ) {
 
 			const nextFocus = panel.querySelector( focusSelector.startsWith( '[' ) ? focusSelector : `details.${ focusSelector } > summary` )
-				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : null );
+				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : focusAttribute === 'data-survey' ? panel.querySelector( 'details.gm-marine-survey > summary' ) : null );
 			nextFocus?.focus( { preventScroll: true } );
 
 		}
@@ -471,6 +474,7 @@ export class GameHUD {
 		for ( const button of this.stand.querySelectorAll( '[data-story]' ) ) button.onclick = () => this.game.talkStory( button.dataset.story );
 		for ( const button of this.stand.querySelectorAll( '[data-sea-journal]' ) ) button.onclick = () => this.game.talkSeaJournal( button.dataset.seaJournal );
 		for ( const button of this.stand.querySelectorAll( '[data-expedition]' ) ) button.onclick = () => this.game.talkExpedition( button.dataset.expedition );
+		for ( const button of this.stand.querySelectorAll( '[data-survey]' ) ) button.onclick = () => this.game.claimSurvey( button.dataset.survey );
 
 	}
 
@@ -489,10 +493,24 @@ export class GameHUD {
 
 	}
 
+	marineSurveyMarkup( shop = false ) {
+
+		const state = this.game.state;
+		if ( ! state.isGroundUnlocked( 'reef' ) ) return '';
+		const count = state.surveyClaims?.length || 0;
+		return `<details class="gm-journey gm-marine-survey"><summary>◉ 海湾生态调查 · ${ count } / ${ MARINE_SURVEYS.length }${ count === MARINE_SURVEYS.length ? ' · 海湾观察员' : '' }</summary><p class="gm-sub">玛尔塔：“带照片回来就好，让海里的邻居留在原地。”旧照片也计入，交付后照片保留；每份酬金只领取一次。</p>${ MARINE_SURVEYS.map( ( survey ) => {
+
+			const progress = surveyProgress( state, survey.id );
+			return `<article class="gm-field-card"><b>${ survey.title } · $${ survey.reward }</b><p>${ survey.text }</p><p>${ survey.subjects.map( ( id ) => `${ state.fieldPhotos?.[ id ] ? '✓' : '○' } ${ FIELD_SUBJECTS[ id ].name }` ).join( '　' ) }</p><p>${ progress.claimed ? '已归档 · 酬金已领取' : ! progress.unlocked ? '开放远海深水钓场后可交付' : `已拍摄 ${ progress.count } / ${ survey.subjects.length }` }</p>${ progress.ready ? shop ? `<button class="gm-mini" data-survey="${ survey.id }">交付调查 · +$${ survey.reward }</button>` : '<p>照片已齐全 · 到玛尔塔的船具店领取酬金</p>' : '' }</article>`;
+
+		} ).join( '' ) }</details>`;
+
+	}
+
 	fieldGuideMarkup() {
 
 		const photos = this.game.state.fieldPhotos || {};
-		return `<details class="gm-journey gm-field-guide"><summary>▣ 水下摄影图鉴 · ${ Object.keys( photos ).length } / 6</summary><p class="gm-sub">潜水时按 P 取景，将目标放在画面中间，再按 G 拍摄。按 P 返回后可查看、下载照片；每类保存一张。</p><div class="gm-field-grid">${ Object.entries( FIELD_SUBJECTS ).map( ( [ id, subject ] ) => {
+		return `<details class="gm-journey gm-field-guide"><summary>▣ 水下摄影图鉴 · ${ Object.keys( photos ).length } / ${ Object.keys( FIELD_SUBJECTS ).length }</summary><p class="gm-sub">潜水时按 P 取景，将目标放在画面中间，再按 G 拍摄。按 P 返回后可查看、下载照片；每类保存一张。海星、海胆、海葵需靠近到约 3 米，按 M 查找观察潜点。</p><div class="gm-field-grid">${ Object.entries( FIELD_SUBJECTS ).map( ( [ id, subject ] ) => {
 
 			const photo = photos[ id ];
 			return `<article class="gm-field-card"><b>${ subject.name }${ photo ? ' ✓' : '' }</b>${ photo ? `<img src="${ photo.image }" alt="拍摄的${ subject.name }" loading="lazy"><p>${ Math.floor( photo.hour ) }:${ String( Math.floor( photo.hour % 1 * 60 ) ).padStart( 2, '0' ) } · 水下约 ${ Math.max( 0, Math.round( - photo.y ) ) } 米</p><a href="${ photo.image }" download="潮汐海岸-${ id }.jpg">下载照片</a>` : '<p>尚未拍摄 · 期待下一次相遇</p>' }<p>${ subject.note }</p></article>`;
@@ -717,6 +735,7 @@ export class GameHUD {
 				${ this.seaJournalMarkup() }
 				${ this.expeditionMarkup() }
 				${ this.fieldGuideMarkup() }
+				${ this.marineSurveyMarkup() }
 				${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }
 				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
 			</div>
@@ -805,7 +824,7 @@ GameHUD.prototype.renderShop = function () {
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ this.expeditionMarkup( 'shop' ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ this.expeditionMarkup( 'shop' ) }${ this.marineSurveyMarkup( true ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );

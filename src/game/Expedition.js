@@ -4,6 +4,9 @@ export const freshExpedition = () => ( { stage: 0 } );
 export const normalizeExpedition = ( value ) => ( { stage: Number.isInteger( value?.stage ) && value.stage >= 0 && value.stage <= 5 ? value.stage : 0 } );
 
 export const FIELD_SUBJECTS = {
+	starfish: { name: '垫状海星', range: 3.5, note: '在海星沙园贴近海床观察，橙色的五条腕伸在沙与海草之间。按 M 找到观察潜点。' },
+	urchin: { name: '长棘海胆', range: 4, note: '海胆礁坡的小岩石旁，细长的黑棘围绕着身体展开。保持一点距离，用手电看清轮廓。' },
+	anemone: { name: '浅礁海葵', range: 4.5, note: '海葵浅庭位于礁区西侧浅水，柔软触手随水流缓慢摇摆。靠近后把它放到画面中间。' },
 	turtle: { name: '绿海龟', range: 12, note: '海龟用前鳍划水，后鳍辅助转向。靠近时留一点距离，也许能看到它上浮换气。' },
 	eagleRay: { name: '斑点鹰鳐', range: 16, note: '白斑沿着菱形鳍盘展开，细长的尾巴拖在身后。它沿礁坡巡游，用胸鳍平稳推进。' },
 	elder: { name: '深海巨章', range: 24, note: '遗迹中的幻想生命。八条腕足缓缓舒展，巨大的身体在石柱间小范围巡游。' },

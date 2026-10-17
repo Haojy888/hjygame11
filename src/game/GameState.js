@@ -5,6 +5,7 @@ import { fishGround } from './Bites.js';
 import { freshStory, normalizeStory } from './Story.js';
 import { freshSeaJournal, normalizeSeaJournal } from './SeaJournal.js';
 import { freshExpedition, normalizeExpedition, normalizeFieldPhotos, FIELD_SUBJECTS } from './Expedition.js';
+import { normalizeSurveyClaims, surveyProgress } from './MarineSurvey.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
@@ -35,6 +36,7 @@ export class GameState {
 		this.seaJournal = freshSeaJournal();
 		this.expedition = freshExpedition();
 		this.fieldPhotos = {};
+		this.surveyClaims = [];
 		this.listeners = new Set();
 
 	}
@@ -169,6 +171,17 @@ export class GameState {
 		if ( ! validated[ id ] ) return false;
 		this.fieldPhotos[ id ] = validated[ id ];
 		if ( ! this.save() ) { delete this.fieldPhotos[ id ]; return false; }
+		this.emit(); return true;
+
+	}
+
+	claimSurvey( id ) {
+
+		const progress = surveyProgress( this, id );
+		if ( ! progress?.ready ) return false;
+		const money = this.money, claims = this.surveyClaims;
+		this.money += progress.survey.reward; this.surveyClaims = [ ...claims, id ];
+		if ( ! this.save() ) { this.money = money; this.surveyClaims = claims; return false; }
 		this.emit(); return true;
 
 	}
@@ -355,7 +368,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims };
 
 	}
 
@@ -387,6 +400,7 @@ export class GameState {
 		this.seaJournal = normalizeSeaJournal( d.seaJournal );
 		this.expedition = normalizeExpedition( d.expedition );
 		this.fieldPhotos = normalizeFieldPhotos( d.fieldPhotos );
+		this.surveyClaims = normalizeSurveyClaims( d.surveyClaims );
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
@@ -437,6 +451,7 @@ export class GameState {
 		this.seaJournal = freshSeaJournal();
 		this.expedition = freshExpedition();
 		this.fieldPhotos = {};
+		this.surveyClaims = [];
 		this.save();
 		this.emit();
 

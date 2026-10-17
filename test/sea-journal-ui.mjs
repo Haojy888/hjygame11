@@ -124,6 +124,16 @@ try {
 	assert.match( hud.stand.html, /看你|照看/ );
 	assert.match( hud.stand.html, /data-fuel/ );
 	assert.match( hud.stand.html, /data-workshop/ );
+	state.fieldPhotos = Object.fromEntries( [ 'starfish', 'urchin', 'anemone' ].map( ( id ) => [ id, {} ] ) );
+	game.claimSurvey = ( id ) => calls.push( `survey:${ id }` );
+	hud.renderShop();
+	hud.stand.querySelector( 'details.gm-marine-survey' ).open = true;
+	hud.stand.querySelector( '[data-survey="small-life"]' ).onclick();
+	assert.equal( calls.at( - 1 ), 'survey:small-life' );
+	hud.stand.querySelector( '[data-survey="small-life"]' ).focus();
+	state.surveyClaims = [ 'small-life' ]; hud.refresh();
+	assert.equal( hud.stand.querySelector( 'details.gm-marine-survey' ).open, true );
+	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-marine-survey > summary' ), 'claiming removes the button and returns focus to its survey summary' );
 
 	const guide = Object.assign( Object.create( Guide.prototype ), {
 		ui: { _start: false }, game: { state, app: { player: { mode: 'walk', position: { x: 0, z: 0 } } }, rod: {}, vendors: [] },

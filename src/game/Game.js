@@ -143,6 +143,20 @@ export class Game {
 
 	}
 
+	claimSurvey( id ) {
+
+		const app = this.app, ui = app.ui?.ui, vendor = this.hud?.vendor;
+		if ( ! this.hud?.standOpen || vendor !== this.chandlery?.vendor || vendor?.kind !== 'shop'
+			|| app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) || this.hud.boatView || this.hud.workshop?.isOpen
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing || this.rescueHold > 0
+			|| app.input.enabled === false || app.input.focused === false || app.input.interrupted ) return false;
+		if ( ! this.state.claimSurvey( id ) ) { this.toast( '尚未完成调查，或进度暂时无法保存', 3500 ); return false; }
+		this.toast( this.state.surveyClaims.length === 3 ? '三份调查已归档 · 获得「海湾观察员」纪念称号，照片仍保留在图鉴中' : '生态调查已归档 · 酬金已到账，照片仍保留在图鉴中', 5500 );
+		return true;
+
+	}
+
 	selectBoat( id ) {
 
 		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;

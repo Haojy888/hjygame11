@@ -123,5 +123,5 @@ try {
 const hud = Object.assign( Object.create( GameHUD.prototype ), { game } );
 assert.match( hud.fieldGuideMarkup(), /data:image\/jpeg/ ); assert.match( hud.fieldGuideMarkup(), /下载照片/ );
 assert.match( hud.expeditionMarkup(), /已归港/ );
-assert.equal( Object.keys( FIELD_SUBJECTS ).length, 6 );
+assert.equal( Object.keys( FIELD_SUBJECTS ).length, 9 );
 console.log( 'Expedition passed: old saves, ordered story, real underwater inputs, both cave entrances/triangles/colliders, bounded wildlife, photo framing/occlusion, post-render capture, quota rollback, independent stories and HUD.' );
