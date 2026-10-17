@@ -54,7 +54,7 @@ try {
 	const state = new GameState( null );
 	state.seaJournal = { stage: 0, ending: null };
 	const calls = [];
-	const game = { state, talkSeaJournal: ( id ) => calls.push( `sea:${ id }` ), talkStory: ( id ) => calls.push( `story:${ id }` ) };
+	const game = { state, talkSeaJournal: ( id ) => calls.push( `sea:${ id }` ), talkStory: ( id ) => calls.push( `story:${ id }` ), talkExpedition: ( id ) => calls.push( `wreck:${ id }` ) };
 	const hud = Object.assign( Object.create( GameHUD.prototype ), {
 		game, _last: {}, inv: new Panel(), stand: new Panel(), orderCard: new Panel(),
 		invOpen: false, standOpen: false, vendor: { kind: 'buyer', name: '乔' },
@@ -71,6 +71,8 @@ try {
 	hud.stand.querySelector( '[data-sea-journal="accept"]' ).onclick();
 	hud.stand.querySelector( '[data-story="accept"]' ).onclick();
 	assert.deepEqual( calls, [ 'sea:accept', 'story:accept' ], 'same-named story choices route to independent game actions' );
+	hud.stand.querySelector( '[data-expedition="accept"]' ).onclick();
+	assert.equal( calls.at( - 1 ), 'wreck:accept', 'wreck choices use their own state machine' );
 	assert.match( hud.seaJournalMarkup(), /可探寻/ );
 
 	state.story.stage = 1;
@@ -84,7 +86,7 @@ try {
 	assert.match( hud.inv.html, /航海见闻 · 深海的回声/ );
 	assert.match( hud.inv.html, /沉没的门廊/ );
 	assert.doesNotMatch( hud.inv.html, /三 · 深海里的邻居/, 'the journal does not reveal unearned discoveries' );
-	const selectors = [ 'details.gm-journey', 'details.gm-story-journal', 'details.gm-sea-journal' ];
+	const selectors = [ 'details.gm-journey', 'details.gm-story-journal', 'details.gm-sea-journal', 'details.gm-expedition-journal', 'details.gm-field-guide' ];
 	for ( const selector of selectors ) hud.inv.querySelector( selector ).open = true;
 	hud.inv.querySelector( '.gm-list' ).scrollTop = 175;
 	hud.inv.querySelector( 'details.gm-sea-journal > summary' ).focus();
@@ -96,6 +98,8 @@ try {
 	assert.equal( document.activeElement, hud.inv.querySelector( 'details.gm-sea-journal > summary' ), 'journal summary keeps keyboard focus' );
 	assert.equal( hud.orderCard.querySelector( '.gm-sea-track' ).open, true );
 	assert.equal( hud.orderCard.querySelector( '.gm-story-track' ).open, true );
+	hud.inv.querySelector( 'details.gm-field-guide > summary' ).focus(); hud.refresh();
+	assert.equal( document.activeElement, hud.inv.querySelector( 'details.gm-field-guide > summary' ), 'photography guide preserves keyboard focus' );
 
 	state.seaJournal.stage = 3;
 	hud.invOpen = false;

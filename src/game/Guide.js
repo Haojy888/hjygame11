@@ -112,6 +112,7 @@ const TIPS = {
 	joe: '<b>乔</b>收购渔获并引导你的四章航程。按 <kbd>E</kbd> 查看目标、章节奖励与钓场解锁。任务可分批交付，每条鱼只计入一个任务。',
 	marta: '<b>玛尔塔</b>出售装备升级和柴油。按 <kbd>E</kbd> 查看商品。',
 	deep: '深水钓场已开放。出发前去乔的鱼摊，展开<b>“聊聊海上的见闻”</b>，听一段<b>深海的回声</b>。这是可选探索，按 <kbd>I</kbd> 随时查看见闻。',
+	wreck: '珊瑚礁已开放。找乔展开<b>“归潮号的最后一程”</b>，探访沉船与潮光岩洞。潜水时按 <kbd>P</kbd> 取景、<kbd>G</kbd> 拍摄，按 <kbd>I</kbd> 查看水下摄影图鉴。',
 };
 
 const h = ( tag, cls, html ) => {
@@ -347,6 +348,7 @@ export class Guide {
 
 		const s = g.state;
 		if ( s.isGroundUnlocked?.( 'deep' ) && ! s.seaJournal?.stage ) this.tip( 'deep' );
+		if ( s.isGroundUnlocked?.( 'reef' ) && ! s.isGroundUnlocked?.( 'deep' ) && s.expedition?.stage === 0 ) this.tip( 'wreck' );
 		if ( s.holdKg >= s.stats.holdKg * 0.92 ) this.tip( 'full' );
 		if ( p.mode === 'walk' ) {
 

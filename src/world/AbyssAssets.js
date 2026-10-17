@@ -62,21 +62,22 @@ export function seatAbyssProp( geometry, placement, terrain = null ) {
 
 export class AbyssAssets {
 
-	constructor( { scene, placements, colliders = null, terrain = null } ) {
+	constructor( { scene, placements, colliders = null, terrain = null, ids = IDS, base = BASE } ) {
 
 		this.group = new Group(); this.group.name = '深海遗迹 · Lux3D 景物';
 		this.group.visible = false; scene.add( this.group );
 		this.placements = placements; this.colliders = colliders; this.terrain = terrain;
+		this.ids = ids; this.base = base;
 		this.pending = new Map(); this.models = new Map(); this.visible = false;
 
 	}
 
 	load( id ) {
 
-		if ( ! IDS.includes( id ) ) return Promise.resolve( false );
+		if ( ! this.ids.includes( id ) ) return Promise.resolve( false );
 		if ( this.pending.has( id ) ) return this.pending.get( id );
 		const textures = [];
-		const promise = loadGLB( BASE + id + '.glb' ).then( async ( gltf ) => {
+		const promise = loadGLB( this.base + id + '.glb' ).then( async ( gltf ) => {
 
 			const geometry = abyssPropGeometry( gltf );
 			const gm = gltf.materials[ gltf.meshes[ 0 ][ 0 ].material ] || {}, pbr = gm.pbrMetallicRoughness || {};
@@ -107,7 +108,7 @@ export class AbyssAssets {
 			for ( let i = 0; i < places.length; i ++ ) {
 
 				const p = places[ i ];
-				const seated = seatAbyssProp( geometry, p, this.terrain );
+				const seated = seatAbyssProp( geometry, p, p.alignToTerrain === false ? null : this.terrain );
 				mesh.setMatrixAt( i, seated.matrix );
 				this._collider( id, { ...p, position: seated.position }, geometry.boundingBox );
 
@@ -150,7 +151,7 @@ export class AbyssAssets {
 		const p = camera.position;
 		this.visible = Math.hypot( p.x - WORLD.abyss.center.x, p.z - WORLD.abyss.center.z ) < 205 && p.y < 5;
 		this.group.visible = this.visible;
-		if ( this.visible && GPU.device ) for ( const id of IDS ) if ( ! this.pending.has( id ) ) this.load( id );
+		if ( this.visible && GPU.device ) for ( const id of this.ids ) if ( ! this.pending.has( id ) ) this.load( id );
 
 	}
 

@@ -2,6 +2,7 @@ import { MAP_BOUNDS } from './Minimap.js';
 import { WORLD } from '../world/WorldLayout.js';
 import { STAND } from './FishStand.js';
 import { CHANDLERY } from './Chandlery.js';
+import { WRECK_SITE, CAVE_SITE } from './Expedition.js';
 
 const CSS = `
 .gm-worldmap { position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: auto;
@@ -50,6 +51,9 @@ export function mapLocations( game ) {
 	if ( game.minimap?._goalPos ) entries.push( { id: 'task', icon: '◇', label: '当前主线目标', ...game.minimap._goalPos, color: '#ffd284' } );
 	if ( game.storyTarget ) entries.push( { id: 'story', icon: '☆', label: '当前剧情目标', ...game.storyTarget, color: '#c6b4ff' } );
 	const journalTarget = game.seaJournalTarget;
+	if ( game.state.isGroundUnlocked( 'reef' ) ) entries.push( { id: 'wreck', icon: '⚓', label: '归潮号沉船', ...WRECK_SITE, color: '#d8c095' }, { id: 'cave', icon: '洞', label: '潮光岩洞 · 两端可通行', ...CAVE_SITE, color: '#96bfc7' } );
+	const expedition = game.expeditionTarget;
+	if ( expedition ) entries.push( { id: 'expedition', icon: '⚓', label: `归潮号探索目标${ expedition.y < - 3 ? ` · 水下约 ${ Math.round( - expedition.y ) } 米` : '' }`, ...expedition, color: '#ffe6af' } );
 	if ( journalTarget ) entries.push( { id: 'seaJournal', icon: '◎', label: `航海见闻目标${ journalTarget.y < - 4 ? ` · 水下约 ${ Math.round( - journalTarget.y ) } 米` : '' }`, ...journalTarget, color: '#8fe5ce' } );
 	if ( game.app.boatCtl ) entries.push( { id: 'boat', icon: '船', label: '你的船', ...game.app.boatCtl.position, color: '#d8edf5' } );
 	entries.push( { id: 'player', icon: '▲', label: '你的位置', ...game.app.player.position, color: '#fff' } );
@@ -75,7 +79,7 @@ export class WorldMap {
 		this.el.innerHTML = `<section class="gm-worldmap-card tw-glass" role="dialog" aria-modal="true" aria-labelledby="gm-worldmap-title">
 			<header><div><h2 id="gm-worldmap-title">潮汐海岸 · 地图</h2><p>北方朝上 · 地点旁显示与你的距离</p></div><button type="button" class="gm-btn is-ghost">关闭 (M / Esc)</button></header>
 			<div class="gm-worldmap-body"><div class="gm-worldmap-view"><canvas width="640" height="640" role="img" aria-label="岛屿、海湾与你的实时位置；地点和距离见右侧列表"></canvas></div><ul class="gm-worldmap-list"></ul></div>
-			<footer>数字 1–3 为已开放钓场；◇ 主线目标，☆ 剧情目标，◎ 航海见闻。边缘标记表示目标在当前地图范围外。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
+			<footer>数字 1–3 为已开放钓场；◇ 主线目标，☆ 剧情目标，◎ 航海见闻，⚓ 归潮号探索。边缘标记表示目标在当前地图范围外。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
 		this.canvas = this.el.querySelector( 'canvas' );
 		this.ctx = this.canvas.getContext( '2d' );
 		this.list = this.el.querySelector( 'ul' );

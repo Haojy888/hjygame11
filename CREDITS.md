@@ -89,6 +89,12 @@
 
 商贩（`joe.glb`、`marta.glb`）使用了 [Microsoft Rocketbox Avatar Library](https://github.com/microsoft/Microsoft-Rocketbox) 中的 `Wood_Male_01` 和 `Female_Adult_04` 角色，以及待机、交谈、挥手和耸肩动画（© Microsoft Corporation，MIT 许可证，许可证文件为 `LICENSE-Rocketbox.md`）。素材通过 `tools/characters/` 转换，包括缩小纹理、重定向动画和烘焙动画。相关论文：M. Gonzalez-Franco 等，*The Rocketbox Library and the Utility of Freely Available Rigged Avatars*，Frontiers in Virtual Reality，2020。
 
+## 归潮号探索、岩洞与水母
+
+`public/models/expedition/` 三个模型由用户授权的 Aholo Lux3D 国内文本建模任务生成：沉船 `4172919`、水母 `4172924`、旧船锚 `4172929`，没有输入第三方照片或模型。F 盘 Blender 完成减面、嵌入贴图和沉船通道切口；模型及贴图按 Aholo 服务条款使用，新增代码沿用项目 MIT 许可证。
+
+方案查阅 [patrick-morrison/below-wrecksploration](https://github.com/patrick-morrison/below-wrecksploration) 的沉船潜水展示，以及 [holtsetio/aurelia](https://github.com/holtsetio/aurelia) 的水母脉动造型与触手表现。仅作为场景与动画设计参考，未复制其源码、模型或纹理。岩洞、珊瑚海草及动画使用本项目现有引擎与几何工具实现；「归潮号的最后一程」文本与摄影记录交互为本次新增。
+
 ## 字体
 
 [Inter](https://rsms.me/inter/) 和 [JetBrains Mono](https://www.jetbrains.com/lp/mono/) 均采用 SIL Open Font License 1.1。运行时会从 Google Fonts 加载，这些字体文件不包含在本仓库中。

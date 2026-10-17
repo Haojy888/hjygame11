@@ -4,6 +4,7 @@ import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { fishGround } from './Bites.js';
 import { freshStory, normalizeStory } from './Story.js';
 import { freshSeaJournal, normalizeSeaJournal } from './SeaJournal.js';
+import { freshExpedition, normalizeExpedition, normalizeFieldPhotos, FIELD_SUBJECTS } from './Expedition.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
@@ -32,6 +33,8 @@ export class GameState {
 		this.legacyAccess = false;
 		this.story = freshStory();
 		this.seaJournal = freshSeaJournal();
+		this.expedition = freshExpedition();
+		this.fieldPhotos = {};
 		this.listeners = new Set();
 
 	}
@@ -148,6 +151,25 @@ export class GameState {
 		this.save();
 		this.emit();
 		return true;
+
+	}
+
+	expeditionEvent( event ) {
+
+		const next = [ 'accept', 'bow', 'log', 'compass', 'return' ];
+		if ( typeof event !== 'string' || this.expedition.stage >= next.length || event !== next[ this.expedition.stage ] || ! this.isGroundUnlocked( 'reef' ) ) return false;
+		this.expedition.stage ++; this.save(); this.emit(); return true;
+
+	}
+
+	recordFieldPhoto( id, photo ) {
+
+		if ( ! Object.hasOwn( FIELD_SUBJECTS, id ) || this.fieldPhotos[ id ] ) return false;
+		const validated = normalizeFieldPhotos( { [ id ]: photo } );
+		if ( ! validated[ id ] ) return false;
+		this.fieldPhotos[ id ] = validated[ id ];
+		if ( ! this.save() ) { delete this.fieldPhotos[ id ]; return false; }
+		this.emit(); return true;
 
 	}
 
@@ -333,7 +355,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos };
 
 	}
 
@@ -363,6 +385,8 @@ export class GameState {
 		this.legacyAccess = d.v === 1 || d.legacyAccess === true;
 		this.story = normalizeStory( d.story );
 		this.seaJournal = normalizeSeaJournal( d.seaJournal );
+		this.expedition = normalizeExpedition( d.expedition );
+		this.fieldPhotos = normalizeFieldPhotos( d.fieldPhotos );
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
@@ -411,6 +435,8 @@ export class GameState {
 		this.legacyAccess = false;
 		this.story = freshStory();
 		this.seaJournal = freshSeaJournal();
+		this.expedition = freshExpedition();
+		this.fieldPhotos = {};
 		this.save();
 		this.emit();
 

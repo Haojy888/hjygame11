@@ -18,6 +18,8 @@ import { Guide } from './Guide.js';
 import { StoryWorld, STORY_SPOTS } from './StoryWorld.js';
 import { storyObjective, storyDialogue } from './Story.js';
 import { seaJournalObjective, seaJournalDialogue } from './SeaJournal.js';
+import { expeditionObjective, expeditionDialogue, CAVE_SITE } from './Expedition.js';
+import { FieldCamera, subjectVisible } from './FieldCamera.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -57,6 +59,8 @@ export class Game {
 		this.seaObservation = { progress: 0, eligible: false, ready: false };
 		this._seaTarget = new Vector3();
 		this._seaDirection = new Vector3();
+		this.fieldCamera = new FieldCamera( this );
+		this._caveVisits = 0;
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
 		this.bite = null; // { phase: 'wait' | 'nibble' | 'take', t, nibbles, species, kg }
@@ -233,6 +237,7 @@ export class Game {
 		app.boatCtl.reset();
 		app.input.clear();
 		app.player.rescueToHarbor();
+		this._caveVisits = 0;
 		this.rescueHold = 0;
 		this.seaObservation = { progress: 0, eligible: false, ready: false };
 		this._lmb = this._rmb = this._wasDriven = false;
@@ -409,6 +414,66 @@ export class Game {
 
 	}
 
+	get expeditionTarget() {
+
+		if ( ! this.state?.expedition || ! this.state.isGroundUnlocked( 'reef' ) ) return null;
+		const location = expeditionObjective( this.state ).location;
+		if ( location === 'joe' ) return this.stand?.vendor.position || STAND;
+		if ( location === 'compass' && this._caveVisits !== 3 && this.app.wreckScene ) {
+
+			const z = CAVE_SITE.z + ( this._caveVisits & 1 ? 9 : - 9 );
+			return new Vector3( CAVE_SITE.x, this.app.terrainData.heightAt( CAVE_SITE.x, z ) + 2.5, z );
+
+		}
+		return this.app.wreckScene?.targets[ location ] || null;
+
+	}
+
+	talkExpedition( choice ) {
+
+		const app = this.app, ui = app.ui?.ui, vendor = this.hud?.vendor;
+		if ( ! this.hud?.standOpen || vendor !== this.stand?.vendor || ! vendor || app.player.mode !== 'walk' || ! vendor.inRange( app.player.position )
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing || this.rescueHold > 0
+			|| app.input.enabled === false || app.input.focused === false || app.input.interrupted ) return false;
+		const dialogue = expeditionDialogue( this.state, vendor.kind );
+		if ( ! dialogue?.choices.some( ( c ) => c.id === choice ) || ! this.state.expeditionEvent( choice ) ) return false;
+		this.toast( this.state.expedition.stage === 5 ? '归潮号的故事已回港 · 按 I 阅读探索日志' : '已记下归潮号位置 · 按 M 跟随 ⚓，按 I 查看日志', 5000 );
+		return true;
+
+	}
+
+	updateExpedition() {
+
+		const app = this.app, p = app.player, input = app.input, ui = app.ui?.ui, stage = this.state?.expedition?.stage;
+		if ( ! [ 1, 2, 3 ].includes( stage ) ) { this._caveVisits = 0; return; }
+		if ( ! app.wreckScene || app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen || this._cardDismissed
+			|| input.enabled === false || input.focused === false || input.interrupted || this.rescueHold > 0 || input.down?.( 'KeyX' ) || app.boatCtl?.capsized
+			|| p.mode !== 'swim' || p.position.y >= - 3 || p.busy || this.rod.equipped || this.fight || this.landing ) return;
+		if ( stage === 3 && Math.abs( p.position.x - CAVE_SITE.x ) < 2.0 ) for ( const [ bit, offset ] of [ [ 1, - 9 ], [ 2, 9 ] ] ) {
+
+			const z = CAVE_SITE.z + offset, floor = app.terrainData.heightAt( CAVE_SITE.x, z );
+			if ( Math.abs( p.position.z - z ) < 2.5 && p.position.y > floor + 0.5 && p.position.y < floor + 4 ) this._caveVisits = ( this._caveVisits || 0 ) | bit;
+
+		}
+		if ( stage === 3 && this._caveVisits !== 3 ) {
+
+			if ( p.position.distanceTo( app.wreckScene.cavePosition ) < 22 ) p.prompt = { key: '探索', text: '沿岩洞中央通道游向另一端 · 按 M 查看当前目标' };
+			return;
+
+		}
+		const target = this.expeditionTarget;
+		if ( ! target || ! subjectVisible( app, target, stage === 1 ? 6 : 3.5, 0.65 ) || p.position.distanceTo( target ) > ( stage === 1 ? 7 : 4 ) ) return;
+		p.prompt = { key: 'G', text: stage === 1 ? '辨认归潮号船首' : stage === 2 ? '阅读货舱里的旧航海日志' : '记录岩洞出口的旧罗盘' };
+		if ( input.hit( 'KeyG' ) && this.state.expeditionEvent( stage === 1 ? 'bow' : stage === 2 ? 'log' : 'compass' ) ) {
+
+			this.toast( stage === 1 ? '归潮号找到了 · 从中部破口或上方进入货舱' : stage === 2 ? '日志记下了潮光岩洞的方向 · 按 M 跟随 ⚓' : '旧罗盘的航线已记下 · 平安回港，把故事讲给乔听', 5500 );
+
+		}
+
+	}
+
 	// ---- per frame (after the player / camera update)
 	update( dt ) {
 
@@ -559,6 +624,8 @@ export class Game {
 		this.updateVendors( inp, p );
 		this.updateStory( dt );
 		this.updateSeaJournal( dt );
+		this.updateExpedition();
+		this.fieldCamera?.update( dt );
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

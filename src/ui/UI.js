@@ -2164,7 +2164,7 @@ export class UI {
 						<h3>界面</h3>
 						${ row( k( 'M' ), '查看地图<small>玩家、船只、港口与已开放钓场；M / Esc 关闭</small>' ) }
 						${ row( k( 'H' ), '设置面板' ) }
-						${ row( k( 'P' ), '拍照模式<small>隐藏全部界面</small>' ) }
+						${ row( k( 'P' ), '拍照模式<small>隐藏界面；潜水时面向目标按 G 拍摄，I 查看水下摄影图鉴</small>' ) }
 						${ row( k( 'F1' ) + k( '?' ), '打开此说明' ) }
 						${ row( k( 'Esc' ), '解锁鼠标' ) }
 					</section>

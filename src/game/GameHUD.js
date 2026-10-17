@@ -4,6 +4,7 @@ import { FishPortrait } from './FishPortrait.js';
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
 import { SEA_JOURNAL_TITLE, seaJournalObjective, seaJournalEntries, seaJournalDialogue } from './SeaJournal.js';
+import { expeditionObjective, expeditionDialogue, expeditionEntries, FIELD_SUBJECTS } from './Expedition.js';
 import { BOATS } from './Boats.js';
 import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
 
@@ -42,6 +43,13 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-sea-dialogue > summary:focus-visible, .gm-sea-journal > summary:focus-visible { outline: 2px solid var(--tw-aqua); outline-offset: 3px; }
 .gm-sea-title { color: var(--tw-sun); }
 .gm-sea-journal summary { overflow-wrap: anywhere; }
+.gm-expedition { color: #dbbf8a; }
+.gm-field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--tw-2); margin-top: var(--tw-2); }
+.gm-field-card { padding: var(--tw-2); border: 1px solid var(--tw-line); border-radius: var(--tw-r-sm); min-width: 0; }
+.gm-field-card img { width: 100%; height: auto; aspect-ratio: 8 / 5; object-fit: contain; display: block; background: #0b2330; border-radius: 4px; }
+.gm-field-card p { margin: 6px 0; font-size: var(--tw-fs-xs); color: var(--tw-ink-2); line-height: 1.6; }
+.gm-field-card a { color: var(--tw-aqua); font-size: var(--tw-fs-xs); }
+.gm-order { max-height: 56vh; overflow: auto; scrollbar-width: thin; }
 .tw-root:has(.gm-catch.is-on) .gm-order { opacity: 0; visibility: hidden; }
 .gm-money { font-family: var(--tw-mono); color: var(--tw-sun); font-weight: 600; }
 .gm-cooler { display: flex; align-items: center; gap: var(--tw-2); color: var(--tw-ink-2); font-size: var(--tw-fs-md); }
@@ -366,10 +374,13 @@ export class GameHUD {
 		const storyOpen = panel?.querySelector( 'details.gm-story-journal' )?.open || false;
 		const seaOpen = panel?.querySelector( 'details.gm-sea-journal' )?.open || false;
 		const dialogueOpen = panel?.querySelector( 'details.gm-sea-dialogue' )?.open || false;
+		const expeditionOpen = panel?.querySelector( 'details.gm-expedition-journal' )?.open || false;
+		const fieldOpen = panel?.querySelector( 'details.gm-field-guide' )?.open || false;
+		const wreckDialogueOpen = panel?.querySelector( 'details.gm-expedition-dialogue' )?.open || false;
 		const focused = typeof document !== 'undefined' && panel?.contains?.( document.activeElement ) ? document.activeElement : null;
-		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal' ].find( ( name ) => focused.hasAttribute( name ) );
+		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition' ].find( ( name ) => focused.hasAttribute( name ) );
 		const focusSelector = focusAttribute ? `[${ focusAttribute }="${ focused.getAttribute( focusAttribute ) }"]`
-			: focused?.tagName === 'SUMMARY' ? [ 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
+			: focused?.tagName === 'SUMMARY' ? [ 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
 		const journey = panel?.querySelector( 'details.gm-journey' );
@@ -380,10 +391,15 @@ export class GameHUD {
 		if ( sea ) sea.open = seaOpen;
 		const dialogue = panel?.querySelector( 'details.gm-sea-dialogue' );
 		if ( dialogue ) dialogue.open = dialogueOpen;
+		for ( const [ selector, open ] of [ [ 'details.gm-expedition-journal', expeditionOpen ], [ 'details.gm-field-guide', fieldOpen ], [ 'details.gm-expedition-dialogue', wreckDialogueOpen ] ] ) {
+
+			const details = panel?.querySelector( selector ); if ( details ) details.open = open;
+
+		}
 		if ( focusSelector ) {
 
 			const nextFocus = panel.querySelector( focusSelector.startsWith( '[' ) ? focusSelector : `details.${ focusSelector } > summary` )
-				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : null );
+				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : null );
 			nextFocus?.focus( { preventScroll: true } );
 
 		}
@@ -400,9 +416,12 @@ export class GameHUD {
 		const objective = active ? storyObjective( this.game.state ) : null;
 		const seaStage = this.game.state.seaJournal?.stage || 0;
 		const sea = seaStage > 0 && seaStage < 4 ? seaJournalObjective( this.game.state ) : null;
+		const wreckStage = this.game.state.expedition?.stage || 0, wreck = wreckStage > 0 && wreckStage < 5 ? expeditionObjective( this.game.state ) : null;
+		const wreckOpen = this.orderCard.querySelector?.( '.gm-expedition-track' )?.open || false;
 		this.orderCard.innerHTML = this.orderMarkup( true ) + ( objective ? `<details class="gm-story-track gm-main-story-track tw-interactive" ${ trackOpen ? 'open' : '' }>
 			<summary>☆ ${ objective.title } · I 日志</summary><p>${ objective.text }</p>${ objective.location ? '<div class="gm-order-hint">蓝紫色 ☆ 指向支线目标</div>' : '' }</details>` : '' )
-			+ ( sea ? `<details class="gm-story-track gm-sea-track tw-interactive" ${ seaTrackOpen ? 'open' : '' }><summary>◎ 探索 · ${ sea.title }</summary><p>${ sea.text }</p><div class="gm-order-hint">绿色 ◎ 指向见闻目标 · M 看路线 · I 看见闻</div></details>` : '' );
+			+ ( sea ? `<details class="gm-story-track gm-sea-track tw-interactive" ${ seaTrackOpen ? 'open' : '' }><summary>◎ 探索 · ${ sea.title }</summary><p>${ sea.text }</p><div class="gm-order-hint">绿色 ◎ 指向见闻目标 · M 看路线 · I 看见闻</div></details>` : '' )
+			+ ( wreck ? `<details class="gm-story-track gm-expedition-track tw-interactive" ${ wreckOpen ? 'open' : '' }><summary>⚓ ${ wreck.title }</summary><p>${ wreck.text }</p><div class="gm-order-hint">M 查看 ⚓ 目标 · I 探索日志</div></details>` : '' );
 
 	}
 
@@ -451,6 +470,34 @@ export class GameHUD {
 
 		for ( const button of this.stand.querySelectorAll( '[data-story]' ) ) button.onclick = () => this.game.talkStory( button.dataset.story );
 		for ( const button of this.stand.querySelectorAll( '[data-sea-journal]' ) ) button.onclick = () => this.game.talkSeaJournal( button.dataset.seaJournal );
+		for ( const button of this.stand.querySelectorAll( '[data-expedition]' ) ) button.onclick = () => this.game.talkExpedition( button.dataset.expedition );
+
+	}
+
+	expeditionMarkup( kind = null ) {
+
+		const state = this.game.state;
+		if ( ! state.expedition || ! state.isGroundUnlocked( 'reef' ) ) return '';
+		if ( kind ) {
+
+			const d = expeditionDialogue( state, kind );
+			return d ? `<details class="gm-story-dialogue gm-expedition-dialogue"><summary>⚓ 归潮号的最后一程</summary><p>${ d.text }</p><div class="gm-story-choices">${ d.choices.map( ( c ) => `<button type="button" class="gm-mini gm-story-choice" data-expedition="${ c.id }">${ c.label }</button>` ).join( '' ) }</div></details>` : '';
+
+		}
+		const goal = expeditionObjective( state );
+		return `<details class="gm-journey gm-expedition-journal"><summary>⚓ 归潮号的最后一程 · ${ state.expedition.stage === 5 ? '已归港' : state.expedition.stage ? '探索中' : '可探寻' }</summary><p>${ goal.text }</p>${ expeditionEntries( state ).map( ( text, i ) => `<article class="gm-story-entry"><b>见闻 ${ i + 1 }</b><p>${ text }</p></article>` ).join( '' ) }</details>`;
+
+	}
+
+	fieldGuideMarkup() {
+
+		const photos = this.game.state.fieldPhotos || {};
+		return `<details class="gm-journey gm-field-guide"><summary>▣ 水下摄影图鉴 · ${ Object.keys( photos ).length } / 6</summary><p class="gm-sub">潜水时按 P 取景，将目标放在画面中间，再按 G 拍摄。按 P 返回后可查看、下载照片；每类保存一张。</p><div class="gm-field-grid">${ Object.entries( FIELD_SUBJECTS ).map( ( [ id, subject ] ) => {
+
+			const photo = photos[ id ];
+			return `<article class="gm-field-card"><b>${ subject.name }${ photo ? ' ✓' : '' }</b>${ photo ? `<img src="${ photo.image }" alt="拍摄的${ subject.name }" loading="lazy"><p>${ Math.floor( photo.hour ) }:${ String( Math.floor( photo.hour % 1 * 60 ) ).padStart( 2, '0' ) } · 水下约 ${ Math.max( 0, Math.round( - photo.y ) ) } 米</p><a href="${ photo.image }" download="潮汐海岸-${ id }.jpg">下载照片</a>` : '<p>尚未拍摄 · 期待下一次相遇</p>' }<p>${ subject.note }</p></article>`;
+
+		} ).join( '' ) }</div></details>`;
 
 	}
 
@@ -668,6 +715,8 @@ export class GameHUD {
 				${ this.journeyMarkup( true ) }
 				${ this.storyJournalMarkup() }
 				${ this.seaJournalMarkup() }
+				${ this.expeditionMarkup() }
+				${ this.fieldGuideMarkup() }
 				${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }
 				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
 			</div>
@@ -717,7 +766,7 @@ export class GameHUD {
 		this.stand.innerHTML = `
 			<h2>${ v.name }</h2>
 			<p class="gm-sub">${ s.inventory.length ? v.greeting || '让我看看你钓到了什么。' : v.idle || '钓到鱼再来吧。' }</p>
-			<div class="gm-list">${ this.storyDialogueMarkup( 'buyer' ) }${ this.seaJournalDialogueMarkup( 'buyer' ) }${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }${ this.journeyMarkup() }</div>
+			<div class="gm-list">${ this.storyDialogueMarkup( 'buyer' ) }${ this.seaJournalDialogueMarkup( 'buyer' ) }${ this.expeditionMarkup( 'buyer' ) }${ orderBox }${ rows || '<div class="gm-empty">没有可出售的鱼。</div>' }${ this.journeyMarkup() }</div>
 			<div class="gm-foot"><button class="gm-btn is-ghost" data-close>离开 (E)</button><button class="gm-btn" data-all ${ s.inventory.length ? '' : 'disabled' }>全部出售 · 鱼价 $${ s.holdValue }</button></div>`;
 		this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 		this.stand.querySelector( '[data-all]' ).onclick = () => this.game.sellAll();
@@ -756,7 +805,7 @@ GameHUD.prototype.renderShop = function () {
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ this.expeditionMarkup( 'shop' ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );

@@ -140,7 +140,7 @@ fn abyssLifeOffset( p: vec3f, aux: vec4f, age: f32 ) -> vec3f {
 	return vec3f( 0.0 );
 }` } );
 
-function stoneMaterial( ruins = false ) {
+export function stoneMaterial( ruins = false ) {
 
 	return new Material( {
 		name: ruins ? 'Abyss · weathered stone' : 'Abyss · fractured basalt', vertexColors: true, roughness: 0.94,
