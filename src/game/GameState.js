@@ -3,6 +3,7 @@ import { defaultUpgrades, gearStats, nextLevel, UPGRADES, FUEL_PRICE } from './G
 import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { fishGround } from './Bites.js';
 import { freshStory, normalizeStory } from './Story.js';
+import { freshSeaJournal, normalizeSeaJournal } from './SeaJournal.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
@@ -30,6 +31,7 @@ export class GameState {
 		this.orderDelivered = 0;
 		this.legacyAccess = false;
 		this.story = freshStory();
+		this.seaJournal = freshSeaJournal();
 		this.listeners = new Set();
 
 	}
@@ -122,6 +124,25 @@ export class GameState {
 
 			s.stage = 6;
 			this.money += 150;
+
+		} else return false;
+		this.save();
+		this.emit();
+		return true;
+
+	}
+
+	// Proximity, sight and observation time are validated by the world interaction.
+	seaJournalEvent( event ) {
+
+		const s = this.seaJournal;
+		if ( s.stage === 0 && event === 'accept' && this.isGroundUnlocked( 'deep' ) ) s.stage = 1;
+		else if ( s.stage === 1 && event === 'ruins' ) s.stage = 2;
+		else if ( s.stage === 2 && event === 'witness' ) s.stage = 3;
+		else if ( s.stage === 3 && [ 'wonder', 'peace' ].includes( event ) ) {
+
+			s.ending = event;
+			s.stage = 4;
 
 		} else return false;
 		this.save();
@@ -312,7 +333,7 @@ export class GameState {
 
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal };
 
 	}
 
@@ -341,6 +362,7 @@ export class GameState {
 			? Math.min( this.currentOrder.count - 1, d.orderDelivered ) : 0;
 		this.legacyAccess = d.v === 1 || d.legacyAccess === true;
 		this.story = normalizeStory( d.story );
+		this.seaJournal = normalizeSeaJournal( d.seaJournal );
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
 		return true;
@@ -388,6 +410,7 @@ export class GameState {
 		this.orderDelivered = 0;
 		this.legacyAccess = false;
 		this.story = freshStory();
+		this.seaJournal = freshSeaJournal();
 		this.save();
 		this.emit();
 

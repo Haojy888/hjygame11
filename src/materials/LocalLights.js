@@ -177,8 +177,10 @@ export class LocalLights {
 
 			fl.dir.lerp( _f, 1 - Math.exp( - dt / 0.06 ) ).normalize();
 			fl.position.setFromMatrixPosition( camera.matrixWorld ).addScaledVector( _r, 0.2 ).addScaledVector( _u, - 0.22 ).addScaledVector( _f, 0.15 );
-			// faint against daylight (the scene's night is exposed far brighter than physical)
-			const k = fl.intensity * ( 0.08 + 0.92 * smooth( G.night.value, 0.0, 0.6 ) );
+			// Daylight weakens the torch above water, but not beneath several metres of water.
+			const night = smooth( G.night.value, 0.0, 0.6 );
+			const submerged = smooth( G.cameraWaterHeight.value - camera.position.y, 0.35, 3 );
+			const k = fl.intensity * ( 0.08 + 0.92 * ( night + ( 1 - night ) * submerged ) );
 			pos[ 0 ].set( fl.position.x, fl.position.y, fl.position.z, fl.range * fl.range );
 			col[ 0 ].set( fl.color.r * k, fl.color.g * k, fl.color.b * k, fl.cosInner );
 			dir[ 0 ].set( fl.dir.x, fl.dir.y, fl.dir.z, fl.cosOuter );

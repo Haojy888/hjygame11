@@ -17,6 +17,7 @@ import { WorldMap } from './WorldMap.js';
 import { Guide } from './Guide.js';
 import { StoryWorld, STORY_SPOTS } from './StoryWorld.js';
 import { storyObjective, storyDialogue } from './Story.js';
+import { seaJournalObjective, seaJournalDialogue } from './SeaJournal.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -53,6 +54,9 @@ export class Game {
 		this._sonarT = 0;
 		this._sonar = null;
 		this.rescueHold = 0;
+		this.seaObservation = { progress: 0, eligible: false, ready: false };
+		this._seaTarget = new Vector3();
+		this._seaDirection = new Vector3();
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
 		this.bite = null; // { phase: 'wait' | 'nibble' | 'take', t, nibbles, species, kg }
@@ -230,6 +234,7 @@ export class Game {
 		app.input.clear();
 		app.player.rescueToHarbor();
 		this.rescueHold = 0;
+		this.seaObservation = { progress: 0, eligible: false, ready: false };
 		this._lmb = this._rmb = this._wasDriven = false;
 		this._sonar = null;
 		this._sonarT = 0;
@@ -307,6 +312,98 @@ export class Game {
 				this.toast( stage === 5 ? '归航灯亮了 · 渔港谢礼 $150 · 按 I 阅读结局' : '已记录新线索 · 按 I 查看剧情日志', 5000 );
 
 			}
+
+		}
+
+	}
+
+	get seaJournalTarget() {
+
+		if ( ! this.state.seaJournal ) return null;
+		const location = seaJournalObjective( this.state ).location;
+		if ( location === 'joe' ) return this.stand?.vendor.position || STAND;
+		const target = this._seaTarget ||= new Vector3();
+		if ( location === 'abyss' ) {
+
+			const gate = this.app.abyssScene?.gateways?.[ 0 ];
+			const x = WORLD.abyss.center.x + ( gate?.x ?? 0 ), z = WORLD.abyss.center.z + ( gate?.z ?? - 34 );
+			return target.set( x, ( gate?.floor ?? this.app.terrainData?.heightAt( x, z ) ?? - 22 ) + 2.5, z );
+
+		}
+		if ( location === 'elder' && this.app.deepBeast?.creaturePosition ) return target.copy( this.app.deepBeast.creaturePosition ).add( { x: 0, y: 6, z: 0 } );
+		return null;
+
+	}
+
+	talkSeaJournal( choice ) {
+
+		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;
+		if ( ! this.hud?.standOpen || ! vendor || vendor !== this.stand?.vendor
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing || this.rescueHold > 0
+			|| app.input.enabled === false || app.input.focused === false || app.input.interrupted
+			|| app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) ) return false;
+		const dialogue = seaJournalDialogue( this.state, vendor.kind );
+		if ( ! dialogue?.choices.some( ( option ) => option.id === choice ) || ! this.state.seaJournalEvent( choice ) ) return false;
+		this.toast( this.state.seaJournal.stage === 4 ? '深海见证者 · 这一程已写入航海手记，按 I 阅读' : '已记下深海传闻 · 按 M 查看 ◎ 见闻目标，按 I 查看手记', 5000 );
+		return true;
+
+	}
+
+	updateSeaJournal( dt ) {
+
+		const observation = this.seaObservation ||= { progress: 0, eligible: false, ready: false };
+		const reset = () => { observation.progress = 0; observation.eligible = observation.ready = false; };
+		const app = this.app, p = app.player, input = app.input, ui = app.ui?.ui;
+		const stage = this.state?.seaJournal?.stage;
+		if ( ! [ 1, 2 ].includes( stage ) || app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud?.invOpen || this.hud?.standOpen || this.hud?.catchOpen || this._cardDismissed
+			|| input.enabled === false || input.focused === false || input.interrupted
+			|| this.rescueHold > 0 || input.down?.( 'KeyX' ) || app.boatCtl?.capsized
+			|| p.mode !== 'swim' || p.position.y >= - 4 || p.busy || this.rod.equipped || this.fight || this.landing ) { reset(); return; }
+		const target = this.seaJournalTarget;
+		const camera = app.camera;
+		if ( ! target || ! camera || camera.position.y >= - 2
+			|| ! [ target, p.position, camera.position ].every( ( point ) => [ point.x, point.y, point.z ].every( Number.isFinite ) ) ) { reset(); return; }
+		const distance = p.position.distanceTo( target );
+		if ( stage === 1 ) {
+
+			reset();
+			if ( distance > 9 || Math.abs( p.position.y - target.y ) > 5.5 ) return;
+			p.prompt = { key: 'G', text: '记录沉没门廊 · 深海的回声' };
+			if ( input.hit( 'KeyG' ) && this.state.seaJournalEvent( 'ruins' ) ) this.toast( '门廊仍在海底 · 按 M 查看巨章位置，按 L 开灯慢慢靠近', 5000 );
+			return;
+
+		}
+		if ( distance > 32 ) { reset(); return; }
+		const direction = this._seaDirection ||= new Vector3();
+		const toward = this._tmp ||= new Vector3();
+		toward.copy( target ).sub( camera.position );
+		camera.getWorldDirection( direction );
+		const facing = toward.lengthSq() > 0.01 && direction.dot( toward.normalize() ) >= Math.cos( Math.PI / 6 );
+		const still = ( p.velocity?.length() ?? Infinity ) < 1.3;
+		// Terrain can hide the elder even at short range. A free camera or a surface visit never counts.
+		let visible = true;
+		if ( distance <= 18 && facing && app.terrainData ) for ( let i = 1; i < 5; i ++ ) {
+
+			const t = i / 5, from = camera.position;
+			const ground = app.terrainData.heightAt( from.x + ( target.x - from.x ) * t, from.z + ( target.z - from.z ) * t );
+			if ( ! Number.isFinite( ground ) || ground + 0.3 > from.y + ( target.y - from.y ) * t ) { visible = false; break; }
+
+		}
+		observation.eligible = distance <= 18 && facing && still && visible;
+		if ( observation.eligible ) observation.progress = Math.min( 1, observation.progress + ( Number.isFinite( dt ) ? Math.min( Math.max( dt, 0 ), 0.1 ) : 0 ) / 6 );
+		else observation.progress = 0;
+		observation.ready = observation.progress >= 1 - 1e-8;
+		p.prompt = { key: observation.ready ? 'G' : distance > 18 || ! facing ? 'L' : '观察', text: observation.ready ? '记录巨章见闻 · 不必带走任何东西'
+			: distance > 18 ? '按 L 开灯，再靠近巨章一些 · 保持距离即可观察'
+				: ! facing || ! visible ? '按 L 开灯，面向巨章观察 · ◎ 为巨章当前位置'
+					: ! still ? '松开移动键，停下来安静观察巨章'
+						: `安静观察 ${ Math.min( 6, Math.floor( observation.progress * 6 + 1e-8 ) ) } / 6 秒 · 保持注视` };
+		if ( observation.ready && input.hit( 'KeyG' ) && this.state.seaJournalEvent( 'witness' ) ) {
+
+			reset();
+			this.toast( '深海见闻已记下 · 平安回港，把故事讲给乔听；按 I 阅读手记', 6000 );
 
 		}
 
@@ -461,6 +558,7 @@ export class Game {
 		for ( const v of this.vendors ) v.update( dt, p.mode === 'walk' ? p.position : null );
 		this.updateVendors( inp, p );
 		this.updateStory( dt );
+		this.updateSeaJournal( dt );
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

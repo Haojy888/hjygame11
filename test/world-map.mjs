@@ -106,6 +106,16 @@ try {
 	assert.equal( mapLocations( game ).some( ( entry ) => entry.id === 'deep' ), true );
 	game.storyTarget = new Vector3( 24, 0.6, - 50 );
 	assert.equal( mapLocations( game ).find( ( entry ) => entry.id === 'story' ).x, 24 );
+	game.seaJournalTarget = new Vector3( - 20, - 19, 406 );
+	const journalLocation = mapLocations( game ).find( ( entry ) => entry.id === 'seaJournal' );
+	assert.equal( journalLocation.icon, '◎' );
+	assert.equal( journalLocation.z, 406, 'the journal can guide to the actual northern gateway separately from the fixed ruin marker' );
+	assert.match( journalLocation.label, /水下约 19 米/ );
+	game.seaJournalTarget.z = 443;
+	assert.equal( mapLocations( game ).find( ( entry ) => entry.id === 'seaJournal' ).z, 443, 'live observation target follows the patrol' );
+	assert.equal( mapLocations( game ).find( ( entry ) => entry.id === 'story' ).x, 24, 'independent stories retain their own routes' );
+	game.seaJournalTarget = null;
+	assert.equal( mapLocations( game ).some( ( entry ) => entry.id === 'seaJournal' ), false, 'completed memories leave no stale target' );
 	game.app.boatCtl.position.set( 3000, 0, 3000 );
 	map.toggle( true );
 	assert.match( list.innerHTML, /图外/ );

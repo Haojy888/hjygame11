@@ -68,10 +68,10 @@ const row = ( keys, text ) => `<div class="gm-guide-row"><span class="k">${ keys
 const CARDS = [
 	{
 		eyebrow: '欢迎来到潮汐海岸',
-		title: '从码头出发，成为潮汐大师',
-		body: `<p>你可以在<b>海滩</b>、<b>码头</b>或<b>船上</b>钓鱼。浅滩、码头、礁石和深海生活着不同的鱼，鱼群活跃的时间也各不相同。</p>
-			<p>按左上角的目标，把合格渔获卖给码头旁的<b>乔</b>，可<b>分批累计交付</b>。完成<b>4 章、8 个任务</b>，依次开放<b>珊瑚礁、深水钓场</b>，获得奖金和装备奖励。</p>
-			<p>按 <b>I</b> 随时查看任务航程，也可找<b>玛尔塔</b>购买升级。全部完成后仍可自由钓鱼、收集图鉴和刷新纪录。</p>`,
+		title: '自由出海，带着故事回港',
+		body: `<p>挑一片喜欢的海，停船抛竿。你可以在<b>海滩、码头或船上</b>钓鱼，也可以看看落日，探寻水下的未知。海上的发现，值得带回来讲给人听。</p>
+			<p>先跟着左上角目标熟悉海岸：把合格渔获卖给码头旁的<b>乔</b>，可<b>分批累计交付</b>。完成<b>4 章、8 个任务</b>，逐步开放<b>珊瑚礁、深水钓场</b>。</p>
+			<p><b>乔和玛尔塔</b>在港口等你，也有自己的故事。按 <b>I</b> 看任务和航海见闻，按 <b>M</b> 看地图。按自己的节奏出发，记得平安回来。</p>`,
 	},
 	{
 		eyebrow: '钓鱼指南',
@@ -111,6 +111,7 @@ const TIPS = {
 	boat: '这是你的船。按 <kbd>E</kbd> 登船，在船舵处再按 <kbd>E</kbd> 开船；<kbd>W</kbd><kbd>S</kbd> 控制油门，<kbd>A</kbd><kbd>D</kbd> 转向。玛尔塔有柴油出售。',
 	joe: '<b>乔</b>收购渔获并引导你的四章航程。按 <kbd>E</kbd> 查看目标、章节奖励与钓场解锁。任务可分批交付，每条鱼只计入一个任务。',
 	marta: '<b>玛尔塔</b>出售装备升级和柴油。按 <kbd>E</kbd> 查看商品。',
+	deep: '深水钓场已开放。出发前去乔的鱼摊，展开<b>“聊聊海上的见闻”</b>，听一段<b>深海的回声</b>。这是可选探索，按 <kbd>I</kbd> 随时查看见闻。',
 };
 
 const h = ( tag, cls, html ) => {
@@ -240,7 +241,7 @@ export class Guide {
 		this.title.textContent = c.title;
 		this.body.innerHTML = c.body;
 		this.dots.forEach( ( d, j ) => d.classList.toggle( 'is-on', j === i ) );
-		this.nextBtn.textContent = i === CARDS.length - 1 ? '开始钓鱼' : '下一步';
+		this.nextBtn.textContent = i === CARDS.length - 1 ? '出发去看看' : '下一步';
 		if ( this.minimap ) this.minimap.highlight( i === CARDS.length - 1 ? [ 'joe', 'marta' ] : [] );
 		this._whereT = 0;
 		if ( ! this.open ) {
@@ -345,6 +346,7 @@ export class Guide {
 		}
 
 		const s = g.state;
+		if ( s.isGroundUnlocked?.( 'deep' ) && ! s.seaJournal?.stage ) this.tip( 'deep' );
 		if ( s.holdKg >= s.stats.holdKg * 0.92 ) this.tip( 'full' );
 		if ( p.mode === 'walk' ) {
 
