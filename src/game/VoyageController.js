@@ -1,7 +1,7 @@
 import { Vector3 } from '../engine/index.js';
 import { subjectVisible } from './FieldCamera.js';
 import { VoyageWorld } from '../world/VoyageWorld.js';
-import { BUOY, STATION, RECORDER, SALVAGE, EVENT_SITES, EVENT_TYPES } from './Voyage.js';
+import { BUOY, STATION, RECORDER, SALVAGE, EVENT_SITES, EVENT_TYPES, RESTORATION_SITES, restorationReady } from './Voyage.js';
 
 const V = ( p, y = 0 ) => new Vector3( p.x, y, p.z );
 export class VoyageController {
@@ -10,6 +10,7 @@ export class VoyageController {
 
 		this.game = game; this.random = random; this.world = world || new VoyageWorld( game.app );
 		this.haul = 0; this.checkpoint = 0; this.noticeAge = 180; this.whaleAge = 180; this.weatherSeen = null; this.radioHint = false;
+		this.workId = null; this.workTime = 0;
 
 	}
 
@@ -40,9 +41,10 @@ export class VoyageController {
 		if ( ! this.aboard || ! this.available( true ) || ! g.hud?.invOpen ) return false;
 		let result = false;
 		if ( action === 'accept' ) result = g.state.voyageAction( 'accept', { hour: g.hour } );
+		if ( action === 'restore-start' ) result = g.state.voyageAction( action, { hour: g.hour } );
 		if ( action === 'respond' || action === 'decline' ) result = g.state.voyageAction( action, { serial: v.event?.serial, hour: g.hour } );
 		if ( action === 'display' || action === 'photo' ) result = g.state.voyageAction( action, { id } );
-		if ( result ) g.toast( action === 'accept' ? '已回应海湾七号 · 按 M 跟随 ▤，先找到编号浮标' : action === 'respond' ? '已回应电台 · 坐标已标在 M 地图中' : action === 'decline' ? '继续自己的航程 · 之后还会收到海上的消息' : '驾驶舱陈列已保存 · 回到船上即可看到', 4500 );
+		if ( result ) g.toast( action === 'restore-start' ? '海湾复苏行动已开始 · 工具已备好，按 M 找 ♧ 潜点；没有限时' : action === 'accept' ? '已回应海湾七号 · 按 M 跟随 ▤，先找到编号浮标' : action === 'respond' ? '已回应电台 · 坐标已标在 M 地图中' : action === 'decline' ? '继续自己的航程 · 之后还会收到海上的消息' : '驾驶舱陈列已保存 · 回到船上即可看到', 4500 );
 		else g.toast( '未能完成操作，请检查条件与站点存储空间', 3500 );
 		return result;
 
@@ -68,6 +70,7 @@ export class VoyageController {
 		if ( ! hook || Math.hypot( a.boatCtl.position.x - hook.point.x, a.boatCtl.position.z - hook.point.z ) > 12 ) this.haul = this.world.haul = 0;
 		if ( ! this.available() ) {
 
+			this.workId = null; this.workTime = 0;
 			if ( this.checkpoint > 0 ) { g.state.save(); this.checkpoint = 0; }
 			this.world.update( step, v, g.state, g.hour ); return;
 
@@ -94,10 +97,32 @@ export class VoyageController {
 		if ( this.checkpoint >= 30 ) { g.state.save(); this.checkpoint = 0; }
 		if ( ! g.rod.equipped && ! a.player.busy ) {
 
-			this.stationInteraction(); this.eventInteraction(); this.salvageInteraction( step );
+			this.stationInteraction(); this.eventInteraction(); this.salvageInteraction( step ); this.restorationInteraction( step );
+
+		} else { this.workId = null; this.workTime = 0; }
+		this.world.update( step, g.state.voyage, g.state, g.hour );
+
+	}
+
+	restorationInteraction( dt ) {
+
+		const g = this.game, a = g.app, r = g.state.voyage.restoration;
+		const site = r?.active && g.state.isGroundUnlocked( 'reef' ) && a.player.mode === 'swim' && a.camera.position.y < - 1
+			&& RESTORATION_SITES.find( ( s ) => ! r.done.includes( s.id ) && subjectVisible( a, this.world.restoration.sites.get( s.id ).point, 3.5, 0.65, a.player.position ) );
+		if ( ! site ) { this.workId = null; this.workTime = 0; return; }
+		if ( ! restorationReady( r, site.id ) ) {
+
+			this.workId = null; this.workTime = 0; a.player.prompt = { key: '先清理', text: '先回收幽灵网和海床废弃物，再固定苗架' }; return;
 
 		}
-		this.world.update( step, g.state.voyage, g.state, g.hour );
+		if ( this.workId !== site.id ) { this.workId = site.id; this.workTime = 0; }
+		if ( a.input.down( 'KeyG' ) ) this.workTime = Math.min( 3, this.workTime + dt );
+		else this.workTime = 0;
+		a.player.prompt = { key: '长按 G', text: `${ site.action } ${ Math.floor( this.workTime / 3 * 100 ) }% · 保持靠近并面向目标` };
+		if ( this.workTime < 3 ) return;
+		this.workId = null; this.workTime = 0;
+		const saved = g.state.voyageAction( 'restore-site', { id: site.id, hour: g.hour } );
+		g.toast( saved ? `${ site.result } · +$20${ g.state.voyage.restoration.done.length === 3 ? ' · 回港找玛尔塔领取谢礼' : ' · M 查看下一处 ♧' }` : '进度未能保存 · 请检查站点存储空间，再靠近重试', 6000 );
 
 	}
 

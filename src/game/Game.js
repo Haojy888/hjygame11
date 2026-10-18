@@ -159,6 +159,20 @@ export class Game {
 
 	}
 
+	talkRestoration( action ) {
+
+		const app = this.app, ui = app.ui?.ui, vendor = this.hud?.vendor;
+		if ( ! [ 'restore-start', 'restore-report' ].includes( action ) || ! this.hud?.standOpen || vendor !== this.chandlery?.vendor || vendor?.kind !== 'shop'
+			|| app.player.mode !== 'walk' || ! vendor.inRange( app.player.position ) || this.hud.boatView || this.hud.workshop?.isOpen
+			|| app.freeCam || this.worldMap?.open || ui?.helpOpen || ui?.panelOpen || ui?._photo || ui?._start || this.guide?.open
+			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing || this.rescueHold > 0
+			|| app.input.enabled === false || app.input.focused === false || app.input.interrupted ) return false;
+		if ( ! this.state.voyageAction( action, { hour: this.hour } ) ) { this.toast( '行动条件尚未满足，或进度暂时无法保存', 3500 ); return false; }
+		this.toast( action === 'restore-start' ? '回收袋和苗架已备好 · 按 M 找 ♧ 潜点，先回收旧网与废弃物' : '玛尔塔：“港口日志里会记着你。” · $80 谢礼与「海湾守护者」称号已领取', 6000 );
+		return true;
+
+	}
+
 	selectBoat( id ) {
 
 		const app = this.app, vendor = this.hud?.vendor, ui = app.ui?.ui;

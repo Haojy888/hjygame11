@@ -6,7 +6,7 @@ import { freshStory, normalizeStory } from './Story.js';
 import { freshSeaJournal, normalizeSeaJournal } from './SeaJournal.js';
 import { freshExpedition, normalizeExpedition, normalizeFieldPhotos, FIELD_SUBJECTS } from './Expedition.js';
 import { normalizeSurveyClaims, surveyProgress } from './MarineSurvey.js';
-import { freshVoyage, normalizeVoyage, EVENT_TYPES, EVENT_SITES, SALVAGE } from './Voyage.js';
+import { freshVoyage, normalizeVoyage, EVENT_TYPES, EVENT_SITES, SALVAGE, RESTORATION_SITES, restorationReady } from './Voyage.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 
@@ -198,6 +198,24 @@ export class GameState {
 
 			if ( sequence[ v.station ] !== action || ! this.isGroundUnlocked( 'reef' ) ) return false;
 			v.station ++; log = action;
+
+		} else if ( [ 'restore-start', 'restore-site', 'restore-report' ].includes( action ) ) {
+
+			if ( ! this.isGroundUnlocked( 'reef' ) ) return false;
+			const r = v.restoration;
+			if ( action === 'restore-start' ) { if ( r.active ) return false; r.active = true; log = action; }
+			if ( action === 'restore-site' ) {
+
+				if ( ! restorationReady( r, payload.id ) ) return false;
+				r.done.push( payload.id ); this.money += 20; log = 'restore-' + payload.id;
+
+			}
+			if ( action === 'restore-report' ) {
+
+				if ( ! r.active || r.reported || r.done.length !== RESTORATION_SITES.length ) return false;
+				r.reported = true; this.money += 80; log = action;
+
+			}
 
 		} else if ( action === 'offer' ) {
 

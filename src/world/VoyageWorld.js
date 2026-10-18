@@ -8,6 +8,7 @@ import { STATION, BUOY, RECORDER, SALVAGE, EVENT_SITES } from '../game/Voyage.js
 import { fishGeometry } from './fish/FishGeometry.js';
 import { SPECIES } from './fish/FishSpecies.js';
 import { AbyssAssets } from './AbyssAssets.js';
+import { RestorationWorld } from './RestorationWorld.js';
 
 const BASE = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/voyage/';
 
@@ -42,6 +43,7 @@ export class VoyageWorld {
 		this.waterSlot = - 1; this.eventSurfaceY = 0;
 		if ( app.query?.allocate && app.query.count <= 61 ) this.waterSlot = app.query.allocate( 'voyage', 3 );
 		this.group = new Group(); this.group.name = '海湾七号与航海遭遇'; app.scene.add( this.group );
+		this.restoration = new RestorationWorld( app, this.group );
 		const t = app.terrainData;
 		const rise = 1.3;
 		this.targets = { buoy: V( BUOY.x, 0.6, BUOY.z ), record: V( RECORDER.x, t.heightAt( RECORDER.x, RECORDER.z ) + 1, RECORDER.z ),
@@ -144,6 +146,7 @@ export class VoyageWorld {
 
 		dt = Number.isFinite( dt ) ? Math.max( 0, Math.min( dt, 0.1 ) ) : 0;
 		this.time += dt;
+		this.restoration.update( dt, voyage.restoration );
 		const app = this.app, sea = Math.sin( this.time * 1.15 ) * 0.12;
 		this.assets.group.visible = true;
 		this.group.visible = true;

@@ -6,7 +6,7 @@ import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Stor
 import { SEA_JOURNAL_TITLE, seaJournalObjective, seaJournalEntries, seaJournalDialogue } from './SeaJournal.js';
 import { expeditionObjective, expeditionDialogue, expeditionEntries, FIELD_SUBJECTS } from './Expedition.js';
 import { MARINE_SURVEYS, surveyProgress } from './MarineSurvey.js';
-import { STATION_STEPS, STATION_ENTRIES, EVENT_TYPES, SALVAGE, radioLogText } from './Voyage.js';
+import { STATION_STEPS, STATION_ENTRIES, EVENT_TYPES, SALVAGE, RESTORATION_SITES, restorationReady, radioLogText } from './Voyage.js';
 import { BOATS } from './Boats.js';
 import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
 
@@ -381,11 +381,11 @@ export class GameHUD {
 		const fieldOpen = panel?.querySelector( 'details.gm-field-guide' )?.open || false;
 		const wreckDialogueOpen = panel?.querySelector( 'details.gm-expedition-dialogue' )?.open || false;
 		const surveyOpen = panel?.querySelector( 'details.gm-marine-survey' )?.open || false;
-		const voyageOpen = [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue' ].map( ( cls ) => [ cls, panel?.querySelector( `details.${ cls }` )?.open || false ] );
+		const voyageOpen = [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration' ].map( ( cls ) => [ cls, panel?.querySelector( `details.${ cls }` )?.open || false ] );
 		const focused = typeof document !== 'undefined' && panel?.contains?.( document.activeElement ) ? document.activeElement : null;
-		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey', 'data-radio', 'data-exhibit', 'data-cabin-photo', 'data-station-return' ].find( ( name ) => focused.hasAttribute( name ) );
+		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey', 'data-radio', 'data-exhibit', 'data-cabin-photo', 'data-station-return', 'data-restoration' ].find( ( name ) => focused.hasAttribute( name ) );
 		const focusSelector = focusAttribute ? `[${ focusAttribute }="${ focused.getAttribute( focusAttribute ) }"]`
-			: focused?.tagName === 'SUMMARY' ? [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
+			: focused?.tagName === 'SUMMARY' ? [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
 		const journey = panel?.querySelector( 'details.gm-journey' );
@@ -405,7 +405,7 @@ export class GameHUD {
 		if ( focusSelector ) {
 
 			const nextFocus = panel.querySelector( focusSelector.startsWith( '[' ) ? focusSelector : `details.${ focusSelector } > summary` )
-				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : focusAttribute === 'data-survey' ? panel.querySelector( 'details.gm-marine-survey > summary' ) : focusAttribute === 'data-radio' ? panel.querySelector( 'details.gm-radio > summary' ) : focusAttribute === 'data-station-return' ? panel.querySelector( 'details.gm-station-dialogue > summary' ) : null );
+				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : focusAttribute === 'data-survey' ? panel.querySelector( 'details.gm-marine-survey > summary' ) : focusAttribute === 'data-radio' ? panel.querySelector( 'details.gm-radio > summary' ) : focusAttribute === 'data-station-return' ? panel.querySelector( 'details.gm-station-dialogue > summary' ) : focusAttribute === 'data-restoration' ? panel.querySelector( 'details.gm-restoration > summary' ) : null );
 			nextFocus?.focus( { preventScroll: true } );
 
 		}
@@ -481,6 +481,7 @@ export class GameHUD {
 		for ( const button of this.stand.querySelectorAll( '[data-expedition]' ) ) button.onclick = () => this.game.talkExpedition( button.dataset.expedition );
 		for ( const button of this.stand.querySelectorAll( '[data-survey]' ) ) button.onclick = () => this.game.claimSurvey( button.dataset.survey );
 		for ( const button of this.stand.querySelectorAll( '[data-station-return]' ) ) button.onclick = () => this.game.returnStation();
+		for ( const button of this.stand.querySelectorAll( '[data-restoration]' ) ) button.onclick = () => this.game.talkRestoration( button.dataset.restoration );
 
 	}
 
@@ -505,6 +506,7 @@ export class GameHUD {
 		if ( ! v ) return '';
 		const aboard = [ 'boat', 'deck' ].includes( this.game.app?.player.mode ), open = state.isGroundUnlocked( 'reef' ), e = v.event;
 		return `<details class="gm-journey gm-radio"><summary>▤ 船载电台 · ${ e ? e.accepted ? '航程进行中' : '收到新消息' : '守听中' }</summary><p class="gm-sub">船上按 B 打开；电台以文字播报，不会接管镜头。未回应或错过消息没有惩罚。${ aboard ? '' : '回应消息需要回到船上。' }</p>
+			${ this.restorationMarkup() }
 			<article class="gm-field-card"><b>失联的海洋观测站 · ${ v.station === 5 ? '已修复并回港' : `${ v.station } / 5` }</b><p>${ open ? STATION_STEPS[ v.station ] : '开放珊瑚礁后，可回应海湾七号的旧呼号。' }</p>${ open && v.station === 0 ? '<p>“这里是海湾七号，自动值守……有人收到吗？”</p><button class="gm-mini" data-radio="accept" ' + ( aboard ? '' : 'disabled' ) + '>回应旧呼号</button>' : '' }${ STATION_ENTRIES.slice( 0, v.station ).map( ( text ) => `<p>${ text }</p>` ).join( '' ) }</article>
 			${ e ? `<article class="gm-field-card"><b>${ EVENT_TYPES[ e.type ].name }</b><p>${ EVENT_TYPES[ e.type ].text }</p><p>${ EVENT_TYPES[ e.type ].task }</p><p>剩余约 ${ Math.ceil( e.remaining / 60 ) } 分钟航行时间；菜单、下潜和离船时暂停。</p>${ ! e.accepted ? `<button class="gm-mini" data-radio="respond" ${ aboard ? '' : 'disabled' }>回应并标记坐标</button>` : '<p>已回应 · M 查看电台坐标</p>' } <button class="gm-mini" data-radio="decline" ${ aboard ? '' : 'disabled' }>结束这次消息</button></article>` : '<p>在开放礁区后的海上航行片刻，会收到新的消息。黄昏和夜间有机会遇到银色鱼群与微光。</p>' }
 			<details><summary>最近的电台与航海记录 · ${ v.log.length }</summary>${ v.log.slice().reverse().map( ( entry ) => `<p><b>${ Math.floor( entry.hour ) }:${ String( Math.floor( entry.hour % 1 * 60 ) ).padStart( 2, '0' ) }</b> ${ radioLogText( entry.kind ) }</p>` ).join( '' ) || '<p>等待下一次出航。</p>' }</details></details>`;
@@ -526,6 +528,19 @@ export class GameHUD {
 
 		const v = this.game.state.voyage; if ( ! v?.station || ! [ 'buyer', 'shop' ].includes( kind ) ) return '';
 		return `<details class="gm-story-dialogue gm-station-dialogue"><summary>▤ 聊聊海湾七号</summary><p>${ kind === 'shop' ? v.station >= 4 ? '玛尔塔：“电台里又能听到海湾七号了。出门前留够油，回来记得让我看看你打捞的旧物件。”' : '玛尔塔：“从控制台朝南的一面靠近，就能接通设备。雷暴天先等一等，海床上的东西可以下次再看。”' : v.station === 4 ? '乔：“那些观测员都平安回去了，每年还寄信来。下封回信，我会告诉他们，海湾七号的灯又亮了。多亏你跑这一趟。”' : v.station === 5 ? '乔：“信已经寄出去了。也许明年他们会回来看看，听听自己留下的站又在为过路的船报天气。”' : '乔：“旧呼号还在？观测员们当年都安全撤离了。也许海里留下的记录，能告诉你站为什么一直等着回应。”' }</p>${ kind === 'buyer' && v.station === 4 ? '<button class="gm-mini" data-station-return>告诉乔观测站已经修复</button>' : '' }</details>`;
+
+	}
+
+	restorationMarkup( shop = false ) {
+
+		const state = this.game.state, r = state.voyage?.restoration;
+		if ( ! r || ! state.isGroundUnlocked( 'reef' ) ) return '';
+		const aboard = [ 'boat', 'deck' ].includes( this.game.app?.player.mode );
+		return `<details class="gm-journey gm-restoration"><summary>♧ 海湾复苏 · ${ r.reported ? '海湾守护者' : `${ r.done.length } / 3` }</summary><p>玛尔塔：“以前人们只记得带走鱼。我想试试，能不能给它们留下一个家。旧网和瓶罐先带回来，苗架我已经备好了。”</p>
+			<p class="gm-sub">自愿参加，没有限时，不改变钓鱼主线。M 查看 ♧；收竿下潜，L 开灯，靠近并面向目标长按 G 约 3 秒。松手、移开视线或打开菜单会重置本次操作；已完成的潜点永久保留。每处回收或布置获得 $20。</p>
+			${ ! r.active ? `<button class="gm-mini" ${ shop ? 'data-restoration' : 'data-radio' }="restore-start" ${ shop || aboard ? '' : 'disabled' }>接下行动 · 领取回收袋与苗架</button>${ ! shop && ! aboard ? '<p>回船用 B 回应，或到玛尔塔的船具店接取。</p>' : '' }` : '' }
+			${ RESTORATION_SITES.map( ( s ) => `<article class="gm-field-card"><b>${ r.done.includes( s.id ) ? '✓' : '○' } ${ s.name }</b><p>${ r.done.includes( s.id ) ? s.result : ! r.active ? '接下行动后在地图标记位置。' : restorationReady( r, s.id ) ? `${ s.action } · (${ s.x }, ${ s.z })` : '先完成幽灵网和废弃物回收，再来布置苗架。' }</p></article>` ).join( '' ) }
+			${ r.reported ? '<p>玛尔塔：“港口日志里会记着你。回去看看吧，小鱼已经游回来了。”<br>「海湾守护者」· 谢礼已领取，潜点可以继续回访。</p>' : r.done.length === 3 ? shop ? '<button class="gm-mini" data-restoration="restore-report">交付行动记录 · +$80 · 海湾守护者</button>' : '<p>三处行动已完成 · 回港找玛尔塔，交付行动记录领取 $80 谢礼与纪念称号。</p>' : '' }</details>`;
 
 	}
 
@@ -867,7 +882,7 @@ GameHUD.prototype.renderShop = function () {
 	this.stand.innerHTML = `
 		<h2>${ v.name }</h2>
 		<p class="gm-sub">${ v.greeting } · 你有 $${ s.money.toLocaleString() }</p>
-		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ this.expeditionMarkup( 'shop' ) }${ this.stationDialogueMarkup( 'shop' ) }${ this.marineSurveyMarkup( true ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
+		<div class="gm-list">${ this.storyDialogueMarkup( 'shop' ) }${ this.seaJournalDialogueMarkup( 'shop' ) }${ this.expeditionMarkup( 'shop' ) }${ this.stationDialogueMarkup( 'shop' ) }${ this.restorationMarkup( true ) }${ this.marineSurveyMarkup( true ) }${ workshopSection }${ boatSection }${ fuelRow }${ rows }</div>
 		<div class="gm-foot"><span class="gm-sub">升级购买后立即生效</span><button class="gm-btn is-ghost" data-close>离开 (E)</button></div>`;
 	this.stand.querySelector( '[data-close]' ).onclick = () => this.closeStand();
 	for ( const b of this.stand.querySelectorAll( '[data-buy]' ) ) b.onclick = () => this.game.buy( b.dataset.buy );

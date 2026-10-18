@@ -4,7 +4,7 @@ import { STAND } from './FishStand.js';
 import { CHANDLERY } from './Chandlery.js';
 import { WRECK_SITE, CAVE_SITE } from './Expedition.js';
 import { SURVEY_SITES } from './MarineSurvey.js';
-import { STATION, SALVAGE, EVENT_SITES, EVENT_TYPES } from './Voyage.js';
+import { STATION, SALVAGE, EVENT_SITES, EVENT_TYPES, RESTORATION_SITES, restorationReady } from './Voyage.js';
 
 const CSS = `
 .gm-worldmap { position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; pointer-events: auto;
@@ -62,6 +62,8 @@ export function mapLocations( game ) {
 		if ( game.voyageTarget ) entries.push( { id: 'voyage', icon: '▤', label: '当前电台航程目标', ...game.voyageTarget, color: '#f1d88e' } );
 		if ( voyage.event?.accepted ) entries.push( { id: 'radio-event', icon: '讯', label: EVENT_TYPES[ voyage.event.type ].name, ...EVENT_SITES[ voyage.event.site ], color: '#f1d88e' } );
 		if ( voyage.station > 0 ) for ( const item of SALVAGE ) if ( ! voyage.salvaged.includes( item.id ) ) entries.push( { id: 'salvage-' + item.id, icon: '钩', label: item.name + ( voyage.hooked === item.id ? ' · 已挂绳' : ' · 潜水挂绳 / 大船起吊' ), x: item.x, z: item.z, color: '#c5b78e' } );
+		const r = voyage.restoration;
+		if ( r?.active ) for ( const site of RESTORATION_SITES ) entries.push( { id: 'restore-' + site.id, icon: '♧', label: site.name + ( r.done.includes( site.id ) ? ' · 已复苏，可回访' : restorationReady( r, site.id ) ? ' · 潜水长按 G' : ' · 先清理两处废弃物' ), x: site.x, z: site.z, color: r.done.includes( site.id ) ? '#81b9ab' : '#b7e8a0' } );
 
 	}
 	if ( game.state.isGroundUnlocked( 'reef' ) ) for ( const site of SURVEY_SITES ) {
@@ -96,7 +98,7 @@ export class WorldMap {
 		this.el.innerHTML = `<section class="gm-worldmap-card tw-glass" role="dialog" aria-modal="true" aria-labelledby="gm-worldmap-title">
 			<header><div><h2 id="gm-worldmap-title">潮汐海岸 · 地图</h2><p>北方朝上 · 地点旁显示与你的距离</p></div><button type="button" class="gm-btn is-ghost">关闭 (M / Esc)</button></header>
 			<div class="gm-worldmap-body"><div class="gm-worldmap-view"><canvas width="640" height="640" role="img" aria-label="岛屿、海湾与你的实时位置；地点和距离见右侧列表"></canvas></div><ul class="gm-worldmap-list"></ul></div>
-			<footer>数字 1–3 为已开放钓场；◇ 主线，☆ 剧情，◎ 航海见闻，⚓ 归潮号，◉ 生态潜点，▤ 电台航程，钩为打捞物。边缘标记表示目标在当前地图范围外。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
+			<footer>数字 1–3 为已开放钓场；◇ 主线，☆ 剧情，◎ 航海见闻，⚓ 归潮号，◉ 生态潜点，♧ 海湾复苏，▤ 电台航程，钩为打捞物。边缘标记表示目标在当前地图范围外。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
 		this.canvas = this.el.querySelector( 'canvas' );
 		this.ctx = this.canvas.getContext( '2d' );
 		this.list = this.el.querySelector( 'ul' );

@@ -37,6 +37,7 @@ class Panel {
 				getAttribute: () => value, focus: () => {
 
 					if ( [ 'data-exhibit', 'data-cabin-photo' ].includes( attr ) && ! this.nodes[ 'details.gm-cabin' ]?.open ) return;
+					if ( attr === 'data-restoration' && ! this.nodes[ 'details.gm-restoration' ]?.open ) return;
 					document.activeElement = node;
 
 				} };
@@ -154,6 +155,20 @@ try {
 	hud.stand.querySelector( '[data-station-return]' ).onclick(); assert.equal( calls.at( - 1 ), 'station:return' );
 	hud.stand.querySelector( '[data-station-return]' ).focus(); state.voyage.station = 5; hud.refresh();
 	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-station-dialogue > summary' ) );
+	hud.vendor = { kind: 'shop', name: '玛尔塔' }; game.talkRestoration = ( action ) => calls.push( 'restoration:' + action ); hud.renderShop();
+	hud.stand.querySelector( 'details.gm-restoration' ).open = true;
+	hud.stand.querySelector( '[data-restoration="restore-start"]' ).onclick(); assert.equal( calls.at( - 1 ), 'restoration:restore-start' );
+	hud.stand.querySelector( '[data-restoration="restore-start"]' ).focus(); state.voyage.restoration.active = true; hud.refresh();
+	assert.equal( hud.stand.querySelector( 'details.gm-restoration' ).open, true );
+	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-restoration > summary' ), 'accepting removes the button and preserves the restoration summary focus' );
+	state.voyage.restoration.done = [ 'net', 'litter', 'nursery' ]; hud.refresh();
+	hud.stand.querySelector( '[data-restoration="restore-report"]' ).onclick(); assert.equal( calls.at( - 1 ), 'restoration:restore-report' );
+	hud.stand.querySelector( '[data-restoration="restore-report"]' ).focus(); hud.refresh();
+	assert.equal( document.activeElement, hud.stand.querySelector( '[data-restoration="restore-report"]' ), 'restoration details reopen before restoring the button focus' );
+	state.voyage.restoration.reported = true; hud.refresh();
+	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-restoration > summary' ) );
+	hud.stand.querySelector( 'details.gm-restoration > summary' ).focus(); hud.refresh();
+	assert.equal( document.activeElement, hud.stand.querySelector( 'details.gm-restoration > summary' ), 'restoration summary does not lose focus to generic journey details' );
 
 	const guide = Object.assign( Object.create( Guide.prototype ), {
 		ui: { _start: false }, game: { state, app: { player: { mode: 'walk', position: { x: 0, z: 0 } } }, rod: {}, vendors: [] },
