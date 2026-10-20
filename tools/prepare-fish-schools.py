@@ -1,6 +1,6 @@
 """Derive small, static school meshes from the finished catch models; no generation calls.
 
-blender -b --factory-startup --python-exit-code 1 --python tools/prepare-fish-schools.py -- 
+blender -b --factory-startup --python-exit-code 1 --python tools/prepare-fish-schools.py --
   --source public/models/fish-realistic --output public/models/fish-schools --work WORK
 The existing GPU swim shader supplies per-fish animation and motion vectors at runtime.
 """
