@@ -166,6 +166,7 @@ export function mapLocations( game ) {
 		id: 'secret-' + site.id, icon: '✧', label: site.name + ( game.state.secrets.found.includes( site.id ) ? ' · 已记录' : ' · 环境见闻' ),
 		...game.secrets.point( site.id ), underwater: site.id === 'storm', hint: game.secrets.hint( site.id ), color: '#b3e1c5',
 	} );
+	entries.push( ...( game.landmarks?.locations() || [] ) );
 	entries.push( { id: 'player', icon: '▲', label: '你的位置', ...game.app.player.position, color: '#fff' } );
 	return entries.map( ( entry ) => {
 

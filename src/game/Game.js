@@ -22,6 +22,7 @@ import { expeditionObjective, expeditionDialogue, CAVE_SITE } from './Expedition
 import { FieldCamera, subjectVisible } from './FieldCamera.js';
 import { VoyageController } from './VoyageController.js';
 import { SecretsController } from './SecretsController.js';
+import { LandmarksController } from './LandmarksController.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -64,6 +65,7 @@ export class Game {
 		this.fieldCamera = new FieldCamera( this );
 		this.voyage = new VoyageController( this );
 		this.secrets = new SecretsController( this );
+		this.landmarks = new LandmarksController( this );
 		this._caveVisits = 0;
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
@@ -677,6 +679,7 @@ export class Game {
 		this.fieldCamera?.update( dt );
 		this.voyage?.update( dt );
 		this.secrets?.update();
+		this.landmarks?.update();
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

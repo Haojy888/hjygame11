@@ -30,7 +30,7 @@ assert.equal( GameState.load( storage ).claimSurvey( 'small-life' ), false, 'rel
 assert.equal( state.claimSurvey( 'open-water' ), false );
 assert.equal( state.claimSurvey( 'wreck-life' ), true ); state.orderIndex = 4;
 assert.equal( state.claimSurvey( 'open-water' ), true ); assert.equal( state.money, 260 );
-assert.equal( Object.keys( state.fieldPhotos ).length, 9, 'surveys retain all photos' );
+assert.equal( Object.keys( state.fieldPhotos ).length, Object.keys( FIELD_SUBJECTS ).length, 'surveys retain all photos' );
 assert.equal( surveyProgress( state, 'small-life' ).ready, false );
 assert.equal( state.claimSurvey( 'open-water' ), false );
 const blocked = new GameState( { setItem() { throw new Error( 'quota' ); } } );
@@ -83,7 +83,7 @@ for ( const site of SURVEY_SITES ) {
 assert.equal( fieldSubjects( { reef } ).filter( ( s ) => SURVEY_SITES.some( ( site ) => site.id === s.id ) ).length, reef.surveySubjects.length );
 game.app.reef = reef;
 assert.equal( mapLocations( game ).filter( ( e ) => e.id.startsWith( 'survey-' ) ).length, 3 );
-console.log( 'Marine survey passed: three real habitats, visible photo targets, nine saved categories, ground gates, one-time rewards, quota rollback, merchant proximity and input guards.', Object.fromEntries( SURVEY_SITES.map( ( site ) => [ site.id, reef.surveySubjects.filter( ( s ) => s.id === site.id ).length ] ) ) );
+console.log( 'Marine survey passed: three real habitats, visible photo targets, thirteen saved categories, ground gates, one-time rewards, quota rollback, merchant proximity and input guards.', Object.fromEntries( SURVEY_SITES.map( ( site ) => [ site.id, reef.surveySubjects.filter( ( s ) => s.id === site.id ).length ] ) ) );
 
 if ( process.argv.includes( '--render' ) ) {
 

@@ -811,6 +811,13 @@ export class GameHUD {
 
 	}
 
+	landmarksMarkup() {
+
+		if ( ! this.game.landmarks ) return '';
+		return `<div class="gm-order-offer"><div class="gm-order-head">归航灯塔与海上见闻</div><p class="gm-sub">灯塔电源：${ this.game.state.landmarks.lighthouseLit ? '已修复 · 夜间自动亮灯' : '等待修复 · 南侧码头登梯，沿旋梯到顶部控制箱按 G' }。按 M 查找灯塔、海豚巡游水域、海鳗礁洞、海马草庭和鲸落骨廊；潜水后按 P 取景、G 收录照片。</p></div>`;
+
+	}
+
 	// ---- inventory
 	toggleInventory( force ) {
 
@@ -843,6 +850,7 @@ export class GameHUD {
 				${ this.storyJournalMarkup() }
 				${ this.seaJournalMarkup() }
 				${ this.secretsMarkup() }
+				${ this.landmarksMarkup() }
 				${ this.expeditionMarkup() }
 				${ this.fieldGuideMarkup() }
 				${ this.marineSurveyMarkup() }

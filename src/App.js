@@ -667,6 +667,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 		}
 		this.game.secrets?.prepare( dt );
+		this.game.landmarks?.prepare( dt );
 		this.boatCtl.update( dt );
 		this.boatSpray.update( dt );
 		this.wake.update( dt );

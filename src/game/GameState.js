@@ -10,6 +10,7 @@ import { freshVoyage, normalizeVoyage, EVENT_TYPES, EVENT_SITES, SALVAGE, RESTOR
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
 import { NIGHT_TRAIL, freshSecrets, normalizeSecrets } from './Secrets.js';
+import { freshLandmarks, normalizeLandmarks } from './ExplorationLandmarks.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -41,6 +42,7 @@ export class GameState {
 		this.surveyClaims = [];
 		this.voyage = freshVoyage();
 		this.secrets = freshSecrets();
+		this.landmarks = freshLandmarks();
 		this.listeners = new Set();
 
 	}
@@ -473,9 +475,18 @@ export class GameState {
 
 	}
 
+	repairLighthouse() {
+
+		if ( this.landmarks.lighthouseLit ) return false;
+		this.landmarks.lighthouseLit = true;
+		if ( ! this.save() ) { this.landmarks.lighthouseLit = false; return false; }
+		this.emit(); return true;
+
+	}
+
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims, voyage: this.voyage, secrets: this.secrets };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims, voyage: this.voyage, secrets: this.secrets, landmarks: this.landmarks };
 
 	}
 
@@ -510,6 +521,7 @@ export class GameState {
 		this.surveyClaims = normalizeSurveyClaims( d.surveyClaims );
 		this.voyage = normalizeVoyage( d.voyage );
 		this.secrets = normalizeSecrets( d.secrets );
+		this.landmarks = normalizeLandmarks( d.landmarks );
 		if ( ! Object.hasOwn( FIELD_SUBJECTS, this.voyage.photo ) || ! this.fieldPhotos[ this.voyage.photo ] ) this.voyage.photo = 'none';
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
@@ -564,6 +576,7 @@ export class GameState {
 		this.surveyClaims = [];
 		this.voyage = freshVoyage();
 		this.secrets = freshSecrets();
+		this.landmarks = freshLandmarks();
 		this.save();
 		this.emit();
 

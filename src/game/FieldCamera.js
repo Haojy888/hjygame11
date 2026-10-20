@@ -41,6 +41,12 @@ export function fieldSubjects( app ) {
 		for ( const p of world.jellyPositions ) subjects.push( { id: 'jelly', point: p.clone().add( new Vector3( 0, 0.8, 0 ) ) } );
 
 	}
+	if ( app.explorationWorld ) {
+
+		const w = app.explorationWorld;
+		subjects.push( ...w.life.photoSubjects(), { id: 'whalebones', point: w.targets.get( 'whalebones' ) } );
+
+	}
 	return subjects;
 
 }

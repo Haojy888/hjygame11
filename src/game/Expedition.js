@@ -13,6 +13,10 @@ export const FIELD_SUBJECTS = {
 	jelly: { name: '漂游水母', range: 12, note: '伞部一张一收，触手随水流摆动。这里的夜间微光是艺术表现，并非所有水母都会发光。' },
 	wreck: { name: '归潮号沉船', range: 26, note: '船肋和木板已成为海底的一部分。旧船的最后一程，藏在敞开的货舱里。' },
 	cave: { name: '潮光岩洞', range: 22, note: '岩层形成短短的海底通道，两端都能通行，顶部裂隙为洞内留下一线光。' },
+	dolphin: { name: '瓶鼻海豚', range: 16, note: '海豚在海湾外缘小群巡游，有时会伴船前行或跃出水面。潜入水下，留些距离观察它们上下摆动的尾鳍。' },
+	moray: { name: '礁洞海鳗', range: 5, note: '洞口露出的脑袋慢慢摆动，嘴巴一张一合。用手电照亮洞口，在外面观察。' },
+	seahorse: { name: '海草间的海马', range: 3.5, note: '卷曲的小尾巴贴着海草，身体轻轻摇晃。靠近海马草庭，仔细找找三只小海马。' },
+	whalebones: { name: '鲸落骨廊', range: 18, note: '半埋的脊骨与成对肋骨铺在远海沙地，贝壳和珊瑚附着其上。骨廊中央留着一条可穿行的通道。' },
 };
 
 export function normalizeFieldPhotos( value ) {

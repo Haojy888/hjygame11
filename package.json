@@ -5,12 +5,14 @@
     "dev": "vite --host 127.0.0.1 --port 5189",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/environment-secrets.mjs && node test/deep-beast-interaction.mjs && node test/deep-beast-collision.mjs && node test/scene-access.mjs && node test/render-quality.mjs && node test/game-logic.mjs && node test/campaign-integration.mjs && node test/story.mjs && node test/sea-journal.mjs && node test/sea-journal-world.mjs && node test/sea-journal-ui.mjs && node test/expedition.mjs && node test/marine-survey.mjs && node test/voyage.mjs && node test/restoration.mjs && node test/wreck-scene.mjs && node test/underwater-flashlight.mjs && node test/player-camera.mjs && node test/player-avatar.mjs && node test/world-map.mjs && node test/input-focus.mjs && node test/fishing-pause.mjs && node test/boat-rescue.mjs && node test/boat-profiles.mjs && node test/deep-beast.mjs && node test/abyss-scene.mjs && node test/abyss-assets.mjs && node test/boat-seakeeping.mjs && node test/boat-selection.mjs && node test/boat-customization.mjs && node test/ui-usability.mjs && node test/weather.mjs && node test/weather-audio.mjs && node test/real-fish.mjs && node test/realistic-swimmers.mjs && node test/boat-wake.mjs && node test/engine-smoke.mjs",
+    "test": "node test/exploration-landmarks.mjs && node test/environment-secrets.mjs && node test/deep-beast-interaction.mjs && node test/deep-beast-collision.mjs && node test/scene-access.mjs && node test/render-quality.mjs && node test/game-logic.mjs && node test/campaign-integration.mjs && node test/story.mjs && node test/sea-journal.mjs && node test/sea-journal-world.mjs && node test/sea-journal-ui.mjs && node test/expedition.mjs && node test/marine-survey.mjs && node test/voyage.mjs && node test/restoration.mjs && node test/wreck-scene.mjs && node test/underwater-flashlight.mjs && node test/player-camera.mjs && node test/player-avatar.mjs && node test/world-map.mjs && node test/input-focus.mjs && node test/fishing-pause.mjs && node test/boat-rescue.mjs && node test/boat-profiles.mjs && node test/deep-beast.mjs && node test/abyss-scene.mjs && node test/abyss-assets.mjs && node test/boat-seakeeping.mjs && node test/boat-selection.mjs && node test/boat-customization.mjs && node test/ui-usability.mjs && node test/weather.mjs && node test/weather-audio.mjs && node test/real-fish.mjs && node test/realistic-swimmers.mjs && node test/boat-wake.mjs && node test/engine-smoke.mjs",
     "test:graphics": "node test/render-quality-gpu.mjs",
     "test:fish-schools": "node test/realistic-school-fish.mjs",
     "test:abyss-collision": "node test/deep-beast-collision.mjs",
     "test:beast-interaction": "node test/deep-beast-interaction.mjs",
-    "test:environment-secrets": "node test/environment-secrets.mjs"
+    "test:environment-secrets": "node test/environment-secrets.mjs",
+    "test:landmarks": "node test/exploration-landmarks.mjs",
+    "test:landmarks-gpu": "node test/exploration-landmarks-gpu.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",
