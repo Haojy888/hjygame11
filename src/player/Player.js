@@ -133,6 +133,14 @@ export class Player {
 
 	}
 
+	canStandAt( point, stepHeight = 0 ) {
+
+		const clear = point.clone();
+		this.colliders.resolveCapsule( clear, RADIUS, HEIGHT, stepHeight );
+		return clear.distanceToSquared( point ) < 1e-8;
+
+	}
+
 	nearBoat() {
 
 		if ( ! this.boat || this.boat.capsized ) return false;
@@ -263,7 +271,14 @@ export class Player {
 		const g = this.groundAt( p.x, p.z, p.y + 0.45 );
 		if ( p.y <= g ) {
 
-			p.y = g;
+			const landing = p.clone().setY( g );
+			if ( g > p.y + 0.00001 && ! this.canStandAt( landing, 0.4 ) ) {
+
+				// A riser under a low ceiling is a wall, not a step into the ceiling.
+				p.copy( old ); this.velocity.set( 0, 0, 0 ); return;
+
+			}
+			p.copy( landing );
 			if ( this.velocity.y < 0 ) this.velocity.y = 0;
 			this.grounded = true;
 
@@ -353,19 +368,21 @@ export class Player {
 		const diving = inp.down( 'KeyC' ) || ( inp.down( 'KeyW' ) && this.pitch < - 0.35 ) || wish.y < - 0.1;
 		if ( diving ) this.floating = false;
 		else if ( p.y > eyeTarget - 0.15 ) this.floating = true;
+		let floatRise = 0;
 		if ( this.floating ) {
 
-			p.y += ( eyeTarget - p.y ) * ( 1 - Math.exp( - dt * 5 ) );
+			floatRise = ( eyeTarget - p.y ) * ( 1 - Math.exp( - dt * 5 ) );
 			if ( this.velocity.y > 0 ) this.velocity.y *= 0.5;
 
 		}
 
 		const oldY = p.y;
-		this.colliders.moveCapsule( p, this.velocity.clone().multiplyScalar( dt ), RADIUS, 1.0, 0 );
+		const movement = this.velocity.clone().multiplyScalar( dt ); movement.y += floatRise;
+		movement.y = Math.min( movement.y, Math.max( 0, surfaceY + 0.05 - p.y ) );
+		this.colliders.moveCapsule( p, movement, RADIUS, 1.0, 0 );
 		if ( this.velocity.y > 0 && p.y < oldY + this.velocity.y * dt - 0.00001 ) this.velocity.y = 0;
-		p.y = Math.min( p.y, surfaceY + 0.05 );
 		const g = this.groundAt( p.x, p.z, p.y + 0.3 );
-		if ( p.y < g + 0.25 ) p.y = g + 0.25;
+		if ( p.y < g + 0.25 ) this.colliders.moveCapsule( p, _v.set( 0, g + 0.25 - p.y, 0 ), RADIUS, 1.0, 0 );
 
 		// strokes / bubbles
 		this.stepDist += this.velocity.length() * dt;
@@ -388,7 +405,7 @@ export class Player {
 
 		// shallow enough to stand -> walk (update() eases the view up to standing height). The mean
 		// level decides, so a passing wave doesn't flip you between swimming and standing.
-		if ( this.waterMean - g < STAND_DEPTH ) {
+		if ( this.waterMean - g < STAND_DEPTH && this.canStandAt( p.clone().setY( g ) ) ) {
 
 			this.mode = 'walk';
 			p.y = g;
@@ -423,12 +440,13 @@ export class Player {
 		this.velocity.set( 0, 0, 0 );
 		if ( ! inp.down( 'KeyW' ) && ! inp.down( 'Space' ) ) return;
 		const k = 1 - Math.exp( - dt * 8 );
-		p.x += ( b.center.x - p.x ) * k; p.z += ( b.center.z - p.z ) * k;
-		p.y = Math.min( b.climbTo.y, p.y + dt * 1.6 );
+		const next = p.clone().set( p.x + ( b.center.x - p.x ) * k, Math.min( b.climbTo.y, p.y + dt * 1.6 ), p.z + ( b.center.z - p.z ) * k );
+		this.colliders.moveCapsule( p, next.clone().sub( p ), RADIUS, HEIGHT, 0 );
+		if ( p.distanceTo( next ) > 0.001 ) { this.prompt = { key: 'S', text: '梯道受阻 · S 松开' }; return; }
 		if ( p.y < b.climbTo.y ) return;
 		const landing = b.climbTo.clone();
-		this.colliders.resolveCapsule( landing, RADIUS, HEIGHT );
-		if ( landing.distanceTo( b.climbTo ) > 0.05 || Math.abs( this.groundAt( landing.x, landing.z, landing.y + 0.1 ) - landing.y ) > 0.1 ) {
+		const approach = p.clone(); this.colliders.moveCapsule( approach, landing.clone().sub( p ), RADIUS, HEIGHT, 0 );
+		if ( ! this.canStandAt( landing ) || approach.distanceTo( landing ) > 0.001 || Math.abs( this.groundAt( landing.x, landing.z, landing.y + 0.1 ) - landing.y ) > 0.1 ) {
 
 			this.prompt = { key: 'S', text: '梯口受阻 · 松开后换个位置' }; return;
 
@@ -562,7 +580,8 @@ export class Player {
 
 		}
 
-		if ( target && ! b.capsized ) best = target;
+		if ( target && ! b.capsized && this.canStandAt( target.out.clone().setY( target.g ) )
+			&& Math.abs( this.groundAt( target.out.x, target.out.z, target.g + 0.1 ) - target.g ) < 0.1 ) best = target;
 		if ( best ) {
 
 			this.position.set( best.out.x, best.g, best.out.z );
@@ -646,8 +665,7 @@ export class Player {
 				if ( up > 1.7 || up < - 1.2 || g < water - 0.3 ) continue;
 				// Different hulls reach different parts of the quay; exclude rails and mooring posts.
 				const landing = out.clone().setY( g );
-				this.colliders.resolveCapsule( landing, RADIUS, HEIGHT );
-				if ( Math.hypot( landing.x - out.x, landing.z - out.z ) > 0.01 ) continue;
+				if ( ! this.canStandAt( landing ) ) continue;
 				const score = Math.abs( up ) + reach * 0.2;
 				if ( score < bestScore ) { bestScore = score; best = { out, g, ep }; }
 

@@ -8,11 +8,12 @@ import { GameState } from '../src/game/GameState.js';
 import { LandmarksController } from '../src/game/LandmarksController.js';
 import { LIGHTHOUSE as L, COASTAL_SITES, normalizeLandmarks } from '../src/game/ExplorationLandmarks.js';
 import { G } from '../src/core/Globals.js';
+import { TerrainData } from '../src/world/TerrainData.js';
 import { fieldSubjects } from '../src/game/FieldCamera.js';
 import { mapLocations } from '../src/game/WorldMap.js';
 
 const V = ( x = 0, y = 0, z = 0 ) => new Vector3( x, y, z );
-const colliders = new Colliders(), terrain = { heightAt: () => - 12 };
+const colliders = new Colliders(), terrain = new TerrainData();
 const camera = new PerspectiveCamera( 62, 16 / 9, 0.05, 2000 );
 const input = Object.assign( Object.create( Input.prototype ), { enabled: true, focused: true, interrupted: false, sensitivity: 1, keys: new Set(), pressed: new Set(), look: { x: 0, y: 0 }, wheel: 0 } );
 const query = { count: 0, cpuValid: false, allocate( _, n ) { const slot = this.count; this.count += n; return slot; }, setPoint() {} };

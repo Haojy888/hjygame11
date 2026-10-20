@@ -20,7 +20,7 @@ const V = ( x = 0, y = 0, z = 0 ) => new Vector3( x, y, z );
 function harness( Model = OffshoreBoatModel ) {
 
 	const model = new Model(), colliders = new Colliders(), terrain = { heightAt: () => - 6 };
-	const input = Object.assign( Object.create( Input.prototype ), { enabled: true, focused: true, interrupted: false, keys: new Set(), pressed: new Set(), look: { x: 0, y: 0 }, wheel: 0 } );
+	const input = Object.assign( Object.create( Input.prototype ), { enabled: true, focused: true, interrupted: false, sensitivity: 1, keys: new Set(), pressed: new Set(), look: { x: 0, y: 0 }, wheel: 0 } );
 	const query = { count: 0, cpuValid: true, cpu: new Float32Array( 256 ), resultInputs: new Float32Array( 256 ),
 		allocate( name, count ) { const slot = this.count; this.count += count; return slot; },
 		setPoint( slot, x, z ) { this.resultInputs[ slot * 4 ] = x; this.resultInputs[ slot * 4 + 1 ] = z; } };
@@ -154,4 +154,65 @@ for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
 	}
 
 }
-console.log( 'Scene access passed: 12/30/60/144 FPS station climbing/landing, pause/cancel/rescue, on-foot repair, blocked exits, thin walls, floor/ceiling sweeps, both hull displays and winch collision.' );
+// Buoyancy, automatic step-up and ladder transfers must use the same collision
+// route as deliberate movement; endpoint-only checks missed these contacts.
+for ( const fps of [ 12, 30, 60, 144 ] ) {
+
+	const swim = harness(), roof = swim.colliders.addBox( V( 0, 0.5, 0 ), V( 2, 0.1, 2 ) );
+	swim.player.mode = 'swim'; swim.player.position.set( 0, - 0.9, 0 ); swim.player.floating = true; swim.input.keys.add( 'Space' );
+	for ( let n = 0; n < fps * 3; n ++ ) {
+
+		swim.frame( 1 / fps );
+		assert.ok( swim.player.position.y + 1 <= 0.40001, fps + ' FPS: buoyancy cannot lift a swimmer through an underside' );
+		assert.ok( Math.hypot( swim.player.position.x, swim.player.position.z ) < 0.001, 'ceiling contact does not eject the swimmer sideways' );
+
+	}
+	swim.colliders.boxes.splice( swim.colliders.boxes.indexOf( roof ), 1 );
+	for ( let n = 0; n < fps * 3; n ++ ) swim.frame( 1 / fps );
+	assert.ok( swim.player.position.y > - 0.15, 'removing the overhead obstruction allows a normal ascent' );
+
+	const step = harness();
+	step.colliders.addBox( V( 0, - 0.1, 0 ), V( 3, 0.1, 3 ), 0, { walkable: true } );
+	const ceiling = step.colliders.addBox( V( 0, 1.9, 0 ), V( 3, 0.05, 3 ) );
+	step.colliders.addBox( V( 0, 0.1, 0 ), V( 1, 0.1, 1 ), 0, { walkable: true } );
+	step.player.mode = 'walk'; step.player.position.set( 0, 0, 1.6 ); step.player.grounded = true; step.player.yaw = 0; step.input.keys.add( 'KeyW' );
+	for ( let n = 0; n < fps * 2; n ++ ) {
+
+		step.frame( 1 / fps );
+		assert.ok( step.player.position.y + 1.75 <= 1.85001, fps + ' FPS: stepping requires standing headroom' );
+
+	}
+	step.colliders.boxes.splice( step.colliders.boxes.indexOf( ceiling ), 1 );
+	let highest = 0;
+	for ( let n = 0; n < fps; n ++ ) { step.frame( 1 / fps ); highest = Math.max( highest, step.player.position.y ); }
+	assert.ok( highest >= 0.19, 'the same riser remains climbable with enough headroom' );
+
+	const climb = harness(), transfer = climb.colliders.addBox( V( 0, 1, 0 ), V( 0.3, 1, 0.1 ), 0,
+		{ solid: false, tag: 'ladder', climbTo: V( 0, 2, 1 ) } );
+	climb.colliders.addBox( V( 0, 1.9, 1.5 ), V( 2, 0.1, 0.6 ), 0, { walkable: true } );
+	const barrier = climb.colliders.addBox( V( 0, 2.8, 0.5 ), V( 2, 0.8, 0.01 ) );
+	climb.player.mode = 'swim'; climb.player.position.set( 0, 2, 0 ); climb.player.climbing = transfer; climb.input.keys.add( 'Space' );
+	climb.frame( 1 / fps ); assert.equal( climb.player.mode, 'swim' ); assert.match( climb.player.prompt.text, /受阻/ );
+	assert.ok( climb.player.position.z < 0.1, 'a clear landing beyond a thin wall does not permit teleporting through it' );
+	climb.colliders.boxes.splice( climb.colliders.boxes.indexOf( barrier ), 1 );
+	climb.frame( 1 / fps ); assert.equal( climb.player.mode, 'walk', 'clearing the transfer permits landing' );
+	const beam = climb.colliders.addBox( V( 0, 2, 0 ), V( 0.4, 0.1, 0.4 ) );
+	transfer.climbTo.set( 0, 4, 1 ); climb.player.mode = 'swim'; climb.player.climbing = transfer; climb.player.position.set( 0, 0, 0 );
+	for ( let n = 0; n < fps * 3; n ++ ) climb.frame( 1 / fps );
+	assert.ok( climb.player.position.y + 1.75 <= beam.bottom + 0.00001, 'the ladder ascent cannot pass through an overhead beam' );
+	assert.match( climb.player.prompt.text, /受阻/ );
+
+}
+
+for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
+
+	const exit = harness( Model );
+	exit.colliders.addBox( V( 205, 2.28, 200 ), V( 3, 0.12, 6 ), 0, { walkable: true } );
+	exit.player.boardBoat(); const cached = exit.player.ashoreTarget(); assert.ok( cached );
+	exit.colliders.addBox( cached.out.clone().setY( cached.g + 0.9 ), V( 0.4, 0.9, 0.4 ) );
+	exit.player.exitBoat( cached );
+	assert.ok( exit.player.mode !== 'walk' || Math.hypot( exit.player.position.x - cached.out.x, exit.player.position.z - cached.out.z ) > 0.69,
+		'cached disembarkation targets are rechecked when occupied before E is pressed' );
+
+}
+console.log( 'Scene access passed: 12/30/60/144 FPS station/harbor climbing, swept ladder ascent/transfer, buoyancy ceilings, step headroom, cached exits, both hulls, thin walls and floor/ceiling sweeps.' );
