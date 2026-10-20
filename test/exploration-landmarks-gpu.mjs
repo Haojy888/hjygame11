@@ -33,7 +33,9 @@ const app = { scene: ocean.scene, camera: ocean.camera, terrainData: terrain, co
 const world = new ExplorationWorld( app ), wreck = new WreckScene( { scene: ocean.scene, terrain, colliders } );
 for ( const id of wreck.assets.ids ) assert.equal( await wreck.assets.load( id ), true );
 assert.equal( await world.lighthouseAssets.load( 'lighthouse' ), true, 'Use the actual generated lighthouse' );
+for ( const id of world.life.assets.ids ) assert.equal( await world.life.assets.load( id ), true, id + ': actual generated animal is required' );
 world.update( 2, true );
+world.life.updateAssets( 2 );
 assert.equal( world.lighthouseFade, 1 ); assert.equal( world.baseShell.visible, false );
 const V = ( x, y, z ) => new Vector3( x, y, z );
 const views = [
@@ -65,7 +67,14 @@ for ( const [ name, position, target ] of views ) {
 	ocean.sr.clearColor = night ? [ 0.015, 0.025, 0.05, 1 ] : [ 0.5, 0.65, 0.9, 1 ];
 	for ( let i = 0; i < 4; i ++ ) { ocean.frame(); await GPU.pipelinesReady(); }
 	const animal = name.startsWith( 'dolphins' ) ? 'dolphin' : name.startsWith( 'moray' ) ? 'moray' : name.startsWith( 'seahorses' ) ? 'seahorse' : null;
-	if ( animal ) assert.ok( animal === 'dolphin' ? world.life.dolphins.some( d => d.high.visible && d.group.visible ) : animal === 'moray' ? world.life.moray.visible : world.life.garden.visible );
+	if ( animal ) {
+
+		assert.ok( world.life.views.get( animal ).some( view => view.visible ), name + ': actual generated model is rendered' );
+		if ( animal === 'dolphin' ) assert.ok( world.life.dolphins.every( d => ! d.high.visible || ! d.group.visible ), 'Nearby procedural dolphins finish fading out' );
+		else if ( animal === 'moray' ) assert.equal( world.life.eel.visible, false );
+		else assert.ok( world.life.seahorses.every( fish => ! fish.visible ) );
+
+	}
 	if ( animal ) {
 
 		const velocity = new Uint16Array( ( await readTexture( ocean.sr.velocityTexture ) ).data );
@@ -79,6 +88,6 @@ for ( const [ name, position, target ] of views ) {
 
 }
 assert.deepEqual( errors, [] );
-writeFileSync( out + '/inspection.json', JSON.stringify( { lighthouseModelSource: 'Lux3D task 4229108, fitted textured GLB', animalModelSource: 'local procedural geometry; Lux3D animal tasks failed without outputs', errors, stats }, null, 2 ) + '\n' );
+writeFileSync( out + '/inspection.json', JSON.stringify( { lighthouseModelSource: 'Lux3D task 4229108, fitted textured GLB', animalModelSource: 'Lux3D tasks 4230352, 4230354, 4230356, prepared PBR GLBs', errors, stats }, null, 2 ) + '\n' );
 console.log( 'PASS: lighthouse/interior/boarding/gallery/night, wreck, dolphins, reef animals and whale bones in the native FFT ocean; no GPU validation errors.' );
 process.exit( 0 );

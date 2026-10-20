@@ -1,11 +1,25 @@
 import { Group, Mesh, Vector3, Color } from '../../engine/index.js';
 import { Material } from '../../engine/render/Material.js';
+import { GPU } from '../../engine/gpu/GPU.js';
+import { lodFadeModule } from '../../materials/LODFade.js';
+import { AbyssAssets } from '../AbyssAssets.js';
 import { G } from '../../core/Globals.js';
 import { GeoKit, sphere, cylinder, tube, loft, slab, paintVertices } from '../boat/GeoKit.js';
 import { COASTAL_SITES } from '../../game/ExplorationLandmarks.js';
 
 const V = ( x = 0, y = 0, z = 0 ) => new Vector3( x, y, z );
 const TAU = Math.PI * 2;
+const BASE = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/coastal-life/';
+// Calibrated from the prepared GLBs: dolphin 2.8m long, moray 2.4m long,
+// seahorse 0.8m tall for the existing observation garden.
+const HEIGHTS = { dolphin: 1.04225, moray: 0.54225, seahorse: 0.8 };
+
+function outgoingFade( material, near, far ) {
+
+	material.modules.push( lodFadeModule ); material.opacity = 0;
+	material.surface += `\ns.alpha = 1.0; let lod = mat.opacity * ( 1.0 - smoothstep( ${ near.toFixed( 1 ) }, ${ far.toFixed( 1 ) }, length( in.P - frame.cameraPos ) ) ); if ( ! lodFadeVisible( in.pixel, lod, true ) ) { discard; }`;
+
+}
 
 function body( profiles, sides ) {
 
@@ -78,13 +92,20 @@ export class CoastalLife {
 			const material = new Material( { name: '海豚皮肤', vertexColors: true, roughness: 0.36, uniforms: { phase: [ 'f32', i * 2.3 ] }, vertex: SWIM,
 				surface: 's.roughness = 0.34; s.clearcoat = 0.25; s.clearcoatRoughness = 0.22;' } );
 			const lowMaterial = new Material( { name: '远处海豚', vertexColors: true, roughness: 0.4, uniforms: { phase: [ 'f32', i * 2.3 ] }, vertex: SWIM } );
+			outgoingFade( material, 26, 34 );
 			const high = new Mesh( near, material ), low = new Mesh( far, lowMaterial ); high.castShadow = true; group.add( high, low );
 			const home = COASTAL_SITES.dolphin, pos = V( home.x + i * 4, - 1, home.z + i * 2 ); group.position.copy( pos );
-			const collider = app.colliders?.addEllipsoid( pos, V( 0.65, 0.55, 1.5 ) );
+			const collider = app.colliders?.addEllipsoid( pos, V( 0.65, 0.60, 1.5 ) );
 			return { group, high, low, pos, velocity: V( 1, 0, 0 ), collider, index: i, following: false, breaching: false };
 
 		} );
 		this.buildMoray(); this.buildSeahorses();
+		this.assets = new AbyssAssets( { scene: this.group, base: BASE, ids: [ 'dolphin', 'moray', 'seahorse' ], placements: [
+			...[ 0, 1, 2 ].map( () => ( { id: 'dolphin', position: V(), rotation: 0, height: HEIGHTS.dolphin, alignToTerrain: false } ) ),
+			{ id: 'moray', position: V(), rotation: 0, height: HEIGHTS.moray, alignToTerrain: false },
+			...[ 0, 1, 2 ].map( () => ( { id: 'seahorse', position: V(), rotation: 0, height: HEIGHTS.seahorse, alignToTerrain: false } ) ),
+		] } );
+		this.ready = new Map(); this.views = new Map(); this.loading = false; this.scale = V();
 
 	}
 
@@ -94,6 +115,7 @@ export class CoastalLife {
 		this.moray = new Group(); this.moray.name = '礁洞海鳗'; this.moray.position.set( site.x, app.terrainData.heightAt( site.x, site.z ) + 0.55, site.z ); this.group.add( this.moray );
 		const material = new Material( { name: '海鳗斑纹', color: 0x68774a, roughness: 0.55,
 			surface: 's.albedo *= 0.65 + smoothstep( -0.15, 0.35, perlin3( in.P * 28.0 ) ) * 0.6; s.clearcoat = 0.18;' } );
+		outgoingFade( material, 35, 43 );
 		const eel = new Mesh( body( [ [ - 1.7, 0.025, 0.025 ], [ - 1.2, 0.09, 0.10 ], [ - 0.5, 0.13, 0.17 ], [ 0.2, 0.15, 0.18 ], [ 0.65, 0.18, 0.16 ], [ 0.95, 0.11, 0.10 ] ], 18 ), material );
 		this.eel = new Group(); this.eel.add( eel ); this.moray.add( this.eel );
 		const jaw = this.jaw = new Mesh( sphere( 0.13, 12, 8 ).scale( 1, 0.4, 2.2 ).translate( 0, 0, 0.18 ), material ); jaw.position.set( 0, - 0.08, 0.58 ); this.eel.add( jaw );
@@ -111,8 +133,8 @@ export class CoastalLife {
 			const center = this.moray.position.clone().add( rock.position ); app.colliders?.addEllipsoid( center, V( sx, sy, 0.85 ) );
 
 		}
-		app.colliders?.addCapsule( this.moray.position.clone().add( V( 0, 0, - 1.4 ) ), this.moray.position.clone().add( V( 0, 0, 1 ) ), 0.18 );
-		this.morayPoint = this.moray.position.clone().add( V( 0, 0.1, 0.78 ) );
+		this.morayCollider = app.colliders?.addCapsule( this.moray.position.clone().add( V( 0, 0, - 1.4 ) ), this.moray.position.clone().add( V( 0, 0, 1 ) ), 0.18 );
+		this.morayPoint = this.moray.position.clone().add( V( 0, 0.06, 1.02 ) );
 
 	}
 
@@ -121,6 +143,7 @@ export class CoastalLife {
 		const app = this.app, site = COASTAL_SITES.seahorse;
 		this.garden = new Group(); this.garden.name = '海马草庭'; this.garden.position.set( site.x, app.terrainData.heightAt( site.x, site.z ), site.z ); this.group.add( this.garden );
 		const geometry = seahorseGeometry(), material = new Material( { vertexColors: true, roughness: 0.7 } );
+		outgoingFade( material, 18, 26 );
 		this.seahorses = Array.from( { length: 3 }, ( _, i ) => {
 
 			const fish = new Mesh( geometry, material ); fish.position.set( ( i - 1 ) * 0.8, 0.5 + i * 0.16, i % 2 * 0.55 ); fish.rotation.y = ( i - 1 ) * 0.6; this.garden.add( fish ); return fish;
@@ -135,6 +158,7 @@ export class CoastalLife {
 		}
 		this.garden.add( new Mesh( kit.merged( 'grass' ), new Material( { vertexColors: true, roughness: 0.9, vertex: 'v.position.x += sin( frame.time * 0.8 + v.position.z ) * v.position.y * 0.035;' } ) ) );
 		this.seahorsePoint = this.garden.position.clone().add( V( 0, 1.0, 0.2 ) );
+		this.seahorseSolids = this.seahorses.map( fish => app.colliders?.addEllipsoid( this.garden.position.clone().add( fish.position ).add( V( 0, 0.4, 0 ) ), V( 0.14, 0.40, 0.20 ) ) );
 
 	}
 
@@ -196,6 +220,133 @@ export class CoastalLife {
 		const near = cp.distanceToSquared( this.morayPoint ) < 8 ** 2, lit = !! app.localLights?.flashlight?.on && near;
 		this.eel.rotation.y = Math.sin( this.time * 0.4 ) * 0.06; this.jaw.rotation.x = 0.12 + ( lit ? 0.24 : 0.06 ) * ( 0.5 + 0.5 * Math.sin( this.time * 1.8 ) );
 		for ( let i = 0; i < this.seahorses.length; i ++ ) this.seahorses[ i ].rotation.z = Math.sin( this.time * 0.8 + i ) * 0.05;
+		this.updateAssets( dt );
+
+	}
+
+	updateAssets( dt ) {
+
+		dt = Number.isFinite( dt ) ? Math.max( 0, dt ) : 0;
+		const cp = this.app.camera.position, assets = this.assets;
+		const near = { dolphin: this.dolphins.some( d => cp.distanceToSquared( d.pos ) < 75 ** 2 ), moray: cp.distanceToSquared( this.morayPoint ) < 55 ** 2, seahorse: cp.distanceToSquared( this.seahorsePoint ) < 45 ** 2 };
+		if ( GPU.device && ! this.loading ) for ( const id of assets.ids ) if ( near[ id ] && ! assets.pending.has( id ) ) {
+
+			this.loading = true; assets.load( id ).finally( () => { this.loading = false; } ); break;
+
+		}
+		assets.group.visible = true;
+		this.group.updateWorldMatrix( true, true );
+		for ( const id of assets.ids ) {
+
+			const mesh = assets.models.get( id );
+			if ( mesh && ! this.ready.has( id ) ) {
+
+				if ( id === 'moray' ) {
+
+					const source = mesh.material;
+					mesh.material = new Material( { name: '近海海鳗', color: source.color, roughness: source.roughness, bindings: source.bindings,
+						modules: [ ...source.modules ], surface: source.surface, uniforms: { reaction: [ 'f32', 0 ], previousReaction: [ 'f32', 0 ] } } );
+
+				}
+				mesh.visible = false; mesh.material.modules.push( lodFadeModule );
+				const range = id === 'dolphin' ? [ 26, 34 ] : id === 'moray' ? [ 35, 43 ] : [ 18, 26 ];
+				mesh.material.surface += `\ns.alpha = 1.0; let lod = mat.opacity * ( 1.0 - smoothstep( ${ range[ 0 ].toFixed( 1 ) }, ${ range[ 1 ].toFixed( 1 ) }, length( in.P - frame.cameraPos ) ) ); if ( ! lodFadeVisible( in.pixel, lod, false ) ) { discard; }`;
+				if ( id === 'dolphin' ) {
+
+					mesh.material.vertex = SWIM.replace( 'mat.phase', 'v.model[3].x * 0.24' );
+					mesh.material.surface += '\ns.roughness = 0.36; s.clearcoat = 0.25; s.clearcoatRoughness = 0.22;';
+
+				}
+				if ( id === 'moray' ) {
+
+					mesh.material.surface += '\ns.roughness = 0.48; s.clearcoat = 0.18;';
+					mesh.material.vertex = /* wgsl */`
+						let jaw = smoothstep( 1.35, 1.95, v.position.z ) * ( 1.0 - smoothstep( 0.43, 0.55, v.position.y ) );
+						let amplitude = 0.018 + mat.reaction * 0.065;
+						let dy = - jaw * amplitude * ( 0.5 + 0.5 * sin( frame.time * 1.8 ) );
+						let old = - jaw * ( 0.018 + mat.previousReaction * 0.065 ) * ( 0.5 + 0.5 * sin( ( frame.time - frame.dt ) * 1.8 ) );
+						v.position.y += dy;
+						v.prevWorldOffset = ( v.prevModel * vec4f( 0.0, old - dy, 0.0, 0.0 ) ).xyz;`;
+
+				}
+				// Seven nearby animals share geometry and textures. Separate render objects retain
+				// each animal's previous transform for TAA, including companion movement.
+				const views = Array.from( { length: id === 'moray' ? 1 : 3 }, () => {
+
+					const view = new Mesh( mesh.geometry, mesh.material ); view.name = 'Lux3D:' + id; view.frustumCulled = false; assets.group.add( view ); return view;
+
+				} );
+				this.views.set( id, views ); mesh.material.needsUpdate = true; this.ready.set( id, 0 );
+				if ( id === 'moray' && this.app.colliders ) this.fitMorayCollision( mesh.geometry );
+
+			}
+			const age = mesh ? Math.min( 1, ( this.ready.get( id ) || 0 ) + dt / 1.2 ) : 0;
+			if ( mesh ) { this.ready.set( id, age ); mesh.material.opacity = age; mesh.visible = false; }
+			if ( id === 'dolphin' ) for ( const d of this.dolphins ) {
+
+				const distance = cp.distanceToSquared( d.pos ), close = distance < 34 ** 2;
+				d.high.material.opacity = close ? age : 0; d.high.visible = close && ( age < 1 || distance > 26 ** 2 ); d.low.visible = ! close;
+				const view = this.views.get( id )?.[ d.index ];
+				if ( view ) view.visible = close;
+				if ( view && close ) {
+
+					view.position.copy( d.pos ).add( V( 0, - HEIGHTS.dolphin * 0.42, 0 ) ); view.quaternion.copy( d.group.quaternion ); view.scale.setScalar( HEIGHTS.dolphin );
+
+				}
+
+			} else if ( id === 'moray' ) {
+
+				const distance = cp.distanceToSquared( this.morayPoint ), close = distance < 43 ** 2;
+				this.eel.children[ 0 ].material.opacity = close ? age : 0; this.eel.visible = ! close || age < 1 || distance > 35 ** 2;
+				const view = this.views.get( id )?.[ 0 ]; if ( view ) view.visible = close;
+				if ( view && close ) {
+
+					view.position.copy( this.moray.position ).add( V( 0, - HEIGHTS.moray * 0.45, - 0.15 ) ); view.rotation.y = this.eel.rotation.y;
+					view.scale.set( HEIGHTS.moray, HEIGHTS.moray * ( 1 + Math.sin( this.time * 1.8 ) * 0.02 ), HEIGHTS.moray );
+					mesh.material.set( 'previousReaction', mesh.material.uniforms.reaction.value );
+					mesh.material.set( 'reaction', this.app.localLights?.flashlight?.on && cp.distanceToSquared( this.morayPoint ) < 8 ** 2 ? 1 : 0 );
+					view.updateWorldMatrix( true, false );
+					for ( const segment of this.moraySolids || [] ) {
+
+						segment.shape.start.copy( segment.start ).applyMatrix4( view.matrixWorld ); segment.shape.end.copy( segment.end ).applyMatrix4( view.matrixWorld );
+
+					}
+
+				}
+
+			} else {
+
+				const distance = cp.distanceToSquared( this.seahorsePoint ), close = distance < 26 ** 2;
+				for ( let i = 0; i < this.seahorses.length; i ++ ) {
+
+					const fish = this.seahorses[ i ], view = this.views.get( id )?.[ i ];
+					fish.material.opacity = close ? age : 0; fish.visible = ! close || age < 1 || distance > 18 ** 2;
+					if ( view ) view.visible = close;
+					if ( view && close ) { view.matrixAutoUpdate = false; view.matrix.copy( fish.matrixWorld ).scale( this.scale.setScalar( HEIGHTS.seahorse ) ); }
+					const solid = this.seahorseSolids[ i ];
+					if ( solid ) { solid.center.copy( V( 0, 0.4, 0 ).applyMatrix4( fish.matrixWorld ) ); fish.getWorldQuaternion( solid.rotation ); solid.inverse.copy( solid.rotation ).conjugate(); }
+
+				}
+
+			}
+
+		}
+
+	}
+
+	fitMorayCollision( geometry ) {
+
+		const C = this.app.colliders, previous = C.capsules.indexOf( this.morayCollider );
+		if ( previous >= 0 ) C.capsules.splice( previous, 1 );
+		const P = geometry.attributes.position, bounds = geometry.boundingBox, bins = Array.from( { length: 10 }, () => [] );
+		for ( let i = 0; i < P.count; i ++ ) {
+
+			const n = Math.min( 9, Math.max( 0, Math.floor( ( P.getZ( i ) - bounds.min.z ) / ( bounds.max.z - bounds.min.z ) * 10 ) ) );
+			bins[ n ].push( V( P.getX( i ), P.getY( i ), P.getZ( i ) ) );
+
+		}
+		const points = bins.filter( b => b.length ).map( b => V( ...[ 'x', 'y', 'z' ].map( key => b.map( p => p[ key ] ).sort( ( a, b ) => a - b )[ Math.floor( b.length / 2 ) ] ) ) );
+		this.moraySolids = points.slice( 1 ).map( ( end, i ) => ( { start: points[ i ], end, shape: C.addCapsule( this.moray.position, this.moray.position, 0.16 ) } ) );
 
 	}
 
