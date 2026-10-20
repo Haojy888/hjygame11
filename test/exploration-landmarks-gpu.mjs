@@ -32,9 +32,14 @@ ocean.scene.add( groundMesh( terrain, - 40, 220, 610, 3 ) );
 const app = { scene: ocean.scene, camera: ocean.camera, terrainData: terrain, colliders, localLights: lights };
 const world = new ExplorationWorld( app ), wreck = new WreckScene( { scene: ocean.scene, terrain, colliders } );
 for ( const id of wreck.assets.ids ) assert.equal( await wreck.assets.load( id ), true );
+assert.equal( await world.lighthouseAssets.load( 'lighthouse' ), true, 'Use the actual generated lighthouse' );
+world.update( 2, true );
+assert.equal( world.lighthouseFade, 1 ); assert.equal( world.baseShell.visible, false );
 const V = ( x, y, z ) => new Vector3( x, y, z );
 const views = [
 	[ 'lighthouse', V( L.x + 32, 16, L.z + 40 ), V( L.x, 11, L.z ) ],
+	[ 'lighthouse-opposite', V( L.x - 32, 16, L.z - 40 ), V( L.x, 11, L.z ) ],
+	[ 'lighthouse-door', V( L.x + 1.6, 6.2, L.z + 7 ), V( L.x, 6.2, L.z + 2.4 ) ],
 	[ 'boarding', V( L.x + 6, 4.7, L.z + 23 ), V( L.x, 6.8, L.z + 5 ) ],
 	[ 'spiral-stairs', world.spiral[ 26 ].clone().add( V( 0, 1.62, 0 ) ), world.spiral[ 30 ].clone().add( V( 0, 1.1, 0 ) ) ],
 	[ 'gallery', V( L.x + 8, world.galleryY + 4, L.z + 8 ), V( L.x, world.galleryY + 1.7, L.z ) ],
@@ -74,6 +79,6 @@ for ( const [ name, position, target ] of views ) {
 
 }
 assert.deepEqual( errors, [] );
-writeFileSync( out + '/inspection.json', JSON.stringify( { animalModelSource: 'local procedural geometry; Lux3D tasks failed without outputs', errors, stats }, null, 2 ) + '\n' );
+writeFileSync( out + '/inspection.json', JSON.stringify( { lighthouseModelSource: 'Lux3D task 4229108, fitted textured GLB', animalModelSource: 'local procedural geometry; Lux3D animal tasks failed without outputs', errors, stats }, null, 2 ) + '\n' );
 console.log( 'PASS: lighthouse/interior/boarding/gallery/night, wreck, dolphins, reef animals and whale bones in the native FFT ocean; no GPU validation errors.' );
 process.exit( 0 );

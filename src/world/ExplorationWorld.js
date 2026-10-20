@@ -7,12 +7,15 @@ import { mulberry32 } from '../util/Noise.js';
 import { LIGHTHOUSE as L, COASTAL_SITES } from '../game/ExplorationLandmarks.js';
 import { WRECK_SITE } from '../game/Expedition.js';
 import { CoastalLife } from './marine/CoastalLife.js';
+import { AbyssAssets } from './AbyssAssets.js';
+import { GPU } from '../engine/gpu/GPU.js';
+import { lodFadeModule } from '../materials/LODFade.js';
 
 const V = ( x = 0, y = 0, z = 0 ) => new Vector3( x, y, z );
 const TAU = Math.PI * 2;
 
-// Architecture stays code-built: every stair, doorway and rail uses the same dimensions
-// for rendering and collision. Material buckets merge details into a handful of draws.
+// Circulation uses shared visual/collision dimensions. The generated exterior is
+// fitted around these routes; material buckets keep the local details inexpensive.
 function finish( kit, parent, prefix ) {
 
 	for ( const name of kit.buckets.keys() ) {
@@ -39,12 +42,14 @@ export class ExplorationWorld {
 
 	buildLighthouse() {
 
-		const app = this.app, C = app.colliders, kit = new GeoKit();
+		const app = this.app, C = app.colliders, kit = new GeoKit(), shell = new GeoKit(), walls = new GeoKit();
 		const tower = this.tower = new Group(); tower.name = '归航灯塔'; tower.position.set( L.x, 0, L.z ); this.group.add( tower );
 		const add = ( bucket, geometry, color ) => kit.add( bucket, geometry, { color } );
+		const shellAdd = ( bucket, geometry, color ) => shell.add( bucket, geometry, { color } );
 		const solidBox = ( name, x, y, z, w, h, d, color, yaw = 0, walkable = false ) => {
 
-			add( [ 'stone', 'wall', 'approach-step' ].includes( name ) ? 'stone' : 'metal', box( w, h, d ).rotateY( yaw ).translate( x, y, z ), color );
+			const target = name === 'wall' ? walls : kit;
+			target.add( [ 'stone', 'wall', 'approach-step' ].includes( name ) ? 'stone' : 'metal', box( w, h, d ).rotateY( yaw ).translate( x, y, z ), { color } );
 			return C?.addBox( V( L.x + x, y, L.z + z ), V( w / 2, h / 2, d / 2 ), yaw, { tag: 'lighthouse-' + name, walkable } );
 
 		};
@@ -101,11 +106,11 @@ export class ExplorationWorld {
 			}
 			for ( const [ lo, hi ] of spans ) if ( hi > lo ) solidBox( 'wall', x, ( lo + hi ) / 2, z, 0.75, hi - lo, 0.28, i % 5 === 0 ? 0xb6b5a1 : 0xd5d1b7, a );
 			// Faded red bands, foundation blocks, and individual masonry seams.
-			add( 'metal', box( 0.76, 0.34, 0.30 ).rotateY( a ).translate( x, L.baseY + 6.4, z ), 0x9b5147 );
+			shellAdd( 'metal', box( 0.76, 0.34, 0.30 ).rotateY( a ).translate( x, L.baseY + 6.4, z ), 0x9b5147 );
 			for ( let y = L.baseY + 0.8; y < topY; y += 0.8 ) {
 
 				if ( ( i < 2 || i === 31 ) && y < L.baseY + 2.9 || i % 8 === 0 && y % 3.3 > 0.9 && y % 3.3 < 2.3 ) continue;
-				add( 'stone', box( 0.69, 0.018, 0.012 ).rotateY( a ).translate( Math.sin( a ) * 3.82, y, Math.cos( a ) * 3.82 ), 0x929685 );
+				shellAdd( 'stone', box( 0.69, 0.018, 0.012 ).rotateY( a ).translate( Math.sin( a ) * 3.82, y, Math.cos( a ) * 3.82 ), 0x929685 );
 
 			}
 
@@ -126,23 +131,26 @@ export class ExplorationWorld {
 
 			const a = i / 32 * TAU, x = Math.sin( a ) * 4.05, z = Math.cos( a ) * 4.05;
 			solidBox( 'gallery', x, topY - 0.11, z, 0.93, 0.22, 1.8, 0x929d8e, a, true );
-			for ( const h of [ 0.52, 1.05 ] ) add( 'metal', rod( V( Math.sin( a ) * 4.97, topY + h, Math.cos( a ) * 4.97 ), V( Math.sin( a + TAU / 32 ) * 4.97, topY + h, Math.cos( a + TAU / 32 ) * 4.97 ), 0.026, 6 ), 0x6a7c75 );
-			add( 'metal', cylinder( 0.025, 0.035, 1.08, 6 ).translate( Math.sin( a ) * 4.97, topY + 0.54, Math.cos( a ) * 4.97 ), 0x6a7c75 );
-			C?.addBox( V( L.x + Math.sin( a ) * 4.97, topY + 0.55, L.z + Math.cos( a ) * 4.97 ), V( 0.5, 0.55, 0.035 ), a, { tag: 'lighthouse-balcony-rail' } );
+			for ( const h of [ 0.52, 1.05 ] ) shellAdd( 'metal', rod( V( Math.sin( a ) * 4.97, topY + h, Math.cos( a ) * 4.97 ), V( Math.sin( a + TAU / 32 ) * 4.97, topY + h, Math.cos( a + TAU / 32 ) * 4.97 ), 0.026, 6 ), 0x6a7c75 );
+			shellAdd( 'metal', cylinder( 0.025, 0.035, 1.08, 6 ).translate( Math.sin( a ) * 4.97, topY + 0.54, Math.cos( a ) * 4.97 ), 0x6a7c75 );
+			C?.addBox( V( L.x + Math.sin( a ) * 4.55, topY + 0.55, L.z + Math.cos( a ) * 4.55 ), V( 0.5, 0.55, 0.30 ), a, { tag: 'lighthouse-balcony-rail' } );
 
 		}
 		solidBox( 'landing', 0, topY - 0.08, 3.05, 1.3, 0.16, 2.4, 0x929d8e, 0, true );
 		// The lantern rests above the stair opening, leaving a full-height exit to the gallery.
 		const lanternY = topY + 2.8;
+		add( 'metal', cylinder( 2.26, 2.26, 0.10, 40 ).translate( 0, topY + 1.91, 0 ), 0x526a65 );
+		add( 'metal', cylinder( 0.13, 0.18, 1.86, 16 ).translate( 0, topY + 0.93, 0 ), 0x526a65 );
+		C?.addCylinder( L.x, L.z, 0.18, topY, topY + 1.86, { tag: 'lighthouse-lantern-support' } );
 		for ( let i = 0; i < 8; i ++ ) {
 
 			const a = i / 8 * TAU;
-			add( 'metal', cylinder( 0.055, 0.075, 2.9, 8 ).translate( Math.sin( a ) * 2.25, lanternY + 0.05, Math.cos( a ) * 2.25 ), 0x526a65 );
+			shellAdd( 'metal', cylinder( 0.055, 0.075, 2.9, 8 ).translate( Math.sin( a ) * 2.25, lanternY + 0.05, Math.cos( a ) * 2.25 ), 0x526a65 );
 
 		}
-		for ( const y of [ lanternY - 1.4, lanternY + 1.5 ] ) add( 'metal', torus( 2.25, 0.10, 7, 48 ).rotateX( Math.PI / 2 ).translate( 0, y, 0 ), 0x658176 );
-		add( 'metal', cylinder( 0.10, 2.95, 1.6, 32 ).translate( 0, lanternY + 2.35, 0 ), 0x4d746b );
-		add( 'metal', cylinder( 0.04, 0.09, 1.2, 8 ).translate( 0, lanternY + 3.7, 0 ), 0x6e887d );
+		for ( const y of [ lanternY - 1.4, lanternY + 1.5 ] ) shellAdd( 'metal', torus( 2.25, 0.10, 7, 48 ).rotateX( Math.PI / 2 ).translate( 0, y, 0 ), 0x658176 );
+		shellAdd( 'metal', cylinder( 0.10, 2.95, 1.6, 32 ).translate( 0, lanternY + 2.35, 0 ), 0x4d746b );
+		shellAdd( 'metal', cylinder( 0.04, 0.09, 1.2, 8 ).translate( 0, lanternY + 3.7, 0 ), 0x6e887d );
 		this.lampMaterial = new Material( { name: '归航灯塔灯芯', color: 0xf5d395, roughness: 0.25 } );
 		const bulb = new Mesh( sphere( 0.4, 20, 12 ), this.lampMaterial ); bulb.position.set( 0, lanternY, 0 ); tower.add( bulb );
 		const lensKit = new GeoKit();
@@ -161,6 +169,21 @@ export class ExplorationWorld {
 			surface: 's.emissive = vec3f( 1.0, 0.8, 0.46 ); let along = clamp( in.uv.y / 65.0, 0.0, 1.0 ); s.alpha *= smoothstep( 0.0, 0.04, along ) * pow( 1.0 - along, 2.0 ) * pow( abs( dot( in.N, in.V ) ), 0.65 );' } ) );
 		this.beamPivot.add( beam );
 		finish( kit, tower, '灯塔' ); this.targets.set( 'lighthouse', this.ladderPoint.clone() );
+		this.baseShell = new Group(); this.innerWalls = new Group(); tower.add( this.baseShell, this.innerWalls );
+		finish( shell, this.baseShell, '灯塔原外观' ); finish( walls, this.innerWalls, '灯塔内壁' );
+		for ( const group of [ this.baseShell, this.innerWalls ] ) group.traverse( mesh => {
+
+			if ( ! mesh.material ) return;
+			mesh.material.modules.push( lodFadeModule ); mesh.material.opacity = 0;
+			const outside = group === this.innerWalls ? `dot( in.N.xz, in.P.xz - vec2f( ${ L.x.toFixed( 1 ) }, ${ L.z.toFixed( 1 ) } ) ) > 0.01 && ` : '';
+			mesh.material.surface += `\ns.alpha = 1.0; if ( ${ outside }! lodFadeVisible( in.pixel, mat.opacity, true ) ) { discard; }`;
+
+		} );
+		const base = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/landmarks/';
+		this.lighthouseAssets = new AbyssAssets( { scene: tower, base, ids: [ 'lighthouse' ], placements: [
+			{ id: 'lighthouse', position: V( 0, L.baseY, 0 ), rotation: 0, height: 19.7, alignToTerrain: false },
+		] } );
+		this.lighthouseFade = 0;
 
 	}
 
@@ -243,6 +266,21 @@ export class ExplorationWorld {
 		this.time += Number.isFinite( dt ) ? Math.min( 0.1, Math.max( 0, dt ) ) : 0;
 		const cp = this.app.camera.position, night = G.night.value > 0.15;
 		this.tower.visible = cp.distanceToSquared( V( L.x, 8, L.z ) ) < 950 ** 2;
+		const assets = this.lighthouseAssets, model = assets.models.get( 'lighthouse' );
+		if ( GPU.device && cp.distanceToSquared( V( L.x, 8, L.z ) ) < 400 ** 2 && ! assets.pending.has( 'lighthouse' ) ) assets.load( 'lighthouse' );
+		if ( model ) {
+
+			if ( ! model.userData.fadeReady ) {
+
+				model.material.modules.push( lodFadeModule ); model.material.surface += '\ns.alpha = 1.0; if ( ! lodFadeVisible( in.pixel, mat.opacity, false ) ) { discard; }';
+				model.material.needsUpdate = true; model.castShadow = true; model.userData.fadeReady = true;
+
+			}
+			this.lighthouseFade = Math.min( 1, this.lighthouseFade + ( Number.isFinite( dt ) ? Math.max( 0, dt ) : 0 ) / 1.2 ); model.material.opacity = this.lighthouseFade;
+			for ( const group of [ this.baseShell, this.innerWalls ] ) group.traverse( mesh => { if ( mesh.material ) mesh.material.opacity = this.lighthouseFade; } );
+
+		}
+		assets.group.visible = !! model; this.baseShell.visible = this.lighthouseFade < 1;
 		this.interior.visible = cp.distanceToSquared( this.interior.position ) < 120 ** 2;
 		this.bones.visible = cp.distanceToSquared( this.bones.position ) < 140 ** 2;
 		this.lampMaterial.emissive.setRGB( lit && night ? 4 : 0, lit && night ? 3.1 : 0, lit && night ? 1.5 : 0 );

@@ -50,7 +50,7 @@ for ( const fps of [ 12, 60, 144 ] ) {
 	assert.ok( player.position.distanceTo( world.ladder.climbTo ) < 0.01 );
 	const route = [ V( L.x, L.deckY, L.z + 10.6 ), ...world.routes, V( L.x, L.baseY, L.z + 4.5 ), ...world.spiral ];
 	for ( const point of route ) walkTo( point, fps );
-	walkTo( V( L.x, world.galleryY, L.z + 4.1 ), fps ); input.keys.clear();
+	walkTo( V( L.x, world.galleryY, L.z + 3.9 ), fps ); input.keys.clear();
 	assert.ok( Math.abs( player.position.y - world.galleryY ) < 0.25, fps + ' FPS: actual walk reaches the gallery' );
 	for ( const point of [ ...world.spiral ].reverse() ) walkTo( point, fps );
 	walkTo( V( L.x, L.baseY, L.z + 4.5 ), fps );
