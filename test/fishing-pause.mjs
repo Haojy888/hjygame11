@@ -41,6 +41,44 @@ function harness( state = 'floating' ) {
 
 }
 
+// Prepare the selected catch while the real fight is still in progress.
+{
+
+	const { game, hud, rod } = harness(); let prepared = null;
+	game.state = { stats: { lineKg: 8, reelSpeed: 2 } }; game.toast = () => {};
+	game.bite = { phase: 'take', species: 'grunt', kg: 0.8 }; rod.lineOut = 15; rod.hook = () => rod.setState( 'fighting' );
+	hud.prepareCatch = species => { prepared = species; };
+	game.strike();
+	assert( prepared === 'grunt' && game.fight?.species === 'grunt' && rod.state === 'fighting', 'hooking starts the real fight and prepares the same fish for display' );
+
+}
+
+for ( const dismiss of [ false, true ] ) {
+
+	const { game, hud, rod, input } = harness( 'landing' );
+	game.app.camera = { position: { x: 0, z: 10 } }; rod.bobber = { x: 0, z: 0 }; rod.t = 0.31;
+	game.bite = null; game.landing = { species: 'grunt', kg: 0.8, card: {}, cardT: 0 };
+	game.display.hide = () => {}; hud.portrait = { loading: true, update() {} };
+	hud.showCatch = () => { hud.catchOpen = true; }; hud.hideCatch = () => { hud.catchOpen = false; };
+	for ( let i = 0; i < 120; i ++ ) game.update( 0.1 );
+	assert( game.landing?.shown && game.landing.cardT === 0 && hud.catchOpen, 'a slow display load does not consume the nine-second catch timer' );
+	if ( dismiss ) {
+
+		input.hit = code => code === 'KeyE'; game.update( 0.1 );
+		assert( game.landing === null && ! hud.catchOpen && rod.state === 'idle', 'E can dismiss a catch immediately even while its fish is loading' );
+
+	} else {
+
+		hud.portrait.loading = false;
+		for ( let i = 0; i < 85; i ++ ) game.update( 0.1 );
+		assert( hud.catchOpen && game.landing.cardT > 8, 'the prepared fish gets a full viewing window' );
+		for ( let i = 0; i < 10; i ++ ) game.update( 0.1 );
+		assert( game.landing === null && ! hud.catchOpen && rod.state === 'idle', 'the normal catch timeout resumes once the fish is ready' );
+
+	}
+
+}
+
 {
 
 	const { game, ui, player, rod } = harness();

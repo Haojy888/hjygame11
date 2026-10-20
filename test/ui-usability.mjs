@@ -156,7 +156,10 @@ let writes = 0;
 class Instrument {
 
 	nodes = {}; style = {}; attributes = {}; classes = new Set();
-	classList = { toggle: ( key, on ) => { writes ++; if ( on ) this.classes.add( key ); else this.classes.delete( key ); } };
+	classList = {
+		add: key => this.classes.add( key ), remove: key => this.classes.delete( key ),
+		toggle: ( key, on ) => { writes ++; if ( on ) this.classes.add( key ); else this.classes.delete( key ); },
+	};
 	set textContent( value ) { this.text = value; writes ++; }
 	get textContent() { return this.text; }
 	setAttribute( key, value ) { this.attributes[ key ] = value; writes ++; }
@@ -187,6 +190,23 @@ try {
 	assert.match( instruments.bCourse.textContent, /按 M/ );
 	instruments.setBoatGauges( { visible: false } );
 	assert.equal( instruments.boatEl.classes.has( 'is-on' ), false );
+
+	// The real card masks the canvas during loading and releases it once ready.
+	const cardHUD = Object.assign( Object.create( GameHUD.prototype ), {
+		game: { state }, ui: {}, catchCard: new Instrument(), catchScrim: new Instrument(),
+		portrait: { loading: true, realFish: { load() {} }, attach: () => true, show() {}, detach() { this.loading = false; } },
+	} );
+	cardHUD.catchCard.style.setProperty = () => {};
+	for ( const name of [ 'rescue', 'fuelEl', 'sonarEl', 'fight', 'bite', 'cast', 'dot' ] ) cardHUD[ name ] = new Instrument();
+	cardHUD.rescue.contains = () => false;
+	cardHUD.showCatch( { species: 'grunt', cm: 27, kg: 0.4, value: 3, newSpecies: true, kept: true } );
+	assert.ok( cardHUD.catchOpen && cardHUD.catchCard.classes.has( 'is-loading' ) );
+	assert.match( cardHUD.catchCard.innerHTML, /role="status">正在准备展示渔获/ );
+	cardHUD.update( {} ); assert.ok( cardHUD.catchCard.classes.has( 'is-loading' ) );
+	cardHUD.portrait.loading = false; cardHUD.update( {} );
+	assert.equal( cardHUD.catchCard.classes.has( 'is-loading' ), false );
+	cardHUD.hideCatch();
+	assert.equal( cardHUD.catchOpen, false ); assert.equal( cardHUD.catchCard.classes.has( 'is-on' ), false );
 
 } finally {
 

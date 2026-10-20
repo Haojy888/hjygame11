@@ -4,6 +4,7 @@ import { GPU, Texture } from '../src/engine/webgpu.js';
 import { readTexture } from '../src/engine/gpu/Readback.js';
 import { setShadowMap } from '../src/engine/render/wgsl/lighting.js';
 import { FishPortrait } from '../src/game/FishPortrait.js';
+import { GameHUD } from '../src/game/GameHUD.js';
 
 // A real, small textured/skinned GLB exercises the same loader/shader as the incoming assets.
 function fixture( animated = true, height = 0.3 ) {
@@ -76,12 +77,17 @@ const tone = portrait._pass( 'rgba8unorm', () => target.hdr );
 
 assert.equal( await portrait.realFish.load( 'parrot' ), null );
 assert.equal( calls.length, 0 );
+GameHUD.prototype.prepareCatch.call( { portrait }, 'grunt' );
+assert.equal( calls.length, 1, 'hooking a fish prepares only that species before its catch card opens' );
 portrait.show( 'grunt', 0.4 );
 const gruntLoad = portrait.realFish.load( 'grunt' );
 assert.equal( gruntLoad, portrait.realFish.load( 'grunt' ) );
 portrait._place( 'grunt', 0.4 );
 assert.equal( portrait.realShown, null );
-assert.equal( portrait.mesh.visible, true );
+assert.equal( portrait.mesh.visible, false, 'never flash the old fish while its replacement is loading' );
+assert.equal( portrait.loading, true );
+portrait.context = {}; portrait.update( 12 ); portrait.context = null;
+assert.equal( portrait.live.t, 0, 'slow loads do not spend the entrance animation' );
 
 // A slow response for the previous card cannot replace the new species.
 portrait.show( 'yellowtail', 1 );
@@ -92,6 +98,7 @@ assert.equal( grunt.group.visible, false );
 assert.equal( grunt.group.parent, null );
 portrait._place( 'yellowtail', 1 );
 assert.equal( portrait.realShown, null );
+assert.equal( portrait.mesh.visible, false ); assert.equal( portrait.loading, true, 'an earlier response cannot finish the new card' );
 
 // Finishing after close only populates the cache; it must not add/show a mesh.
 portrait.detach();
@@ -103,6 +110,7 @@ assert.equal( yellowtail.group.parent, null );
 assert.equal( yellowtail.current, null );
 
 portrait.show( 'grunt', 0.4 );
+assert.equal( portrait.loading, false, 'cached fish can be shown immediately' );
 for ( let i = 0; i < 3; i ++ ) {
 
 	GPU.beginFrame();
@@ -138,6 +146,21 @@ assert.equal( grunt.group.visible, false );
 portrait._place( 'grunt', 0.4 );
 assert.equal( portrait.realShown, null, 'thumbnail keeps the original fish' );
 assert.equal( portrait.mesh.visible, true );
+portrait.show( 'parrot', 0.4 ); portrait._place( 'parrot', 0.4 );
+assert.equal( portrait.loading, false, 'fish without replacement assets keep their existing display immediately' );
+assert.equal( portrait.mesh.visible, true );
+
+// A cold response completes the current selection before its first animation frame.
+portrait.show( 'wrasse', 0.4 );
+const wrasseLoad = portrait.realFish.load( 'wrasse' );
+portrait.context = {}; portrait.update( 20 ); portrait.context = null;
+assert.equal( portrait.live.t, 0 );
+gates.get( 'wrasse.glb' ).resolve( fixture() );
+const wrasse = await wrasseLoad;
+assert.equal( portrait.loading, false ); assert.equal( portrait.live.t, 0 );
+portrait._place( 'wrasse', 0.4 );
+assert.equal( portrait.realShown, wrasse ); assert.equal( portrait.mesh.visible, false );
+
 portrait.show( 'tuna', 8 );
 const fail = portrait.realFish.load( 'tuna' );
 gates.get( 'tuna.glb' ).reject( new Error( 'intentional unavailable asset' ) );
@@ -146,6 +169,8 @@ console.warn = ( ...args ) => warnings.push( args );
 try {
 
 	assert.equal( await fail, null );
+	assert.equal( portrait.loading, false, 'only a completed failure enables the fallback' );
+	portrait._place( 'tuna', 8 ); assert.equal( portrait.mesh.visible, true );
 	assert.equal( warnings.length, 1 );
 	assert.match( warnings[ 0 ][ 0 ], /keeping the original tuna/ );
 
@@ -155,11 +180,12 @@ try {
 
 }
 portrait.show( 'tuna', 8 );
+assert.equal( portrait.loading, false, 'known failures do not wait or retry when the card reopens' );
 portrait._place( 'tuna', 8 );
 assert.equal( portrait.realShown, null );
 assert.equal( portrait.mesh.visible, true );
-assert.equal( calls.length, 3, 'one request per supported species including failures' );
+assert.equal( calls.length, 4, 'one request per supported species including failures' );
 await GPU.queue.onSubmittedWorkDone();
 assert.deepEqual( errors, [] );
-console.log( 'PASS: GLB PBR studio rendering, optional idle, scale/pose, 2.4:1 tall-fish framing, fallback, request dedup, delayed switch/close, original thumbnails.', { covered } );
+console.log( 'PASS: GLB PBR studio rendering, no old-model flash during slow loads, deferred entrance, warm cache, optional idle, scale/pose, tall-fish framing, failure fallback, request dedup, stale switch/close and original thumbnails.', { covered } );
 process.exit( 0 );

@@ -639,7 +639,7 @@ export class Game {
 				if ( L.shown ) {
 
 					// a slow turn so both flanks show
-					L.cardT += dt;
+					if ( ! this.hud.portrait?.loading ) L.cardT += dt;
 					yaw += Math.sin( L.cardT * 0.7 ) * 0.55;
 					if ( lDown || inp.hit( 'KeyE' ) || inp.hit( 'Escape' ) || L.cardT > CATCH_CARD_MS / 1000 ) {
 
@@ -940,6 +940,7 @@ export class Game {
 		if ( ! this.checkFishingAccess( this.habitat() ) ) return;
 		const g = this.state.stats;
 		this.fight = new CatchMinigame( { species: b.species, kg: b.kg, lineKg: g.lineKg, reelSpeed: g.reelSpeed, distance: Math.max( 3, this.rod.lineOut ) } );
+		this.hud?.prepareCatch?.( b.species );
 		this.bite = null;
 		this.rod.hook();
 		this.toast( '鱼上钩了！', 1200 );

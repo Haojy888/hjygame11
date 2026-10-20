@@ -231,6 +231,9 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-catch-stage { position: relative; width: min(94vw, 1400px, calc(46vh * 2.4)); aspect-ratio: 2.4 / 1; }
 .gm-catch-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%;
 	-webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%); }
+.gm-catch-loading { display: none; position: absolute; inset: 0; place-items: center; color: rgba(244, 234, 214, 0.7); }
+.gm-catch.is-loading .gm-catch-loading { display: grid; }
+.gm-catch.is-loading .gm-catch-stage canvas, .gm-catch.is-loading .gm-splash, .gm-catch.is-loading .gm-catch-stage::before { visibility: hidden; }
 /* the card owns the screen: the minimap and the settings rail step aside */
 .tw-root:has(.gm-catch.is-on) .gm-map, .tw-root:has(.gm-catch.is-on) .tw-rail { opacity: 0; pointer-events: none; transition: opacity 300ms; }
 .gm-catch-stage::before { content: ''; position: absolute; left: 12%; right: 12%; bottom: 6%; height: 16%; border-radius: 50%;
@@ -240,7 +243,7 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-splash { position: absolute; left: 50%; top: 52%; width: 0; height: 0; pointer-events: none; }
 .gm-splash i { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); margin: calc(var(--s) / -2); border-radius: 50%;
 	background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.95), rgba(190, 235, 245, 0.55) 55%, transparent 72%); opacity: 0; }
-.gm-catch.is-on .gm-splash i { animation: gm-drop 1100ms cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) forwards; }
+.gm-catch.is-on:not(.is-loading) .gm-splash i { animation: gm-drop 1100ms cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) forwards; }
 @keyframes gm-drop { 0% { opacity: 0; transform: translate(0, 0) scale(0.4); } 12% { opacity: 1; }
 	100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1); } }
 .gm-catch-stats { display: flex; justify-content: center; gap: clamp(8px, 1.6vw, 22px); margin-top: var(--tw-2); }
@@ -258,7 +261,7 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-catch-foot kbd { font: 600 var(--tw-fs-xs) var(--tw-mono); color: #f4ead6; padding: 2px calc(6 * var(--tw-u)); border-radius: 4px; border: 1px solid rgba(244, 234, 214, 0.3); background: rgba(244, 234, 214, 0.08); }
 .gm-catch-timer { width: calc(80 * var(--tw-u)); height: 2px; margin-left: var(--tw-2); border-radius: 2px; background: rgba(244, 234, 214, 0.15); overflow: hidden; }
 .gm-catch-timer > span { display: block; height: 100%; width: 100%; background: rgba(244, 234, 214, 0.55); transform-origin: 0 50%; }
-.gm-catch.is-on .gm-catch-timer > span { animation: gm-timer var(--gm-catch-ms, 9000ms) linear forwards; }
+.gm-catch.is-on:not(.is-loading) .gm-catch-timer > span { animation: gm-timer var(--gm-catch-ms, 9000ms) linear forwards; }
 @keyframes gm-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
 	.gm-catch.is-on .gm-catch-top, .gm-catch.is-on .gm-catch-bottom { animation: none; opacity: 1; }
@@ -645,6 +648,7 @@ export class GameHUD {
 	// per frame
 	update( { fight, casting, power, bite, aiming, fuel = null, sonar = null, rescue = null } ) {
 
+		if ( this.catchOpen ) this.catchCard.classList.toggle( 'is-loading', !! this.portrait?.loading );
 		if ( this.invOpen && this.game.secrets ) {
 
 			const status = this.inv.querySelector( '[data-secret-status]' ), text = secretsStatusText( this.game );
@@ -717,6 +721,21 @@ export class GameHUD {
 	}
 
 	// ---- catch card
+	prepareCatch( species ) {
+
+		try {
+
+			if ( ! this.portrait ) this.portrait = new FishPortrait();
+			this.portrait.realFish.load( species );
+
+		} catch ( e ) {
+
+			console.warn( 'fish portrait unavailable', e );
+
+		}
+
+	}
+
 	// info: GameState.lastCatch ({ species, kg, cm, value, newSpecies, record, prevBestKg, prevBestCm, kept })
 	showCatch( info, ms = 9000 ) {
 
@@ -746,7 +765,7 @@ export class GameHUD {
 				<h2>${ f.name }</h2>
 				<div class="gm-catch-sci">${ f.sci || '' }</div>
 			</div>
-			<div class="gm-catch-stage"><canvas></canvas><div class="gm-splash">${ drops }</div></div>
+			<div class="gm-catch-stage"><canvas></canvas><div class="gm-catch-loading" role="status">正在准备展示渔获…</div><div class="gm-splash">${ drops }</div></div>
 			<div class="gm-catch-bottom">
 				<div class="gm-catch-stats">
 					<div class="gm-stat"><span>长度</span><b>${ info.cm }<small>cm</small></b><i>${ inch.toFixed( 1 ) } 英寸</i></div>
@@ -756,29 +775,31 @@ export class GameHUD {
 				${ note }
 				<div class="gm-catch-foot">点击鼠标或按 <kbd>E</kbd> 继续<span class="gm-catch-timer"><span></span></span></div>
 			</div>`;
-		// restart the entrance even when a card is already up
-		c.classList.remove( 'is-on' );
-		void c.offsetWidth;
-		c.classList.add( 'is-on' );
-		this.catchScrim.classList.add( 'is-on' );
-		this.catchOpen = true;
 		// the fish itself: the real model in a studio, drawn live into the stage canvas
 		try {
 
-			if ( ! this.portrait ) this.portrait = new FishPortrait();
-			if ( this.portrait.attach( c.querySelector( '.gm-catch-stage canvas' ) ) ) this.portrait.show( info.species, info.kg );
+			this.prepareCatch( info.species );
+			if ( this.portrait?.attach( c.querySelector( '.gm-catch-stage canvas' ) ) ) this.portrait.show( info.species, info.kg );
 
 		} catch ( e ) {
 
 			console.warn( 'fish portrait unavailable', e );
 
 		}
+		c.classList.toggle( 'is-loading', !! this.portrait?.loading );
+		// restart the entrance even when a card is already up
+		c.classList.remove( 'is-on' );
+		void c.offsetWidth;
+		c.classList.add( 'is-on' );
+		this.catchScrim.classList.add( 'is-on' );
+		this.catchOpen = true;
 
 	}
 
 	hideCatch() {
 
 		this.catchCard.classList.remove( 'is-on' );
+		this.catchCard.classList.remove( 'is-loading' );
 		this.catchScrim.classList.remove( 'is-on' );
 		this.catchOpen = false;
 		if ( this.portrait ) this.portrait.detach();

@@ -165,10 +165,12 @@ fn fragment( in: FSIn ) -> vec4f {
 		_q.multiply( _q2 );
 		_f.makeRotationFromQuaternion( _q ).setPosition( STUDIO.x + x * L, STUDIO.y + y * L, STUDIO.z );
 		// Only live catch cards request/use the larger GLBs; cached guide thumbnails stay cheap.
-		const real = this.live?.species === species ? this.realFish.get( species ) : null;
+		const live = this.live?.species === species ? this.live : null;
+		const ready = ! live || live.ready;
+		const real = live?.ready ? this.realFish.get( species ) : null;
 		if ( this.realShown && this.realShown !== real ) this.realShown.group.visible = false;
 		this.realShown = real;
-		this.mesh.visible = ! real;
+		this.mesh.visible = ready && ! real;
 		if ( real ) {
 
 			const group = real.group;
@@ -179,7 +181,7 @@ fn fragment( in: FSIn ) -> vec4f {
 			group.visible = true;
 			group.updateMatrixWorld( true );
 
-		} else this._write( this.slot[ species ], _f, L, curl, jaw );
+		} else if ( ready ) this._write( this.slot[ species ], _f, L, curl, jaw );
 		return L;
 
 	}
@@ -271,10 +273,16 @@ fn fragment( in: FSIn ) -> vec4f {
 	show( species, kg ) {
 
 		this.detach();
-		this.live = { species, kg, t: 0 };
-		this.realFish.load( species );
+		const live = this.live = { species, kg, t: 0, ready: this.realFish.resolved( species ) };
+		this.mesh.visible = false;
+		this.realFish.load( species ).then( () => {
+
+			if ( this.live === live ) live.ready = true;
+
+		} );
 
 	}
+	get loading() { return !! this.live && ! this.live.ready; }
 
 	detach() {
 
@@ -395,6 +403,8 @@ fn fragment( in: FSIn ) -> vec4f {
 		const lv = this.live;
 		if ( lv && this.context ) {
 
+			// Never draw a temporary fish or spend the entrance animation while loading.
+			if ( ! lv.ready ) return;
 			lv.t += dt;
 			const c = this.canvas;
 			const dpr = Math.min( 2, globalThis.devicePixelRatio || 1 );

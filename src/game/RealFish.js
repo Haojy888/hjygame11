@@ -22,6 +22,8 @@ export class RealFish {
 		return this.models.get( species ) || null;
 
 	}
+	// A final display can be selected after loading, including a known fallback.
+	resolved( species ) { return ! SPECIES.has( species ) || this.models.has( species ); }
 
 	load( species ) {
 
@@ -57,6 +59,7 @@ export class RealFish {
 
 		} ).catch( ( error ) => {
 
+			this.models.set( species, null );
 			console.warn( 'RealFish: keeping the original ' + species + ' model', error );
 			return null;
 
