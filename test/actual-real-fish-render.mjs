@@ -10,12 +10,12 @@ import { GPU, Texture, FullscreenPass } from '../src/engine/webgpu.js';
 import { readTexture } from '../src/engine/gpu/Readback.js';
 import { setShadowMap } from '../src/engine/render/wgsl/lighting.js';
 import { FishPortrait } from '../src/game/FishPortrait.js';
-import { FISH } from '../src/game/FishTable.js';
+import { FISH, FISH_IDS } from '../src/game/FishTable.js';
 
 assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card]' );
 const folder = resolve( process.argv[ 2 ] );
 const requested = process.argv.slice( 3 ).filter( ( argument ) => argument !== '--card' );
-const supported = [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi', 'wrasse', 'angel', 'redSnapper', 'barracuda', 'tarpon' ];
+const supported = FISH_IDS;
 const speciesIds = requested.length ? requested : supported;
 for ( const id of speciesIds ) assert.ok( supported.includes( id ), 'Unsupported asset: ' + id );
 mkdirSync( folder, { recursive: true } );

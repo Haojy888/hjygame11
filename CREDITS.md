@@ -38,7 +38,7 @@
 
 ## 鱼类近景模型：`public/models/fish-realistic/`
 
-当前游戏使用以下十种近景模型，分三批使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
+当前游戏的全部十八种可钓鱼均有近景模型，分四批使用 Lux3D 的 **Lux G1** 分别独立生成，再通过 **Blender 5.2.2** 处理、导出为游戏使用的 GLB。原始生成任务记录如下：
 
 | 资源 | 物种 | Lux3D 原始 taskId |
 |---|---|---|
@@ -52,12 +52,22 @@
 | `redSnapper.glb` | 红笛鲷（*Lutjanus campechanus*） | `3942950` |
 | `barracuda.glb` | 大魣鱼（*Sphyraena barracuda*） | `3942955` |
 | `tarpon.glb` | 大海鲢（*Megalops atlanticus*） | `3943018` |
+| `silverside.glb` | 硬头银汉鱼（*Atherinomorus stipes*） | `4223562` |
+| `mullet.glb` | 条纹鲻鱼（*Mugil cephalus*） | `4223568` |
+| `needlefish.glb` | 鳄针鱼（*Tylosurus crocodilus*） | `4223571` |
+| `sergeant.glb` | 岩豆娘鱼（*Abudefduf saxatilis*） | `4223580` |
+| `chromis.glb` | 蓝色光鳃鱼（*Chromis cyanea*） | `4223585` |
+| `tang.glb` | 蓝刺尾鱼（*Acanthurus coeruleus*） | `4223760` |
+| `parrot.glb` | 红绿鹦嘴鱼（*Sparisoma viride*，终末期雄鱼） | `4223764` |
+| `jack.glb` | 大西洋鲹（*Caranx hippos*） | `4223770` |
 
 鬼头刀的首次任务 `3942366` 生成失败且无模型文件；经确认后仅重试一次，使用上表中的成功结果。两次任务记录均保留在本地交付包中。
 
-红绿鹦嘴鱼（*Sparisoma viride*）也完成了生成与 Blender 修形尝试，原任务为 `3942284`；候选的嘴部、鱼鳍与整体真实感未通过视觉验收，因此没有替换游戏中的程序化模型。原始 GLB、源包、可编辑 Blender 工程和修形候选保存在本地第二批交付目录中。
+红绿鹦嘴鱼的第二批候选任务 `3942284` 因嘴部、鱼鳍与整体真实感未通过视觉验收，没有启用；原始文件和修形候选保留。2026-10-20 的第四批重新独立生成鹦嘴鱼任务 `4223764`，经 Blender 整理与原生渲染检查后启用本次新模型。第四批八种均各提交一次，没有付费重试或四视图增强。
 
-这十种近景模型只在对应鱼种的渔获卡片中按需加载；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间或加载失败时，渔获卡片使用程序化模型显示。18 种鱼共用的材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
+这十八种近景模型只为当前上钩的鱼种按需准备，在渔获卡片中显示；图鉴缩略图、水下鱼群和鱼摊继续使用原有轻量程序化模型。加载期间显示准备提示，模型就绪后才开始入场动画、飞溅与完整展示倒计时，不先显示旧模型；加载失败后仍有可用的程序化回退。第四批每种约 1.4 万三角、四骨尾摆、两张内嵌 2048×2048 PNG，完整保留源模型、源包与可编辑 `.blend`；使用实际 WebGPU 渲染核对两侧、斜侧与尾摆，并检查普通画幅和 2.4:1 钓获卡边界。
+
+程序化鱼的共享材质降低了鳞片与鳃盖的过强凹凸；近景摄影场景改在坐标原点渲染，消除高坐标精度不足导致的砂粒噪点，并保留完整鳍膜与透光效果。
 
 外形和配色核对参考 Florida Museum of Natural History 的物种资料：
 
@@ -72,6 +82,8 @@
 - [Northern Red Snapper — 红笛鲷](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/northern-red-snapper/)：成年鱼红色体表、红眼与连续背鳍；尾缘近截形至浅凹，另参考 [Smithsonian 物种资料](https://biogeodb.stri.si.edu/caribbean/en/thefishes/species/3686)。
 - [Great Barracuda — 大魣鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/great-barracuda/)：细长体型、前突下颌、分离的双背鳍，以及银色体侧下方的不规则黑斑。
 - [Tarpon — 大海鲢](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/tarpon/)：大片银鳞、上翘的嘴、背鳍末端长丝和深叉尾。
+- [Sergeant Major — 岩豆娘鱼](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/sergeant-major/)：压扁的卵圆体形、五道黑色竖带和背部黄色区域。
+- [Crevalle Jack — 大西洋鲹](https://www.floridamuseum.ufl.edu/discover-fish/species-profiles/crevalle-jack/)：成年鱼蓝绿至金银体色，以及深叉尾轮廓。
 
 本节登记生成素材的来源与加工过程，不为其额外声明第三方素材许可证。原项目的 `LICENSE`、程序化模型代码及既有第三方素材许可和署名保持原样。
 

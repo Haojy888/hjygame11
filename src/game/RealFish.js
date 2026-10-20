@@ -1,13 +1,14 @@
 import { Color } from '../engine/index.js';
 import { SkinnedModel } from '../engine/render/Skinning.js';
 import { loadGLB } from '../engine/loaders/GLTF.js';
+import { FISH_IDS } from './FishTable.js';
 
-const SPECIES = new Set( [ 'grunt', 'yellowtail', 'tuna', 'grouper', 'mahi', 'wrasse', 'angel', 'redSnapper', 'barracuda', 'tarpon' ] );
+const SPECIES = new Set( FISH_IDS );
 const BASE = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/fish-realistic/';
 
 // Close-up assets only. Loading never changes the portrait's current selection; the next live
 // frame chooses a ready model. Cache promises (including failures) so reopening a card cannot
-// duplicate requests or repeatedly fetch an unavailable asset. Other fish keep FishProps.
+// duplicate requests or repeatedly fetch an unavailable asset. Every catchable species has an asset.
 export class RealFish {
 
 	constructor() {

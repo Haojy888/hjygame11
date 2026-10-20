@@ -5,6 +5,23 @@ import { readTexture } from '../src/engine/gpu/Readback.js';
 import { setShadowMap } from '../src/engine/render/wgsl/lighting.js';
 import { FishPortrait } from '../src/game/FishPortrait.js';
 import { GameHUD } from '../src/game/GameHUD.js';
+import { FISH_IDS } from '../src/game/FishTable.js';
+import { readFileSync } from 'node:fs';
+import { parseGLB } from '../src/engine/loaders/GLTF.js';
+
+// The loader supports every catchable species; missing or unprocessed assets must fail here.
+for ( const species of FISH_IDS ) {
+
+	const file = readFileSync( new URL( '../public/models/fish-realistic/' + species + '.glb', import.meta.url ) );
+	assert.ok( file.length < 12 * 1024 * 1024, species + ': catch portrait exceeds the texture/geometry size budget' );
+	const gltf = parseGLB( file.buffer.slice( file.byteOffset, file.byteOffset + file.byteLength ) );
+	const fish = gltf.nodes.filter( n => n.mesh !== undefined && n.skin !== undefined );
+	assert.equal( fish.length, 1, species + ': one skinned fish is required' );
+	assert.ok( gltf.animations.some( a => a.name === 'idle' ) && gltf.images.length >= 1, species + ': textured idle asset required' );
+	const triangles = gltf.meshes[ fish[ 0 ].mesh ].reduce( ( n, primitive ) => n + primitive.indices.length / 3, 0 );
+	assert.ok( triangles > 1000 && triangles <= 16000, species + ': catch portrait triangle budget' );
+
+}
 
 // A real, small textured/skinned GLB exercises the same loader/shader as the incoming assets.
 function fixture( animated = true, height = 0.3 ) {
@@ -75,7 +92,7 @@ const target = portrait._target( 'fixture', W * 2, H * 2 );
 const rgba = new Texture( { width: W, height: H, format: 'rgba8unorm', usage: [ 'render', 'copySrc' ] } );
 const tone = portrait._pass( 'rgba8unorm', () => target.hdr );
 
-assert.equal( await portrait.realFish.load( 'parrot' ), null );
+assert.equal( await portrait.realFish.load( 'not-a-fish' ), null );
 assert.equal( calls.length, 0 );
 GameHUD.prototype.prepareCatch.call( { portrait }, 'grunt' );
 assert.equal( calls.length, 1, 'hooking a fish prepares only that species before its catch card opens' );
@@ -145,9 +162,6 @@ portrait.detach();
 assert.equal( grunt.group.visible, false );
 portrait._place( 'grunt', 0.4 );
 assert.equal( portrait.realShown, null, 'thumbnail keeps the original fish' );
-assert.equal( portrait.mesh.visible, true );
-portrait.show( 'parrot', 0.4 ); portrait._place( 'parrot', 0.4 );
-assert.equal( portrait.loading, false, 'fish without replacement assets keep their existing display immediately' );
 assert.equal( portrait.mesh.visible, true );
 
 // A cold response completes the current selection before its first animation frame.

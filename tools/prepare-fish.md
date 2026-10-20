@@ -28,7 +28,7 @@ $blenderExe = '<blender.exe>'
 
 拿骚石斑鱼保留源 UV 岛，尾缘改为圆凸，鳃盖下缘局部平滑，再从焊接的高模副本传回连续法线。鬼头刀保留源 UV 岛及轮廓。两条已在游戏的原生渲染中检查正反两侧、尾摆及 1000×600 / 1200×500 钓获卡，作为运行资源启用。最终 GLB 均为约 1.4 万三角、单网格四骨 `idle`、两张内嵌 2048×2048 PNG。
 
-鹦嘴鱼源模型的头部、胸鳍和喙形缺陷经本地修形后仍在近景明显，因此 `game-candidates/parrot.glb` **只是未上线候选**，游戏继续使用原有程序化外观。保留源 GLB、候选 GLB 和 `.blend`，供后续有更合适的源模型时继续处理。
+第二批鹦嘴鱼源模型的头部、胸鳍和喙形缺陷经本地修形后仍在近景明显，因此 `game-candidates/parrot.glb` **只是未上线候选**，当时保留程序化外观。源 GLB、候选 GLB 和 `.blend` 均保留；第四批使用独立生成的新源模型完成替换，未覆盖这个历史候选。
 
 ## 第三批：猪齿鱼、皇后神仙鱼、红笛鲷、大魣鱼、大海鲢
 
@@ -65,3 +65,26 @@ $blenderExe = '<blender.exe>'
 node test/actual-real-fish-render.mjs ../fish-realism-batch3/render wrasse angel redSnapper barracuda tarpon
 node test/actual-real-fish-render.mjs ../fish-realism-batch3/card wrasse angel redSnapper barracuda tarpon --card
 ```
+
+## 第四批：补齐其余八种鱼
+
+2026-10-20 使用用户授权的新密钥，在原国内 OpenAPI 路线各生成一次，任务编号见 `CREDITS.md`。原始 GLB 和源包位于 `../fish-realism-batch4/lux3d-source/`，八份带贴图的可编辑工程位于 `../fish-realism-batch4/blender/`。源文件保持不变，第二批未启用的鹦嘴鱼候选也保留。
+
+检查六向源模型后，银汉鱼、鲻鱼和针鱼的鼻向为 `-X`；其余五种为 `-Y`，背向均为 `+Z`。复现命令：
+
+```powershell
+$blenderExe = '<blender.exe>'
+$fishForward = @{ silverside = '-X'; mullet = '-X'; needlefish = '-X'; sergeant = '-Y'; chromis = '-Y'; tang = '-Y'; parrot = '-Y'; jack = '-Y' }
+foreach ($fishId in @('silverside', 'mullet', 'needlefish', 'sergeant', 'chromis', 'tang', 'parrot', 'jack')) {
+    & $blenderExe --background --factory-startup --python-exit-code 1 --python tools/prepare-fish.py -- --source "../fish-realism-batch4/lux3d-source/${fishId}_glb.glb" --name $fishId --mode prepare --work "../fish-realism-batch4/processing/$fishId" "--forward=$($fishForward[$fishId])" --up +Z --preserve-source-seams --out-glb "public/models/fish-realistic/$fishId.glb" --out-blend "../fish-realism-batch4/blender/$fishId.blend"
+}
+```
+
+整理后统一为鼻朝 `+Z`、背朝 `+Y`、总长 1；每条 13,999～14,000 三角、四骨约两秒的 `idle` 尾摆，两张实际 2048×2048 PNG。保留源 UV 岛、嘴部、鳍膜和体色。核对了正反两侧、斜侧、摆尾、真实贴图与无裁切边界；截图是游戏原生 WebGPU 渲染，不等同于浏览器交互验收。
+
+```powershell
+node test/actual-real-fish-render.mjs ../fish-realism-batch4/render silverside mullet needlefish sergeant chromis tang parrot jack
+node test/actual-real-fish-render.mjs ../fish-realism-batch4/card-check silverside mullet needlefish sergeant chromis tang parrot jack --card
+```
+
+运行时由 `FishTable.js` 的完整鱼种清单驱动近景资源支持，回归检查每种均有带贴图与 `idle` 的 GLB，单模型不超过 16,000 三角及 12 MiB。按当前鱼种加载和缓存，继续保留慢加载等待、完整展示时长、切换/关闭防串鱼与失败回退。
