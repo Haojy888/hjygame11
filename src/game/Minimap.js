@@ -43,6 +43,13 @@ const CSS = /* css */`
 .gm-mk.is-story > i { background: #b8a1ff; border-radius: 4px; font-size: calc(17 * var(--tw-u)); }
 .gm-mk.is-seaJournal > i { background: #8fe5ce; font-size: calc(17 * var(--tw-u)); }
 .gm-mk.is-expedition > i { background: #e8c58e; font-size: calc(15 * var(--tw-u)); }
+.gm-mk.is-navigation { z-index: 2; }
+.gm-mk.is-navigation > i { background: #9ff4df; color: #0b242b; font-size: calc(18 * var(--tw-u)); box-shadow: 0 0 0 3px #103c42, 0 0 0 5px #9ff4df; }
+.gm-map-nav { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(260px,70vw); padding: 8px 10px; border-radius: 8px; color: #9ff4df; line-height: 1.5; }
+.gm-map-nav strong { display: block; font: 600 var(--tw-fs-sm) var(--tw-font); overflow-wrap: anywhere; }
+.gm-map-nav small { display: block; font: 500 var(--tw-fs-xs) var(--tw-font); }
+.gm-map-nav small:last-child { color: var(--tw-ink-2); }
+.gm-map-nav.is-arrived { box-shadow: inset 3px 0 #9ff4df; }
 .gm-map-goal { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); max-width: 230px;
 	padding: 4px 8px; border-radius: 6px; text-align: center; white-space: nowrap; color: var(--tw-sun); font: 500 var(--tw-fs-xs) var(--tw-font); }
 .gm-mk > b { position: absolute; left: 0; top: 0; width: 0; height: 0; border-left: calc(5 * var(--tw-u)) solid transparent; border-right: calc(5 * var(--tw-u)) solid transparent;
@@ -150,9 +157,15 @@ export class Minimap {
 			{ id: 'seaJournal', ...mk( 'seaJournal', '◎' ), pos: () => game.seaJournalTarget },
 			{ id: 'expedition', ...mk( 'expedition', '⚓' ), pos: () => game.expeditionTarget },
 			{ id: 'voyage', ...mk( 'expedition', '▤' ), pos: () => game.voyageTarget },
+			{ id: 'navigation', ...mk( 'navigation', '⌖' ), pos: () => game.worldMap?.navigation?.destination },
 		];
 		this.goalLabel = h( 'div', 'gm-map-goal tw-glass' );
 		this.el.append( this.goalLabel );
+		this.navigationLabel = h( 'div', 'gm-map-nav tw-glass', '<strong></strong><small></small><small></small>' );
+		this.navigationLabel.hidden = true;
+		this.navigationName = this.navigationLabel.querySelector( 'strong' );
+		[ this.navigationMetrics, this.navigationHint ] = this.navigationLabel.querySelectorAll( 'small' );
+		this.el.append( this.navigationLabel );
 		this.updateGoal();
 		game.state.onChange( () => this.updateGoal() );
 		this.north = h( 'div', 'gm-map-n', '北' );
@@ -351,6 +364,24 @@ export class Minimap {
 
 		this._bakeStep();
 		const app = this.game.app, cam = app.camera, p = app.player;
+		const navigation = this.game.worldMap?.navigation;
+		this.navigationLabel.hidden = ! navigation;
+		this._toggle( this.navigationLabel, 'is-arrived', !! navigation?.arrived );
+		this.goalLabel.hidden = !! navigation || ! this.game.state.currentOrder;
+		if ( navigation ) {
+
+			const { destination, metrics, hint } = navigation;
+			const text = destination.label + metrics + hint;
+			if ( text !== this._navigationText ) {
+
+				this._navigationText = text;
+				this.navigationName.textContent = ( navigation.arrived ? '✓ ' : '⌖ ' ) + destination.label;
+				this.navigationMetrics.textContent = metrics;
+				this.navigationHint.textContent = hint;
+
+			}
+
+		}
 		if ( this._viewSize < 0 || ! this._ro ) this._viewSize = this.view.clientWidth;
 		const size = this._viewSize;
 		if ( ! size ) return;

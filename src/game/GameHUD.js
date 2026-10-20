@@ -9,6 +9,14 @@ import { MARINE_SURVEYS, surveyProgress } from './MarineSurvey.js';
 import { STATION_STEPS, STATION_ENTRIES, EVENT_TYPES, SALVAGE, RESTORATION_SITES, restorationReady, radioLogText } from './Voyage.js';
 import { BOATS } from './Boats.js';
 import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
+import { SECRET_SITES, secretHint } from './Secrets.js';
+
+function secretsStatusText( game ) {
+
+	const c = game.secrets?.conditions || {};
+	return `潮位 ${ Number.isFinite( c.tide ) ? c.tide.toFixed( 2 ) : '0.00' } 米 · ${ c.night ? '夜间' : '白天' } · ${ c.storm ? '雷暴中' : '当前无雷暴' } · M 查看 ✧，近处收竿并面向线索按 G。潮汐随游戏时刻变化，T 可继续时间。`;
+
+}
 
 // DOM for the fishing game, in the look of the rest of the HUD (ui/ui.css tokens, .tw-glass):
 //   top right     purse and cooler / hold load
@@ -381,11 +389,11 @@ export class GameHUD {
 		const fieldOpen = panel?.querySelector( 'details.gm-field-guide' )?.open || false;
 		const wreckDialogueOpen = panel?.querySelector( 'details.gm-expedition-dialogue' )?.open || false;
 		const surveyOpen = panel?.querySelector( 'details.gm-marine-survey' )?.open || false;
-		const voyageOpen = [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration' ].map( ( cls ) => [ cls, panel?.querySelector( `details.${ cls }` )?.open || false ] );
+		const voyageOpen = [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-secrets' ].map( ( cls ) => [ cls, panel?.querySelector( `details.${ cls }` )?.open || false ] );
 		const focused = typeof document !== 'undefined' && panel?.contains?.( document.activeElement ) ? document.activeElement : null;
 		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey', 'data-radio', 'data-exhibit', 'data-cabin-photo', 'data-station-return', 'data-restoration' ].find( ( name ) => focused.hasAttribute( name ) );
 		const focusSelector = focusAttribute ? `[${ focusAttribute }="${ focused.getAttribute( focusAttribute ) }"]`
-			: focused?.tagName === 'SUMMARY' ? [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
+			: focused?.tagName === 'SUMMARY' ? [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-secrets', 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
 		if ( this.invOpen ) this.renderInventory();
 		if ( this.standOpen ) this.vendor && this.vendor.kind === 'shop' ? this.renderShop() : this.renderStand();
 		const journey = panel?.querySelector( 'details.gm-journey' );
@@ -513,6 +521,17 @@ export class GameHUD {
 
 	}
 
+	secretsMarkup() {
+
+		const s = this.game.state.secrets; if ( ! s ) return '';
+		const c = this.game.secrets?.conditions || {};
+		return `<details class="gm-journey gm-secrets"><summary>✧ 追潮寻迹 · ${ s.found.length } / ${ SECRET_SITES.length }</summary>
+			<p class="gm-sub" data-secret-status>${ secretsStatusText( this.game ) }</p>
+			${ SECRET_SITES.map( site => `<article class="gm-story-entry"><b>${ site.name } · ${ s.found.includes( site.id ) ? site.keepsake : '尚未记录' }</b><p${ s.found.includes( site.id ) ? '' : ` data-secret-hint="${ site.id }"` }>${ s.found.includes( site.id ) ? site.clue : secretHint( site.id, s, c ) }</p></article>` ).join( '' ) }
+			${ s.found.length === SECRET_SITES.length ? '<p>纪念称号：追潮寻迹者。三段见闻已留在这片海湾。</p>' : '' }</details>`;
+
+	}
+
 	cabinMarkup() {
 
 		const state = this.game.state, v = state.voyage; if ( ! v ) return '';
@@ -626,6 +645,17 @@ export class GameHUD {
 	// per frame
 	update( { fight, casting, power, bite, aiming, fuel = null, sonar = null, rescue = null } ) {
 
+		if ( this.invOpen && this.game.secrets ) {
+
+			const status = this.inv.querySelector( '[data-secret-status]' ), text = secretsStatusText( this.game );
+			if ( status && status.textContent !== text ) {
+
+				status.textContent = text;
+				for ( const hint of this.inv.querySelectorAll( '[data-secret-hint]' ) ) hint.textContent = this.game.secrets.hint( hint.dataset.secretHint );
+
+			}
+
+		}
 		const showRescue = !! rescue && ! this.game.worldMap?.open && ! this.invOpen && ! this.standOpen && ! this.catchOpen && ! this.ui.helpOpen && ! this.ui.photoMode;
 		if ( ! showRescue && this.rescue.contains( document.activeElement ) ) document.activeElement.blur();
 		this.rescue.hidden = ! showRescue;
@@ -785,6 +815,7 @@ export class GameHUD {
 				${ this.journeyMarkup( true ) }
 				${ this.storyJournalMarkup() }
 				${ this.seaJournalMarkup() }
+				${ this.secretsMarkup() }
 				${ this.expeditionMarkup() }
 				${ this.fieldGuideMarkup() }
 				${ this.marineSurveyMarkup() }

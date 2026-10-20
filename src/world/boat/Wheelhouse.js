@@ -804,8 +804,7 @@ function buildCabinDetail( kit, L ) {
 
 	};
 
-	onWall( - 1, 0.02, 1.47, 0.1, 0.13, 0.06, { color: 0xffffff, rough: 0.3, pattern: 7, anim: 0.15 } );
-	onWall( - 1, 0.15, 1.42, 0.12, 0.09, - 0.1, { color: 0xffffff, rough: 0.3, pattern: 7, anim: 0.7 } );
+	// The voyage system places the player's photograph in this area of the wall.
 	onWall( - 1, 0.36, 1.36, 0.19, 0.25, 0.02, { color: 0xffffff, rough: 0.9, pattern: 5 } );
 	// masking tape holding the tide table
 	for ( const [ dz, dy ] of [ [ - 0.09, 0.12 ], [ 0.09, 0.12 ] ] ) onWall( - 1, 0.36 + dz, 1.36 + dy, 0.05, 0.018, 0.5, { color: 0xd8cfa8, rough: 0.8 } );

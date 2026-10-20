@@ -81,7 +81,9 @@ for ( const [ index, id ] of [ 'net', 'litter', 'nursery' ].entries() ) {
 
 }
 assert.equal( state.money, 60 ); assert.match( hud.restorationMarkup(), /回港找玛尔塔/ );
-assert.ok( mapLocations( game ).filter( ( p ) => p.id.startsWith( 'restore-' ) ).every( ( p ) => /可回访/.test( p.label ) ) );
+assert.ok( RESTORATION_SITES.every( ( site ) => /可回访/.test( mapLocations( game ).find( ( p ) => p.id === 'restore-' + site.id ).label ) ) );
+assert.match( mapLocations( game ).find( ( p ) => p.id === 'restore-report' ).label, /玛尔塔汇报/ );
+for ( const site of RESTORATION_SITES ) assert.equal( mapLocations( game ).find( ( p ) => p.id === 'restore-' + site.id ).y, world.restoration.sites.get( site.id ).point.y, 'Navigation uses the actual work target depth' );
 assert.equal( game.talkRestoration( 'restore-report' ), false );
 app.player.mode = 'walk'; app.player.position.copy( marta.position ); game.hud.standOpen = true; game.hud.vendor = marta;
 game.hud.vendor = { ...marta }; assert.equal( game.talkRestoration( 'restore-report' ), false, 'a forged or different vendor cannot pay' ); game.hud.vendor = marta;
@@ -89,6 +91,7 @@ input.focused = false; assert.equal( game.talkRestoration( 'restore-report' ), f
 app.player.position.x += 10; assert.equal( game.talkRestoration( 'restore-report' ), false ); app.player.position.copy( marta.position );
 failSave = true; assert.equal( game.talkRestoration( 'restore-report' ), false ); assert.equal( state.money, 60 ); assert.equal( state.voyage.restoration.reported, false ); failSave = false;
 assert.equal( game.talkRestoration( 'restore-report' ), true ); assert.equal( state.money, 140 ); assert.equal( game.talkRestoration( 'restore-report' ), false );
+assert.equal( mapLocations( game ).some( ( p ) => p.id === 'restore-report' ), false, 'Reporting removes the completed return objective' );
 assert.match( hud.restorationMarkup( true ), /海湾守护者/ ); assert.doesNotMatch( hud.restorationMarkup( true ), /data-restoration=/ );
 assert.ok( radioLogText( 'restore-report' ).includes( '$80' ) ); assert.deepEqual( GameState.load( storage ).voyage, state.voyage );
 

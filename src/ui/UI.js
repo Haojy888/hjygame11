@@ -144,6 +144,39 @@ const fmtClock = ( hours ) => {
 
 const CARDINALS = [ '北', '东北', '东', '东南', '南', '西南', '西', '西北' ];
 
+// Wind in the simulation points downwind; the instrument names the direction it comes from.
+export function sailingReadout( g ) {
+
+	const wrap = v => ( v % 360 + 360 ) % 360;
+	const heading = wrap( Number.isFinite( g.heading ) ? g.heading : 0 );
+	const speed = Number.isFinite( g.windSpeed ) ? Math.max( 0, g.windSpeed ) : 0;
+	const wind = g.windVector;
+	const hasWind = speed >= 0.5 && Number.isFinite( wind?.x ) && Number.isFinite( wind?.y ) && Math.hypot( wind.x, wind.y ) > 0.001;
+	const from = hasWind ? wrap( Math.atan2( - wind.x, wind.y ) * 180 / Math.PI ) : null;
+	const weather = g.thunderstorm ? '雷暴' : g.rain ? '下雨' : '无降雨';
+	const windText = speed < 0.5 ? '静风' : `${ from === null ? '风速' : CARDINALS[ Math.round( from / 45 ) % 8 ] + '来风' } ${ speed.toFixed( 1 ) } 米/秒`;
+	const nav = g.navigation;
+	const target = nav?.destination && Number.isFinite( nav.bearing ) && Number.isFinite( nav.distance ) && nav.distance >= 0 ? nav : null;
+	let course = '按 M 选择航行目的地';
+	if ( target ) {
+
+		const error = wrap( target.bearing - heading + 180 ) - 180, turn = Math.abs( error );
+		course = target.nearby ? ( Number.isFinite( target.depth ) && ! target.arrived ? '潜点上方 · 停稳后 E 离舵下水' : '已到目标附近 · 收油减速' )
+			: turn <= 7 ? '目标在船首 · 按方位前往'
+				: turn >= 150 ? '目标在船后 · 调转船首'
+					: `${ error > 0 ? '右' : '左' }转约 ${ Math.round( turn ) }°`;
+
+	}
+	return {
+		windAngle: from === null ? null : wrap( from - heading ),
+		windText: `${ weather } · ${ windText }`,
+		targetAngle: target ? wrap( target.bearing - heading ) : null,
+		targetText: target ? `◇ ${ target.destination.label } · ${ Math.round( target.distance ) } 米` : '◇ 自由航行',
+		course,
+	};
+
+}
+
 function modeIcon( label ) {
 
 	const s = String( label || '' ).toLowerCase();
@@ -2042,10 +2075,13 @@ export class UI {
 				<svg viewBox="0 0 100 100">
 					<circle class="tw-compass-ring" cx="50" cy="50" r="47"/>
 					<g class="tw-compass-card">${ card }</g>
+					<g class="tw-compass-wind" visibility="hidden"><path d="M47 -2h6L50 4zM50 5v7"/></g>
+					<g class="tw-compass-target" visibility="hidden"><path d="m50 7 4 5-4 5-4-5z"/></g>
 					<path class="tw-lubber" d="M45.5 1.5h9L50 8.5z"/>
 				</svg>
 				<div class="tw-hdg"><span class="tw-hdg-num">000°</span><span class="tw-hdg-card">北</span></div>
-			</div>`;
+			</div>
+			<div class="tw-sailing"><span class="tw-sailing-sea"></span><strong class="tw-sailing-target"></strong><span class="tw-sailing-course"></span></div>`;
 		this.bThrPos = el.querySelector( '.tw-thr-pos' );
 		this.bThrNeg = el.querySelector( '.tw-thr-neg' );
 		this.bThrText = el.querySelector( '.tw-thr-val' );
@@ -2056,6 +2092,11 @@ export class UI {
 		this.bCard = el.querySelector( '.tw-compass-card' );
 		this.bHdgText = el.querySelector( '.tw-hdg-num' );
 		this.bHdgCard = el.querySelector( '.tw-hdg-card' );
+		this.bWind = el.querySelector( '.tw-compass-wind' );
+		this.bTarget = el.querySelector( '.tw-compass-target' );
+		this.bSea = el.querySelector( '.tw-sailing-sea' );
+		this.bDestination = el.querySelector( '.tw-sailing-target' );
+		this.bCourse = el.querySelector( '.tw-sailing-course' );
 		return el;
 
 	}
@@ -2143,6 +2184,7 @@ export class UI {
 						${ row( mouse, '环顾四周<small>点击画面锁定鼠标</small>' ) }
 						${ row( k( 'Shift' ), '奔跑、加速开船' ) }
 						${ row( k( '空格' ), '跳跃、上浮' ) }
+						${ row( k( 'W' ) + k( '空格' ), '攀爬梯子<small>水中靠近观测站或码头梯子，按住其中一键；S 松开</small>' ) }
 						${ row( k( 'C' ), '下蹲、下潜' ) }
 					</section>
 					<section>
@@ -2159,11 +2201,12 @@ export class UI {
 						${ row( k( 'F' ), '自由镜头' ) }
 						${ row( k( 'T' ), '暂停时间' ) }
 						${ row( k( 'L' ), '手电筒' ) }
+						${ row( k( 'M' ) + k( 'I' ), '追潮寻迹<small>M 找 ✧ 环境见闻，I 阅读收藏；退潮、夜间与雷暴后各有秘密</small>' ) }
 						${ row( k( 'N' ), '静音' ) }
 					</section>
 					<section>
 						<h3>界面</h3>
-						${ row( k( 'M' ), '查看地图<small>玩家、船只、港口与已开放钓场；M / Esc 关闭</small>' ) }
+						${ row( k( 'M' ), '地图与导航<small>搜索地点或任务，点击开始追踪；小地图显示当前步骤、距离与潜点深度；M / Esc 关闭</small>' ) }
 						${ row( k( 'H' ), '设置面板' ) }
 						${ row( k( 'P' ), '拍照模式<small>隐藏界面；潜水时面向目标按 G 拍摄，I 查看水下摄影图鉴</small>' ) }
 						${ row( k( 'F1' ) + k( '?' ), '打开此说明' ) }
@@ -2808,6 +2851,26 @@ export class UI {
 			this.bHdgCard.textContent = CARDINALS[ Math.round( hdg / 45 ) % 8 ];
 
 		}
+
+		const sailing = sailingReadout( g );
+		for ( const [ node, angle, key ] of [ [ this.bWind, sailing.windAngle, '_bWind' ], [ this.bTarget, sailing.targetAngle, '_bTarget' ] ] ) {
+
+			const value = angle === null ? null : angle.toFixed( 1 );
+			if ( this[ key ] === value ) continue;
+			this[ key ] = value;
+			node.setAttribute( 'visibility', value === null ? 'hidden' : 'visible' );
+			if ( value !== null ) node.setAttribute( 'transform', `rotate(${ value } 50 50)` );
+
+		}
+		if ( sailing.windText !== this._bSea ) {
+
+			this._bSea = sailing.windText;
+			this.bSea.textContent = sailing.windText;
+			this.bSea.classList.toggle( 'is-storm', !! g.thunderstorm );
+
+		}
+		if ( sailing.targetText !== this._bDestination ) { this._bDestination = sailing.targetText; this.bDestination.textContent = sailing.targetText; }
+		if ( sailing.course !== this._bCourse ) { this._bCourse = sailing.course; this.bCourse.textContent = sailing.course; }
 
 	}
 

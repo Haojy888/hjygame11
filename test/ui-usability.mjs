@@ -1,8 +1,9 @@
 // Real HUD/UI methods with only the DOM surface they use; no browser or GPU required.
 import assert from 'node:assert/strict';
-import { UI } from '../src/ui/UI.js';
+import { UI, sailingReadout } from '../src/ui/UI.js';
 import { GameHUD } from '../src/game/GameHUD.js';
 import { GameState } from '../src/game/GameState.js';
+import { navigationInfo } from '../src/game/WorldMap.js';
 
 const classList = { add() {}, remove() {}, toggle() {} };
 const previousDocument = globalThis.document;
@@ -127,4 +128,71 @@ for ( const [ money, fuel, label, litres, cost ] of [
 
 }
 
-console.log( 'UI usability checks passed: help pointer lock, panel state, and accurate fuel purchases.' );
+// Real chart destinations feed the helm compass; wind is reported as coming FROM a direction.
+const sailing = { visible: true, heading: 0, windSpeed: 7, windVector: { x: 1, y: 0 } };
+for ( const [ x, y, from, name ] of [ [ 1, 0, 270, '西' ], [ - 1, 0, 90, '东' ], [ 0, 1, 0, '北' ], [ 0, - 1, 180, '南' ] ] ) {
+
+	const reading = sailingReadout( { ...sailing, windVector: { x, y } } );
+	assert.equal( reading.windAngle, from ); assert.match( reading.windText, new RegExp( name + '来风' ) );
+
+}
+const nav = navigationInfo( { x: 100, z: 0, label: '珊瑚礁' }, { x: 0, z: 0 } );
+assert.equal( sailingReadout( { ...sailing, navigation: nav } ).course, '右转约 90°' );
+assert.equal( sailingReadout( { ...sailing, heading: 180, navigation: nav } ).course, '左转约 90°' );
+assert.match( sailingReadout( { ...sailing, heading: 270, navigation: nav } ).course, /船后/ );
+assert.match( sailingReadout( { ...sailing, heading: 359, navigation: { ...nav, bearing: 1 } } ).course, /船首/ );
+assert.equal( sailingReadout( { ...sailing, heading: 10, navigation: { ...nav, bearing: 350 } } ).course, '左转约 20°' );
+const dive = navigationInfo( { x: 0, y: - 18, z: 0, label: '沉船' }, { x: 1, y: 1, z: 0 } );
+assert.match( sailingReadout( { ...sailing, navigation: dive } ).course, /潜点上方.*E 离舵下水/ );
+assert.match( sailingReadout( { ...sailing, navigation: { ...nav, nearby: true } } ).course, /收油减速/ );
+assert.match( sailingReadout( { ...sailing, thunderstorm: true } ).windText, /^雷暴/ );
+assert.match( sailingReadout( { ...sailing, rain: true } ).windText, /^下雨/ );
+assert.equal( sailingReadout( { ...sailing, windSpeed: 0.1 } ).windAngle, null );
+assert.equal( sailingReadout( { ...sailing, windVector: { x: NaN, y: 0 } } ).windAngle, null );
+assert.equal( sailingReadout( { ...sailing, navigation: { ...nav, bearing: NaN } } ).targetAngle, null );
+
+// Exercise the production builder and updater. Unchanged frames must not keep writing the DOM.
+let writes = 0;
+class Instrument {
+
+	nodes = {}; style = {}; attributes = {}; classes = new Set();
+	classList = { toggle: ( key, on ) => { writes ++; if ( on ) this.classes.add( key ); else this.classes.delete( key ); } };
+	set textContent( value ) { this.text = value; writes ++; }
+	get textContent() { return this.text; }
+	setAttribute( key, value ) { this.attributes[ key ] = value; writes ++; }
+	querySelector( key ) { return this.nodes[ key ] ||= new Instrument(); }
+
+}
+globalThis.document = { createElement: () => new Instrument() };
+try {
+
+	const instruments = Object.create( UI.prototype );
+	instruments.boatEl = instruments._buildBoat();
+	const reading = { ...sailing, navigation: nav };
+	instruments.setBoatGauges( reading );
+	assert.equal( instruments.bTarget.attributes.transform, 'rotate(90.0 50 50)' );
+	assert.equal( instruments.bWind.attributes.transform, 'rotate(270.0 50 50)' );
+	assert.equal( instruments.bCourse.textContent, '右转约 90°' );
+	assert.equal( instruments.bDestination.textContent, '◇ 珊瑚礁 · 100 米' );
+	const before = writes; instruments.setBoatGauges( reading );
+	assert.equal( writes, before, 'Stable readings cause no repeated DOM writes' );
+	instruments.setBoatGauges( { ...reading, heading: 90 } );
+	assert.equal( instruments.bTarget.attributes.transform, 'rotate(0.0 50 50)' );
+	assert.equal( instruments.bWind.attributes.transform, 'rotate(180.0 50 50)' );
+	assert.match( instruments.bCourse.textContent, /船首/ );
+	instruments.setBoatGauges( { ...sailing, windSpeed: 0, navigation: null, thunderstorm: true } );
+	assert.equal( instruments.bTarget.attributes.visibility, 'hidden' );
+	assert.equal( instruments.bWind.attributes.visibility, 'hidden' );
+	assert.equal( instruments.bSea.classes.has( 'is-storm' ), true );
+	assert.match( instruments.bCourse.textContent, /按 M/ );
+	instruments.setBoatGauges( { visible: false } );
+	assert.equal( instruments.boatEl.classes.has( 'is-on' ), false );
+
+} finally {
+
+	if ( previousDocument === undefined ) delete globalThis.document;
+	else globalThis.document = previousDocument;
+
+}
+
+console.log( 'UI usability checks passed: panel focus/state, fuel purchases, sailing bearings/wind, dive arrival, compass rendering and cached DOM updates.' );

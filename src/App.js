@@ -8,6 +8,7 @@ import { Input } from './core/Input.js';
 import { CDLOD } from './core/CDLOD.js';
 import { G } from './core/Globals.js';
 import { Profiler } from './core/Profiler.js';
+import { AdaptiveResolution, QUALITY_PRESETS, loadGraphics, saveGraphics, renderScale } from './core/RenderQuality.js';
 import { SceneRenderer, LAYERS } from './core/SceneRenderer.js';
 import { DEPTH_FORMAT } from './engine/render/SceneRenderer.js';
 import { installDebugViews } from './core/DebugViews.js';
@@ -82,13 +83,17 @@ export class App {
 
 	constructor() {
 
+		const graphics = loadGraphics();
 		this.settings = {
 			timeOfDay: 16.2,
 			sunAzimuth: 0, // degrees: turns the sun's daily path about the vertical
 			timeSpeed: 0, // hours per real second
 			exposure: 0.55,
-			renderScale: 1, // internal resolution (the temporal upscaler reconstructs the output), Performance tab
+			renderScale: graphics.renderScale,
+			qualityPreset: graphics.preset,
+			targetFPS: graphics.targetFPS,
 		};
+		this.adaptiveResolution = new AdaptiveResolution();
 		this.qs = new URLSearchParams( location.search );
 
 	}
@@ -106,6 +111,7 @@ export class App {
 		await progress( 0.02, '正在启动 WebGPU…' );
 		const engine = this.engine = new Engine( document.getElementById( 'app' ) );
 		await engine.init();
+		engine.onResize.push( () => this.adaptiveResolution.reset() );
 		// systems take `renderer` first as in the three.js version: it is the Engine now (GPU access is global)
 		const renderer = engine;
 		const { scene, camera } = engine;
@@ -172,7 +178,7 @@ export class App {
 
 		await progress( 0.23, '正在生成珊瑚礁…' );
 		this.reef = new Reef( { scene, terrain: this.terrainData, shoreField: this.shoreField } );
-		this.deepBeast = new DeepBeast( { scene, terrain: this.terrainData, onDiscover: ( message ) => this.game?.toast( message, 6500 ) } );
+		this.deepBeast = new DeepBeast( { scene, terrain: this.terrainData, colliders: this.colliders, onDiscover: ( message ) => this.game?.toast( message, 6500 ) } );
 		this.abyssScene = new AbyssScene( { scene, terrain: this.terrainData, colliders: this.colliders } );
 		this.abyssAssets = new AbyssAssets( { scene, placements: this.abyssScene.modelPlacements, colliders: this.colliders, terrain: this.terrainData } );
 		this.wreckScene = new WreckScene( { scene, terrain: this.terrainData, colliders: this.colliders } );
@@ -349,7 +355,12 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		} );
 		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
 		G.exposure.value = this.settings.exposure;
-		if ( qs.has( 'scale' ) ) this.settings.renderScale = Number( qs.get( 'scale' ) ) || 1;
+		if ( qs.has( 'scale' ) ) {
+
+			this.settings.renderScale = renderScale( Number( qs.get( 'scale' ) ) );
+			this.settings.qualityPreset = 'manual';
+
+		}
 		this.setRenderScale( this.settings.renderScale );
 
 		// ---------------------------------------------------------------- audio
@@ -584,12 +595,15 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 	start() {
 
+		this._renderStarted = true;
+		this.adaptiveResolution.reset();
 		this.engine.start( ( dt, t ) => this.frame( dt, t ) );
 
 	}
 
 	updateFPS( dt ) {
 
+		if ( ! Number.isFinite( dt ) || dt <= 0 ) return;
 		const f = this._fps || ( this._fps = { el: document.getElementById( 'fps' ), acc: 0, n: 0, worst: 0 } );
 		f.acc += dt;
 		f.n ++;
@@ -618,18 +632,20 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 	frame( dt ) {
 
 		const t0 = performance.now();
-		this._frame( dt );
+		const frameTime = this._renderStarted ? this.engine.frameDelta ?? dt : dt;
+		this.updateRenderQuality( frameTime );
+		this._frame( dt, frameTime );
 		const ms = performance.now() - t0;
 		this.cpuMs = this.cpuMs === undefined ? ms : this.cpuMs * 0.95 + ms * 0.05;
 
 	}
 
-	_frame( dt ) {
+	_frame( dt, frameTime = dt ) {
 
 		GPU.beginFrame();
 		FrameUniforms.fields.frameIndex.value = GPU.frame;
 		const s = this.settings;
-		this.updateFPS( dt );
+		this.updateFPS( frameTime );
 		G.dt.value = dt;
 		G.time.value += dt;
 		if ( s.timeSpeed !== 0 ) s.timeOfDay = ( s.timeOfDay + dt * s.timeSpeed + 24 ) % 24;
@@ -650,9 +666,12 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 			if ( this.ui ) this.ui.ui.toast( this.audio.muted ? '声音已关闭' : '声音已开启' );
 
 		}
+		this.game.secrets?.prepare( dt );
 		this.boatCtl.update( dt );
 		this.boatSpray.update( dt );
 		this.wake.update( dt );
+		// Animate moving solids before player movement/camera and journal checks.
+		this.deepBeast?.update( dt, this.camera, this.freeCam ? null : this.player, this.localLights );
 		if ( ! this.game.hud?.workshop?.isOpen ) {
 
 			if ( this.freeCam ) this.fly.update( dt );
@@ -707,7 +726,6 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.rocks.update( this.camera );
 		this.debris.update( this.camera );
 		this.reef.update( dt, this.camera.position );
-		this.deepBeast?.update( dt, this.camera, this.freeCam ? null : this.player );
 		this.abyssScene?.update( dt, this.camera );
 		this.wreckScene?.update( dt, this.camera );
 		this.abyssAssets?.update( dt, this.camera );
@@ -748,14 +766,74 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 	}
 
-	// Internal render resolution relative to the output (0.5..1), set by hand: changing it re-creates
-	// the scene / post / cloud targets, so nothing adjusts it automatically.
-	setRenderScale( v ) {
+	persistRenderQuality() {
 
-		const scale = MathUtils.clamp( Math.round( v * 20 ) / 20, 0.5, 1 );
+		saveGraphics( { preset: this.settings.qualityPreset, targetFPS: this.settings.targetFPS, renderScale: this._photoScale ?? this.settings.renderScale } );
+
+	}
+
+	setQualityPreset( id ) {
+
+		if ( ! Object.hasOwn( QUALITY_PRESETS, id ) ) return false;
+		if ( this._photoScale !== undefined ) {
+
+			const scale = this._photoScale; this._photoScale = undefined; this.setRenderScale( scale );
+
+		}
+		this.settings.qualityPreset = id;
+		this.adaptiveResolution.reset();
+		if ( id !== 'manual' ) this.setRenderScale( QUALITY_PRESETS[ id ].scale );
+		this.persistRenderQuality();
+		return true;
+
+	}
+
+	setTargetFPS( value ) {
+
+		if ( ! [ 30, 60 ].includes( value ) ) return false;
+		this.settings.targetFPS = value;
+		this.adaptiveResolution.reset();
+		this.persistRenderQuality();
+		return true;
+
+	}
+
+	// Keep the output canvas and HUD full sized; only the scene, post inputs and clouds scale.
+	setRenderScale( v, manual = false ) {
+
+		const scale = renderScale( v );
+		if ( manual ) { this._photoScale = undefined; this.settings.qualityPreset = 'manual'; this.adaptiveResolution.reset(); }
 		this.settings.renderScale = scale;
 		this.post.setScale( scale );
 		if ( this.clouds ) this.clouds.resolutionScale = scale;
+		if ( manual ) this.persistRenderQuality();
+
+	}
+
+	updateRenderQuality( dt ) {
+
+		if ( ! this.adaptiveResolution ) return;
+		const ui = this.ui?.ui, hud = this.game?.hud;
+		if ( ! this._renderStarted || this.qs.has( 'bench' ) ) { this.adaptiveResolution.reset(); return; }
+		if ( ui?._photo ) {
+
+			if ( this._photoScale === undefined ) { this._photoScale = this.settings.renderScale; this.setRenderScale( 1 ); }
+			this.adaptiveResolution.reset(); return;
+
+		}
+		if ( this._photoScale !== undefined ) {
+
+			const scale = this._photoScale; this._photoScale = undefined;
+			this.setRenderScale( scale ); this.adaptiveResolution.reset();
+
+		}
+		const preset = QUALITY_PRESETS[ this.settings.qualityPreset ];
+		const active = preset?.adaptive && ui && ! document.hidden && document.hasFocus()
+			&& ! ui._start && ! ui.panelOpen && ! ui.helpOpen && ! this.game?.worldMap?.open && ! this.game?.guide?.open
+			&& ! hud?.invOpen && ! hud?.standOpen && ! hud?.catchOpen && ! hud?.workshop?.isOpen;
+		if ( ! active ) { this.adaptiveResolution.reset(); return; }
+		const scale = this.adaptiveResolution.update( dt, this.settings.renderScale, this.settings.targetFPS, preset.min, preset.max );
+		if ( scale !== this.settings.renderScale ) this.setRenderScale( scale );
 
 	}
 

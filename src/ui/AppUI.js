@@ -2,6 +2,7 @@ import * as THREE from '../engine/index.js';
 import { UI } from './UI.js';
 import { G } from '../core/Globals.js';
 import { GroundBounce } from '../materials/GroundBounce.js';
+import { QUALITY_PRESETS } from '../core/RenderQuality.js';
 
 // Binds the Tidewater UI (panel + HUD) to the running app.
 const SEA = {
@@ -51,6 +52,8 @@ export class AppUI {
 			contrast: app.post.params.contrast.value,
 			grain: app.post.params.grain.value,
 			renderScale: app.settings.renderScale,
+			qualityPreset: app.settings.qualityPreset || 'balanced',
+			targetFPS: app.settings.targetFPS || 60,
 			shadows: true,
 		};
 
@@ -176,6 +179,7 @@ export class AppUI {
 			weather.addInfo( { label: '当前天气', get: () => app.weather.thunderstorm ? '雷暴 · 大雨'
 				: app.weather.rain ? '下雨' : '无降雨' } );
 			weather.addInfo( { label: '体验风浪', get: () => '海洋 → 海况 → 风暴' } );
+			weather.addInfo( { label: '潮位', get: () => `${ ( app.game?.secrets?.tide || 0 ).toFixed( 2 ) } 米 · 低潮约在 6 时、18 时` } );
 
 		}
 		const sun = sky.addFolder( '太阳', { icon: 'clock' } );
@@ -273,7 +277,10 @@ export class AppUI {
 		live.addInfo( { label: '每帧 CPU 耗时', get: () => `${ ( app.cpuMs || 0 ).toFixed( 2 ) } 毫秒` } );
 		live.addInfo( { label: '渲染尺寸', get: () => `${ app.sceneRenderer.width } × ${ app.sceneRenderer.height }` } );
 		const quality = perf.addFolder( '画质', { icon: 'layers' } );
-		quality.addSlider( { label: '渲染比例', object: s, key: 'renderScale', min: 0.5, max: 1, step: 0.05, format: ( v ) => `${ Math.round( v * 100 ) }%`, tooltip: '内部渲染分辨率；时间升采样会重建完整输出分辨率。', onChange: ( v ) => app.setRenderScale( v ) } );
+		quality.addSelect( { label: '画质模式', object: s, key: 'qualityPreset', options: Object.entries( QUALITY_PRESETS ).map( ( [ value, preset ] ) => ( { value, label: preset.label } ) ), tooltip: '自动平衡逐步适应当前设备；优先流畅减少渲染负担；原生清晰使用完整分辨率。拍照时临时恢复原生清晰度。', onChange: ( value ) => { app.setQualityPreset( value ); s.renderScale = app.settings.renderScale; ui.refresh(); } } );
+		this.targetFPS = quality.addSelect( { label: '自动调节目标', object: s, key: 'targetFPS', options: [ { label: '60 帧/秒', value: 60 }, { label: '30 帧/秒', value: 30 } ], tooltip: '用于自动画质调节。较弱设备可选择 30；目标不会锁定或保证实际帧率。', onChange: ( value ) => app.setTargetFPS( Number( value ) ) } );
+		quality.addInfo( { label: '当前画质', get: () => `${ QUALITY_PRESETS[ app.settings.qualityPreset ]?.label || '手动' } · ${ Math.round( app.settings.renderScale * 100 ) }%${ ui._photo ? ' · 拍照清晰度' : '' }` } );
+		quality.addSlider( { label: '渲染比例', object: s, key: 'renderScale', min: 0.5, max: 1, step: 0.05, format: ( v ) => `${ Math.round( v * 100 ) }%`, tooltip: '拖动后切换到手动画质。时间升采样保留完整输出尺寸，选择和比例会在刷新后保留。', onChange: ( v ) => { app.setRenderScale( v, true ); s.qualityPreset = 'manual'; ui.refresh(); } } );
 		// anti-aliasing: the TAA with 2..16 jitter positions averaged per pixel, or none
 		s.aa = app.post.aaMode === 'none' ? 0 : app.post.taau.jitterPhaseOverride;
 		quality.addSelect( { label: '抗锯齿', object: s, key: 'aa', tooltip: '时间抗锯齿会跨帧采集更多子像素样本，以平滑边缘和阴影噪点。采样越多，画面稳定所需的帧数越多。', options: [ { label: '关闭', value: 0 }, { label: '2 倍', value: 2 }, { label: '4 倍', value: 4 }, { label: '8 倍', value: 8 }, { label: '16 倍', value: 16 } ], onChange: ( v ) => {
@@ -296,8 +303,12 @@ export class AppUI {
 
 		const app = this.app;
 		const ui = this.ui;
-		ui.setStats( { fps: app.fps, frameMs: dt * 1000 } );
+		ui.setStats( { fps: app.fps, frameMs: ( app._renderStarted ? app.engine.frameDelta ?? dt : dt ) * 1000 } );
 		this.s.renderScale = app.post.scale;
+		this.s.qualityPreset = app.settings.qualityPreset || 'balanced';
+		this.s.targetFPS = app.settings.targetFPS || 60;
+		const adaptive = !! QUALITY_PRESETS[ this.s.qualityPreset ].adaptive;
+		if ( this.targetFPS.enabled !== adaptive ) this.targetFPS.setEnabled( adaptive );
 
 		const p = app.player;
 		const canSwitchView = p.mode === 'boat' && ! app.freeCam;
@@ -312,7 +323,7 @@ export class AppUI {
 
 		}
 
-		const mode = p.mode === 'boat' ? `驾船 · ${ p.camMode === 'first' ? '第一人称' : '第三人称' }`
+		const mode = p.climbing ? '攀爬梯子' : p.mode === 'boat' ? `驾船 · ${ p.camMode === 'first' ? '第一人称' : '第三人称' }`
 			: p.mode === 'deck' ? '站在甲板上'
 			: p.mode === 'swim' ? ( app.camera.position.y < ( app.cameraWaterHeight ?? 0 ) - 0.3 ? '潜水' : '游泳' ) : '步行';
 		ui.setMode( mode );
@@ -329,6 +340,9 @@ export class AppUI {
 				rpm: b.rpm,
 				speedKnots: b.speed * 1.94384,
 				heading: ( THREE.MathUtils.radToDeg( Math.atan2( f.x, - f.z ) ) + 360 ) % 360,
+				windSpeed: G.windSpeed.value, windVector: G.windDir.value,
+				rain: app.weather?.rain, thunderstorm: app.weather?.thunderstorm,
+				navigation: app.game?.worldMap?.navigation,
 			} );
 
 		} else ui.setBoatGauges( { visible: false } );

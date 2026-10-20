@@ -12,6 +12,7 @@ export function subjectVisible( app, point, range, cone = 0.7, reachFrom = app.c
 	const ndc = point.clone().project( camera );
 	if ( Math.abs( ndc.x ) > 0.78 || Math.abs( ndc.y ) > 0.75 || ndc.z < 0 || ndc.z > 1 ) return false;
 	if ( app.colliders?.raycast( from, direction, distance ) < distance - 0.65 ) return false;
+	if ( app.deepBeast?.inkOccludes?.( from, point ) ) return false;
 	if ( app.terrainData ) for ( let i = 1; i < 10; i ++ ) {
 
 		const p = from.clone().lerp( point, i / 10 ), ground = Math.max( app.terrainData.heightAt( p.x, p.z ), app.reef?.floorHeightAt?.( p.x, p.z ) ?? - Infinity );

@@ -65,6 +65,7 @@ export class Player {
 		this.camOffV = 0;
 		this._camY = null;
 		this.floating = true; // swimming at the surface (riding the waves) vs. free under water
+		this.climbing = null;
 		this.slot = query.allocate( 'player', 1 );
 		this.prompt = null;
 		this.surface = 'sand';
@@ -185,7 +186,8 @@ export class Player {
 		}
 
 		const prevMode = this.mode;
-		if ( this.mode === 'walk' ) this.updateWalk( dt );
+		if ( this.climbing ) this.updateLadder( dt );
+		else if ( this.mode === 'walk' ) this.updateWalk( dt );
 		else this.updateSwim( dt );
 		if ( this.mode === 'deck' ) {
 
@@ -256,8 +258,8 @@ export class Player {
 
 		const p = this.position;
 		const old = p.clone();
-		p.addScaledVector( this.velocity, dt );
-		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, 0.4 );
+		this.colliders.moveCapsule( p, this.velocity.clone().multiplyScalar( dt ), RADIUS, HEIGHT, 0.4 );
+		if ( this.velocity.y > 0 && p.y < old.y + this.velocity.y * dt - 0.00001 ) this.velocity.y = 0;
 		const g = this.groundAt( p.x, p.z, p.y + 0.45 );
 		if ( p.y <= g ) {
 
@@ -358,9 +360,10 @@ export class Player {
 
 		}
 
-		p.addScaledVector( this.velocity, dt );
+		const oldY = p.y;
+		this.colliders.moveCapsule( p, this.velocity.clone().multiplyScalar( dt ), RADIUS, 1.0, 0 );
+		if ( this.velocity.y > 0 && p.y < oldY + this.velocity.y * dt - 0.00001 ) this.velocity.y = 0;
 		p.y = Math.min( p.y, surfaceY + 0.05 );
-		this.colliders.resolveCapsule( p, RADIUS, 1.0, 0 );
 		const g = this.groundAt( p.x, p.z, p.y + 0.3 );
 		if ( p.y < g + 0.25 ) p.y = g + 0.25;
 
@@ -393,42 +396,44 @@ export class Player {
 
 		}
 
-		// ladders on the pier: climb out when swimming into them
-		if ( this.colliders.boxes ) {
+		// Each ladder owns its landing; the climb persists above the water's float clamp.
+		if ( ! this.busy ) for ( const b of this.colliders.boxes || [] ) {
 
-			for ( const b of this.colliders.boxes ) {
-
-				if ( b.tag !== 'ladder' ) continue;
-				if ( Math.hypot( b.center.x - p.x, b.center.z - p.z ) < 1.1 ) {
-
-					this.prompt = { key: '空格', text: '爬上梯子' };
-					if ( inp.down( 'Space' ) || inp.down( 'KeyW' ) ) {
-
-						const top = this.colliders.groundHeightAt( b.center.x, b.center.z, 10 );
-						if ( top > p.y ) {
-
-							p.y += dt * 1.6;
-							if ( p.y > top - 1.0 ) {
-
-								// step onto the deck
-								const deck = WORLD.pier.deckHeight;
-								p.set( b.center.x - Math.sign( b.center.x - WORLD.pier.x ) * 1.2, deck, b.center.z );
-								this.mode = 'walk';
-								this.velocity.set( 0, 0, 0 );
-
-							}
-
-						}
-
-					}
-
-					break;
-
-				}
-
-			}
+			if ( b.tag !== 'ladder' || ! b.climbTo || p.y < b.bottom - 0.4 || p.y > b.climbTo.y + 0.2 ) continue;
+			if ( Math.hypot( b.center.x - p.x, b.center.z - p.z ) >= 0.85 ) continue;
+			this.prompt = { key: 'W / 空格', text: '爬上梯子' };
+			if ( inp.down( 'Space' ) || inp.down( 'KeyW' ) ) { this.climbing = b; this.updateLadder( dt ); }
+			break;
 
 		}
+
+	}
+
+	updateLadder( dt ) {
+
+		const b = this.climbing, inp = this.input, p = this.position;
+		if ( ! b?.climbTo || this.busy || inp.down( 'KeyS' ) || inp.down( 'KeyC' ) ) {
+
+			this.climbing = null; this.velocity.set( 0, 0, 0 ); this.floating = p.y >= this.waterH - 0.45;
+			if ( p.y > this.waterH + 0.4 ) this.mode = 'walk';
+			return;
+
+		}
+		this.prompt = { key: 'W / 空格', text: '攀爬梯子 · S 松开' };
+		this.velocity.set( 0, 0, 0 );
+		if ( ! inp.down( 'KeyW' ) && ! inp.down( 'Space' ) ) return;
+		const k = 1 - Math.exp( - dt * 8 );
+		p.x += ( b.center.x - p.x ) * k; p.z += ( b.center.z - p.z ) * k;
+		p.y = Math.min( b.climbTo.y, p.y + dt * 1.6 );
+		if ( p.y < b.climbTo.y ) return;
+		const landing = b.climbTo.clone();
+		this.colliders.resolveCapsule( landing, RADIUS, HEIGHT );
+		if ( landing.distanceTo( b.climbTo ) > 0.05 || Math.abs( this.groundAt( landing.x, landing.z, landing.y + 0.1 ) - landing.y ) > 0.1 ) {
+
+			this.prompt = { key: 'S', text: '梯口受阻 · 松开后换个位置' }; return;
+
+		}
+		p.copy( landing ); this.mode = 'walk'; this.climbing = null; this.grounded = true; this.floating = false;
 
 	}
 
@@ -474,6 +479,7 @@ export class Player {
 
 		const b = this.boat;
 		if ( b.capsized ) return;
+		this.climbing = null;
 		this.mode = 'deck';
 		this.deckPos.copy( landing );
 		this.deckVel.set( 0, 0, 0 );
@@ -539,6 +545,7 @@ export class Player {
 	exitBoat( target = null, side = 0 ) {
 
 		const b = this.boat;
+		this.climbing = null;
 		if ( b.capsized ) side = 1;
 		const wasDriving = b.driven || this.mode === 'boat';
 		b.driven = false;
@@ -588,6 +595,7 @@ export class Player {
 	rescueToHarbor() {
 
 		const pier = WORLD.pier;
+		this.climbing = null;
 		this.mode = 'walk';
 		const dock = this.boat?.dock || this.boat?.model.dock || WORLD.boatDock;
 		this.position.set( pier.x + pier.headWidth / 2 - 1, pier.deckHeight, dock.position.z );
@@ -724,36 +732,51 @@ export class Player {
 		v.y -= 9.81 * dt;
 		const p = this.deckPos;
 		const oldX = p.x, oldZ = p.z;
-		p.addScaledVector( v, dt );
+		const steps = Math.max( 1, Math.ceil( v.length() * dt / ( DECK_RADIUS * 0.5 ) ) );
+		for ( let step = 0; step < steps; step ++ ) {
 
-		// walls: push out of the solid boxes you can't step onto (boat frame, axis aligned)
-		for ( let iter = 0; iter < 2; iter ++ ) for ( const c of b.model.colliders ) {
+			const prevY = p.y;
+			p.addScaledVector( v, dt / steps );
+			// Stop the head at the cabin / canopy ceiling instead of pushing the player through a wall.
+			if ( v.y > 0 ) for ( const c of b.model.colliders ) {
 
-			if ( ! c.solid ) continue;
-			const top = c.center.y + c.half.y, bot = c.center.y - c.half.y;
-			if ( top <= p.y + DECK_STEP || bot >= p.y + HEIGHT ) continue;
-			const ex = c.half.x + DECK_RADIUS, ez = c.half.z + DECK_RADIUS;
-			const dx = p.x - c.center.x, dz = p.z - c.center.z;
-			if ( Math.abs( dx ) >= ex || Math.abs( dz ) >= ez ) continue;
-			const px = ex - Math.abs( dx ), pz = ez - Math.abs( dz );
-			if ( px < pz ) { p.x += Math.sign( dx || ( oldX - c.center.x ) || 1 ) * px; v.x = 0; }
-			else { p.z += Math.sign( dz || ( oldZ - c.center.z ) || 1 ) * pz; v.z = 0; }
+				const bottom = c.center.y - c.half.y;
+				if ( ! c.solid || prevY + HEIGHT > bottom + 0.00001 || p.y + HEIGHT <= bottom ) continue;
+				if ( Math.abs( p.x - c.center.x ) >= c.half.x + DECK_RADIUS || Math.abs( p.z - c.center.z ) >= c.half.z + DECK_RADIUS ) continue;
+				p.y = bottom - HEIGHT; v.y = 0;
+
+			}
+
+			// walls: push out of the solid boxes you can't step onto (boat frame, axis aligned)
+			for ( let iter = 0; iter < 2; iter ++ ) for ( const c of b.model.colliders ) {
+
+				if ( ! c.solid ) continue;
+				const top = c.center.y + c.half.y, bot = c.center.y - c.half.y;
+				if ( top <= p.y + DECK_STEP || bot >= p.y + HEIGHT - 0.00001 ) continue;
+				const ex = c.half.x + DECK_RADIUS, ez = c.half.z + DECK_RADIUS;
+				const dx = p.x - c.center.x, dz = p.z - c.center.z;
+				if ( Math.abs( dx ) >= ex || Math.abs( dz ) >= ez ) continue;
+				const px = ex - Math.abs( dx ), pz = ez - Math.abs( dz );
+				if ( px < pz ) { p.x += Math.sign( dx || ( oldX - c.center.x ) || 1 ) * px; v.x = 0; }
+				else { p.z += Math.sign( dz || ( oldZ - c.center.z ) || 1 ) * pz; v.z = 0; }
+
+			}
+
+			// stay inside the hull (the bulwarks, plus a margin fore and aft)
+			p.z = THREE.MathUtils.clamp( p.z, L.zAft + L.shell + DECK_RADIUS, b.model.deckForwardLimit ?? 4.0 );
+			const halfIn = Math.max( 0.15, L.halfBreadth( L.tAtSheerZ( p.z ), Math.max( p.y, L.deckY ) ) - L.shell - DECK_RADIUS );
+			p.x = THREE.MathUtils.clamp( p.x, - halfIn, halfIn );
+
+			const g = this.deckGroundAt( p.x, p.z, Math.max( prevY, p.y ) + DECK_STEP );
+			if ( p.y <= g ) {
+
+				p.y = g;
+				if ( v.y < 0 ) v.y = 0;
+				this.deckGrounded = true;
+
+			} else this.deckGrounded = p.y - g < 0.04;
 
 		}
-
-		// stay inside the hull (the bulwarks, plus a margin fore and aft)
-		p.z = THREE.MathUtils.clamp( p.z, L.zAft + L.shell + DECK_RADIUS, b.model.deckForwardLimit ?? 4.0 );
-		const halfIn = Math.max( 0.15, L.halfBreadth( L.tAtSheerZ( p.z ), Math.max( p.y, L.deckY ) ) - L.shell - DECK_RADIUS );
-		p.x = THREE.MathUtils.clamp( p.x, - halfIn, halfIn );
-
-		const g = this.deckGroundAt( p.x, p.z, p.y + DECK_STEP );
-		if ( p.y <= g ) {
-
-			p.y = g;
-			if ( v.y < 0 ) v.y = 0;
-			this.deckGrounded = true;
-
-		} else this.deckGrounded = p.y - g < 0.04;
 
 		// footsteps on the deck
 		const moved = Math.hypot( p.x - oldX, p.z - oldZ );

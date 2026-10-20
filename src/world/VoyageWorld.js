@@ -9,6 +9,7 @@ import { fishGeometry } from './fish/FishGeometry.js';
 import { SPECIES } from './fish/FishSpecies.js';
 import { AbyssAssets } from './AbyssAssets.js';
 import { RestorationWorld } from './RestorationWorld.js';
+import { HOUSE, wallX } from './boat/Wheelhouse.js';
 
 const BASE = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'models/voyage/';
 
@@ -46,6 +47,8 @@ export class VoyageWorld {
 		this.restoration = new RestorationWorld( app, this.group );
 		const t = app.terrainData;
 		const rise = 1.3;
+		const platformY = 1.225 + rise;
+		this.stationDeckY = platformY;
 		this.targets = { buoy: V( BUOY.x, 0.6, BUOY.z ), record: V( RECORDER.x, t.heightAt( RECORDER.x, RECORDER.z ) + 1, RECORDER.z ),
 			repair: V( STATION.x, 1.8 + rise, STATION.z - 3.0 ) };
 		this.station = new Group(); this.station.position.set( STATION.x, rise, STATION.z ); this.group.add( this.station );
@@ -66,7 +69,23 @@ export class VoyageWorld {
 		}
 		build( '海湾七号观测站', parts, this.station );
 		app.colliders?.addBox( V( STATION.x - 0.6, 2.6 + rise, STATION.z + 0.45 ), V( 1.8, 1.4, 1.6 ), 0, { tag: 'observatory-house' } );
-		app.colliders?.addBox( V( STATION.x, 1.1 + rise, STATION.z ), V( 2.9, 0.16, 2.8 ), 0, { tag: 'observatory-platform' } );
+		app.colliders?.addBox( V( STATION.x, 1.1 + rise, STATION.z ), V( 2.9, 0.125, 2.8 ), 0, { tag: 'observatory-platform', walkable: true } );
+		app.colliders?.addBox( V( STATION.x, 1.6 + rise, STATION.z - 2.5 ), V( 0.5, 0.275, 0.175 ), 0, { tag: 'observatory-console' } );
+		// A visible boarding ladder with its own landing, clear of the house, console and piles.
+		this.stationLadder = V( STATION.x + 1.3, 0, STATION.z - 3.2 );
+		const ladder = [], lx = 1.3, lz = - 3.2, bottom = - 1.5 - rise, top = platformY - rise;
+		for ( const side of [ - 1, 1 ] ) {
+
+			const x = lx + side * 0.3;
+			ladder.push( [ rod( V( x, bottom, lz ), V( x, top + 0.75, lz ), 0.028, 8 ), 0xb9c9c7 ],
+				[ rod( V( x, top + 0.75, lz ), V( x, top + 0.75, lz + 0.9 ), 0.028, 8 ), 0xb9c9c7 ],
+				[ rod( V( x, top + 0.75, lz + 0.9 ), V( x, top, lz + 0.9 ), 0.028, 8 ), 0xb9c9c7 ] );
+
+		}
+		for ( let y = bottom + 0.15; y < top; y += 0.28 ) ladder.push( [ rod( V( lx - 0.3, y, lz ), V( lx + 0.3, y, lz ), 0.024, 8 ), 0xe6b65d ] );
+		build( '观测站登台梯', ladder, this.station );
+		app.colliders?.addBox( V( STATION.x + lx, ( - 1.5 + platformY ) / 2, STATION.z + lz ), V( 0.34, ( platformY + 1.5 ) / 2, 0.16 ), 0,
+			{ tag: 'ladder', solid: false, climbTo: V( STATION.x + lx, platformY, STATION.z + lz + 1.1 ) } );
 		this.lampMat = new Material( { color: 0x597469, roughness: 0.4 } );
 		const lamp = new Mesh( sphere( 0.12, 10, 6 ), this.lampMat ); lamp.position.set( 0, 2.1, - 2.55 ); this.station.add( lamp );
 		this.light = { position: V( STATION.x, 2.2 + rise, STATION.z - 2.5 ), color: { r: 0.2, g: 0.9, b: 0.6 }, intensity: 3, range: 8, kind: 'observatory', enabled: false };
@@ -109,30 +128,47 @@ export class VoyageWorld {
 		this.hookPoint = V( - 2.5, 2.6, - 4.7 );
 		this.cabin = new Group(); this.cabin.name = '我的驾驶舱收藏'; app.boat?.group.add( this.cabin );
 		const sx = app.boat?.visualScale.x || 1, sz = app.boat?.visualScale.z || 1;
-		build( '船载无线电', [ [ box( 0.38, 0.16, 0.22 ).translate( 0.6 * sx, 1.48, 0.98 * sz ), 0x354c50 ],
-			[ box( 0.14, 0.07, 0.02 ).translate( 0.55 * sx, 1.5, 0.855 * sz ), 0x69aeb1 ],
-			[ rod( V( 0.78 * sx, 1.5, sz ), V( 0.78 * sx, 1.95, sz ), 0.008, 5 ), 0x3d5150 ] ], this.cabin );
-		build( '收藏架与相框', [ [ box( 0.7, 0.06, 0.32 ).translate( 0.65 * sx, 1.45, - 0.72 * sz ), 0x8b765b ],
-			[ box( 0.7, 0.5, 0.04 ).translate( 0.65 * sx, 1.97, - 0.88 * sz ), 0x7a6950 ],
-			[ rod( V( 0.65 * sx - 0.27, 0.7, - 0.88 * sz ), V( 0.65 * sx - 0.27, 2.2, - 0.88 * sz ), 0.02, 7 ), 0x657779 ],
-			[ rod( V( 0.65 * sx + 0.27, 0.7, - 0.88 * sz ), V( 0.65 * sx + 0.27, 2.2, - 0.88 * sz ), 0.02, 7 ), 0x657779 ],
-		], this.cabin );
+		// Use the boat's existing overhead VHF. Mount displays on the inner wall, clear of the barrel,
+		// seat, chart, window and controls. Sample the whole mount so the curved wall cannot cut it.
+		const innerWall = ( z, y, halfW, halfH ) => app.boat?.baseLines ? - Math.min( ...[ - halfW, halfW ].flatMap( dz =>
+			[ - halfH, halfH ].map( dy => ( wallX( app.boat.baseLines, ( z + dz ) / sz, y + dy ) - HOUSE.wallT ) * sx ) ) ) : - 1.2 * sx;
+		this.photoMount = new Group(); this.photoMount.name = '舱壁照片'; this.cabin.add( this.photoMount );
+		this.photoMount.position.set( innerWall( 0.03 * sz, 1.38, 0.22, 0.15 ) + 0.03, 1.38, 0.03 * sz );
+		this.photoMount.rotation.y = Math.PI / 2; this.photoMount.scale.setScalar( 0.65 ); this.photoMount.visible = false;
+		build( '照片小相框', [ [ box( 0.66, 0.45, 0.025 ).translate( 0, 0, - 0.014 ), 0x7a6950 ] ], this.photoMount );
 		this.photoMesh = new Mesh( new PlaneGeometry( 0.61, 0.40 ), new Material( { color: 0x38565f, roughness: 1 } ) );
 		const photoUV = this.photoMesh.geometry.attributes.uv;
 		for ( let i = 0; i < photoUV.count; i ++ ) photoUV.setY( i, 1 - photoUV.getY( i ) ); // Decoded photos upload their top row first.
-		this.photoMesh.position.set( 0.65 * sx, 1.97, - 0.85 * sz ); this.photoMesh.visible = false; this.cabin.add( this.photoMesh );
+		this.photoMesh.position.z = 0.002; this.photoMesh.visible = false; this.photoMount.add( this.photoMesh );
+		this.collection = new Group(); this.collection.name = '舱壁收藏台'; this.cabin.add( this.collection );
+		this.collection.position.set( innerWall( 0.57 * sz, 1.12, 0.22, 0.20 ) + 0.18, 1.12, 0.57 * sz );
+		this.collection.rotation.y = Math.PI / 2; this.collection.visible = false;
+		build( '收藏小托架', [ [ box( 0.42, 0.045, 0.26 ), 0x8b765b ],
+			[ box( 0.42, 0.21, 0.025 ).translate( 0, - 0.08, - 0.155 ), 0x657779 ],
+			[ box( 0.025, 0.15, 0.28 ).translate( - 0.15, - 0.09, - 0.02 ), 0x657779 ],
+			[ box( 0.025, 0.15, 0.28 ).translate( 0.15, - 0.09, - 0.02 ), 0x657779 ] ], this.collection );
 		this.exhibits = new Map();
 		for ( const item of SALVAGE ) {
 
-			const mesh = relic( item.id, this.cabin ); mesh.scale.setScalar( 0.6 ); mesh.position.set( 0.65 * sx, 1.52, - 0.68 * sz ); this.exhibits.set( item.id, mesh );
+			const mesh = relic( item.id, this.collection ); mesh.scale.setScalar( 0.45 ); mesh.position.y = 0.024; this.exhibits.set( item.id, mesh );
 
 		}
-		this.bellMount = build( '船钟悬挂支架', [ [ rod( V( 0.65 * sx, 1.84, - 0.88 * sz ), V( 0.65 * sx, 1.84, - 0.68 * sz ), 0.012, 6 ), 0x657779 ],
-			[ rod( V( 0.65 * sx, 1.84, - 0.68 * sz ), V( 0.65 * sx, 1.79, - 0.68 * sz ), 0.008, 6 ), 0x657779 ] ], this.cabin );
-		this.crane = build( '大船打捞绞盘', [ [ cylinder( 0.16, 0.22, 1.9, 12 ).translate( - 1.45, 1.55, - 4.7 ), 0x657e7c ],
-			[ rod( V( - 1.45, 2.45, - 4.7 ), this.hookPoint, 0.09, 10 ), 0xa8ae9d ],
-			[ cylinder( 0.23, 0.23, 0.4, 12 ).rotateZ( Math.PI / 2 ).translate( - 1.45, 1.3, - 4.7 ), 0x746c51 ] ], this.cabin );
+		this.bellMount = build( '船钟悬挂支架', [ [ rod( V( 0, 0.025, - 0.12 ), V( 0, 0.28, - 0.12 ), 0.01, 6 ), 0x657779 ],
+			[ rod( V( 0, 0.28, - 0.12 ), V( 0, 0.28, 0 ), 0.01, 6 ), 0x657779 ],
+			[ rod( V( 0, 0.28, 0 ), V( 0, 0.24, 0 ), 0.008, 6 ), 0x657779 ] ], this.collection );
+		this.hookPoint.set( - 2.5, 2.3, - 3.9 );
+		this.crane = build( '大船打捞绞盘', [ [ box( 0.45, 0.05, 0.45 ).translate( - 1.2, 0.375, - 3.9 ), 0x657e7c ],
+			[ cylinder( 0.16, 0.22, 1.86, 12 ).translate( - 1.2, 1.33, - 3.9 ), 0x657e7c ],
+			[ rod( V( - 1.2, 2.26, - 3.9 ), this.hookPoint, 0.07, 10 ), 0xa8ae9d ],
+			[ cylinder( 0.23, 0.23, 0.4, 12 ).rotateZ( Math.PI / 2 ).translate( - 1.2, 1.3, - 3.9 ), 0x746c51 ] ], this.cabin );
 		this.crane.visible = app.gameState?.boatId === 'offshore';
+		if ( app.boat?.colliders ) {
+
+			this.collectionCollider = { tag: 'cabinCollection', center: this.collection.position.clone().add( V( 0, 0.08, 0 ) ), half: V( 0.14, 0.26, 0.23 ), solid: false, walkable: false };
+			app.boat.colliders.push( this.collectionCollider );
+			if ( app.boat.profileId === 'offshore' ) app.boat.colliders.push( { tag: 'voyageWinch', center: V( - 1.2, 1.325, - 3.9 ), half: V( 0.28, 0.975, 0.30 ), solid: true, walkable: false } );
+
+		}
 		this.assets = new AbyssAssets( { scene: this.group, base: BASE, ids: [ 'station', 'tender', 'bell', 'crew' ], placements: [
 			{ id: 'station', position: V( STATION.x - 0.6, 1.23 + rise, STATION.z + 0.45 ), rotation: 0, height: 4.8 },
 			{ id: 'tender', position: V(), rotation: 0, height: 1.6 },
@@ -200,6 +236,8 @@ export class VoyageWorld {
 		this.maskAnchor.position.copy( this.visitor.position ); this.maskAnchor.quaternion.copy( this.visitor.quaternion );
 		if ( ! this.eventGroup.visible || event?.type !== 'supply' ) this.maskAnchor.position.y = - 10000;
 		for ( const [ id, mesh ] of this.exhibits ) mesh.visible = voyage.display === id && voyage.salvaged.includes( id ) && ( id !== 'bell' || ! this.assets.models.has( 'bell' ) );
+		this.collection.visible = voyage.salvaged.includes( voyage.display );
+		if ( this.collectionCollider ) this.collectionCollider.solid = this.collection.visible;
 		this.bellMount.visible = voyage.display === 'bell' && voyage.salvaged.includes( 'bell' );
 		this.crane.visible = state.boatId === 'offshore';
 		if ( GPU.device ) {
@@ -261,6 +299,7 @@ export class VoyageWorld {
 
 		this.photoKey = image; const version = ++ this.photoVersion;
 		this.photoMesh.visible = false;
+		this.photoMount.visible = false;
 		if ( ! image ) { this.photoTexture?.destroy(); this.photoTexture = null; return; }
 		try {
 
@@ -273,6 +312,7 @@ export class VoyageWorld {
 			const aspect = px.width / px.height, frameAspect = 0.61 / 0.40;
 			this.photoMesh.scale.set( Math.min( 1, aspect / frameAspect ), Math.min( 1, frameAspect / aspect ), 1 );
 			this.photoMesh.visible = true;
+			this.photoMount.visible = true;
 
 		} catch { if ( version === this.photoVersion ) this.photoMesh.visible = false; }
 

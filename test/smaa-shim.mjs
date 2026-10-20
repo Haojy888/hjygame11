@@ -1,11 +1,11 @@
 // Headless SMAA: fetch serves public/textures/smaa and PNGs are decoded with zlib (import before the post chain)
 import fs from 'node:fs';
 import zlib from 'node:zlib';
-const root = new URL( '../public', import.meta.url ).pathname;
+const root = new URL( '../public/textures/smaa/', import.meta.url );
 const realFetch = globalThis.fetch;
 globalThis.fetch = async ( url, o ) => {
 	const u = String( url );
-	if ( u.includes( 'textures/smaa/' ) ) { const b = fs.readFileSync( root + '/textures/smaa/' + u.split( '/' ).pop() ); return { arrayBuffer: async () => b.buffer.slice( b.byteOffset, b.byteOffset + b.byteLength ) }; }
+	if ( u.includes( 'textures/smaa/' ) ) { const b = fs.readFileSync( new URL( u.split( '/' ).pop(), root ) ); return { arrayBuffer: async () => b.buffer.slice( b.byteOffset, b.byteOffset + b.byteLength ) }; }
 	return realFetch( url, o );
 };
 // minimal PNG decoder (8-bit gray / RGB / RGBA, non-interlaced)

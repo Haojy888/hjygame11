@@ -2,6 +2,7 @@ import * as THREE from '../../engine/index.js';
 import { Noise2D, mulberry32, smoothstep, clamp } from '../../util/Noise.js';
 import { WORLD } from '../WorldLayout.js';
 import { getDetailTexture } from '../terrain/DetailTextures.js';
+import { SECRET_CLEARINGS } from '../../game/Secrets.js';
 
 // CPU-side vegetation placement: land cover, exclusion zones and per-type scattering.
 //
@@ -63,7 +64,7 @@ export class VegSite {
 	// footprints: [{ x, z, r }] (buildings / props), paths: [{ points: [[x, z], ...], width }]
 	setObstacles( footprints, paths ) {
 
-		this.footprints = footprints.map( ( f ) => ( { x: f.x, z: f.z, r: f.r } ) );
+		this.footprints = [ ...footprints, ...SECRET_CLEARINGS ].map( ( f ) => ( { x: f.x, z: f.z, r: f.r } ) );
 		this.segments = [];
 		for ( const p of paths ) {
 

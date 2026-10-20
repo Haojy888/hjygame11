@@ -32,6 +32,7 @@ export class Engine {
 		this.scene = new Scene();
 		window.addEventListener( 'resize', () => this.resize() );
 		this.resize();
+		this.clock.connect( document );
 
 	}
 
@@ -79,11 +80,12 @@ export class Engine {
 
 	start( update ) {
 
+		this.clock.reset();
 		const loop = ( t ) => {
 
 			this.clock.update( t );
-			let dt = this.clock.getDelta();
-			if ( dt > 0.1 ) dt = 0.1;
+			this.frameDelta = this.clock.getDelta();
+			const dt = Math.min( this.frameDelta, 0.1 );
 			this.frame ++;
 			update( dt, this.clock.getElapsed() );
 			this._raf = requestAnimationFrame( loop );

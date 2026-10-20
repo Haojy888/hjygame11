@@ -1,4 +1,5 @@
-import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Group, Mesh, TubeGeometry, Vector3 } from '../engine/index.js';
+import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Group, MathUtils, Mesh, Quaternion, TubeGeometry, Vector3, Vector4 } from '../engine/index.js';
+import { LAYERS } from '../engine/render/SceneRenderer.js';
 import { Material } from '../engine/render/Material.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { Texture } from '../engine/gpu/Texture.js';
@@ -55,7 +56,7 @@ function patrolHeights( terrain, origin, geometry ) {
 	// The spline blends at most two neighbouring poses. Its travel derivative
 	// is <= hypot(4.5,3.6), and its yaw derivative <= 0.38 radians per phase.
 	const margin = Math.hypot( slopeX, slopeZ ) * ( Math.SQRT1_2 / 2 + 0.67 + 2 * phaseStep * ( Math.hypot( 4.5, 3.6 ) + ( radius + Math.SQRT1_2 / 2 ) * 0.38 ) ) + 0.4;
-	return Float32Array.from( { length: PATROL_SAMPLES }, ( _, i ) => {
+	const heights = Float32Array.from( { length: PATROL_SAMPLES }, ( _, i ) => {
 
 		const pose = patrolPose( i * phaseStep ), c = Math.cos( pose.yaw ), s = Math.sin( pose.yaw );
 		let height = - Infinity;
@@ -63,6 +64,9 @@ function patrolHeights( terrain, origin, geometry ) {
 		return height + margin;
 
 	} );
+	// Folding shortens each arm by <= 22%. Lift by a slope bound so it cannot
+	// retract through the uphill seabed, even between the baked patrol samples.
+	return { heights, guardLift: 1 + 0.22 * ( radius + 0.67 ) * Math.hypot( slopeX, slopeZ ) };
 
 }
 
@@ -143,7 +147,15 @@ export function buildDeepBeast( floorAt = () => 0 ) {
 		g.setAttribute( 'aux', new Float32BufferAttribute( aux, 4 ) );
 		g.computeVertexNormals();
 		add( g );
-		arms.push( { angle, length } );
+		// Two render rings per collision link retain the curls without testing
+		// the high-resolution skin or rebuilding any geometry during a frame.
+		const collisionPoints = Array.from( { length: steps / 2 + 1 }, ( _, i ) => {
+
+			const t = i * 2 / steps;
+			return { position: path.getPointAt( t ), t, radius: 1.2 * Math.pow( 1 - t, 1.25 ) + 0.095 };
+
+		} );
+		arms.push( { angle, length, collisionPoints } );
 		for ( let j = 0; j < 16; j ++ ) for ( const row of [ - 1, 1 ] ) {
 
 			const t = 0.10 + j / 15 * 0.78, f = frame( t );
@@ -201,14 +213,31 @@ export function buildDeepBeast( floorAt = () => 0 ) {
 
 const animation = new ShaderModule( {
 	name: 'deepBeast', deps: [ commonModule ], code: /* wgsl */`
-fn abyssPose( p: vec3f, arm: f32, time: f32, wake: f32 ) -> vec3f {
-	if ( arm < 1.0 ) { return p * ( 1.0 + 0.008 * sin( time * 0.48 ) ) + vec3f( 0.0, wake * 0.28, 0.0 ); }
+fn abyssEyeRotation( p: vec3f, gaze: vec2f ) -> vec3f {
+	let cy = cos( gaze.x ); let sy = sin( gaze.x );
+	let cp = cos( gaze.y ); let sp = sin( gaze.y );
+	let raised = vec3f( p.x, p.y * cp + p.z * sp, -p.y * sp + p.z * cp );
+	return vec3f( raised.x * cy + raised.z * sy, raised.y, -raised.x * sy + raised.z * cy );
+}
+fn abyssPose( p: vec3f, arm: f32, part: f32, time: f32, wake: f32, reaction: vec4f, guardLift: f32 ) -> vec3f {
+	if ( arm < 1.0 ) {
+		var body = p;
+		if ( part > 1.5 && part < 3.5 ) {
+			let eye = vec3f( sign( p.x ) * 2.42, 4.55, 3.30 );
+			var local = p - eye;
+			local.y *= 1.0 - reaction.z * 0.45;
+			body = eye + abyssEyeRotation( local, reaction.xy );
+		}
+		return body * ( 1.0 + 0.008 * sin( time * 0.48 ) ) + vec3f( 0.0, wake * 0.28, 0.0 );
+	}
 	let id = floor( arm ) - 1.0;
 	let t = fract( arm ) / 0.9;
 	let a = id * 0.785398163 + 0.392699082;
 	let w = t * t * ( 0.15 + wake * 0.85 );
 	let wave = sin( time * 0.65 - t * 5.0 + id * 1.7 );
-	return p + vec3f( cos( a ) * wave * 0.65, ( sin( time * 0.48 - t * 4.0 + id ) * 0.35 + wake * 0.65 ) * w, -sin( a ) * wave * 0.65 ) * w;
+	let posed = p + vec3f( cos( a ) * wave * 0.65, ( sin( time * 0.48 - t * 4.0 + id ) * 0.35 + wake * 0.65 ) * w, -sin( a ) * wave * 0.65 ) * w;
+	let fold = reaction.w * t * t;
+	return vec3f( posed.x * ( 1.0 - fold * 0.22 ), posed.y + fold * guardLift, posed.z * ( 1.0 - fold * 0.22 ) );
 }
 `,
 } );
@@ -249,11 +278,13 @@ function beastMaterial( textures = null ) {
 		textures: textures || {},
 		modules: [ animation ], attributes: { aux: 'vec4f' },
 		varyings: { localP: 'vec3f', part: 'f32' },
-		uniforms: { wake: [ 'f32', 0 ], previousWake: [ 'f32', 0 ], age: [ 'f32', 0 ], previousAge: [ 'f32', 0 ] },
+		uniforms: { wake: [ 'f32', 0 ], previousWake: [ 'f32', 0 ], age: [ 'f32', 0 ], previousAge: [ 'f32', 0 ],
+			reaction: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ], previousReaction: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ], guardLift: [ 'f32', 1 ] },
 		vertex: /* wgsl */`
 		o.localP = v.position; o.part = v.aux.z;
-		let posed = abyssPose( v.position, v.aux.w, mat.age, mat.wake );
-		let previous = abyssPose( v.position, v.aux.w, mat.previousAge, mat.previousWake );
+		let posed = abyssPose( v.position, v.aux.w, v.aux.z, mat.age, mat.wake, mat.reaction, mat.guardLift );
+		let previous = abyssPose( v.position, v.aux.w, v.aux.z, mat.previousAge, mat.previousWake, mat.previousReaction, mat.guardLift );
+		if ( v.aux.z > 1.5 && v.aux.z < 3.5 ) { v.normal = abyssEyeRotation( v.normal, mat.reaction.xy ); }
 		v.prevWorldOffset = ( v.prevModel * vec4f( previous - posed, 0.0 ) ).xyz;
 		v.position = posed;
 `,
@@ -284,16 +315,46 @@ function beastMaterial( textures = null ) {
 		if ( in.vs.part > 2.5 && in.vs.part < 3.5 ) { s.albedo = vec3f( 0.001, 0.006, 0.005 ); s.emissive = vec3f( 0.0 ); s.roughness = 0.14; }
 		if ( in.vs.part > 3.5 ) { s.albedo = in.color.rgb * 0.3; s.emissive = in.color.rgb * ( 0.10 + mat.wake * 0.65 ); }
 ` }
+		if ( in.vs.part > 1.5 && in.vs.part < 2.5 ) { s.emissive *= 1.0 + mat.reaction.z * 0.8; }
+		if ( in.vs.part > 3.5 ) { s.emissive *= 1.0 + mat.reaction.z * ( 0.45 + 0.25 * sin( mat.age * 2.3 ) ); }
+		s.albedo = mix( s.albedo, s.albedo * vec3f( 0.78, 0.61, 0.52 ), mat.reaction.w * 0.45 );
 `,
 	} );
 
 }
 
+function inkCloud() {
+
+	const kit = new GeoKit();
+	for ( let i = 0; i < 9; i ++ ) {
+
+		const a = i * 2.399963, r = i === 0 ? 0 : 0.55;
+		kit.add( 'ink', sphere( 0.58 + i % 3 * 0.05, 12, 8 ).scale( 0.8, 0.9, 1.3 ).translate( Math.cos( a ) * r, ( i % 3 - 1 ) * 0.27, ( i - 4 ) * 0.18 ) );
+
+	}
+	const material = new Material( {
+		name: '巨章 · 扩散墨雾', lit: false, transparent: true, side: 'double', depthWrite: false, receiveShadows: false, velocityWeight: 0.2,
+		uniforms: { age: [ 'f32', 0 ], density: [ 'f32', 0 ] },
+		surface: /* wgsl */`
+		let swirl = perlin3( in.P * 2.2 + vec3f( mat.age * 0.25, -mat.age * 0.3, 0.0 ) ) * 0.5 + 0.5;
+		let edge = pow( abs( dot( in.N, in.V ) ), 0.7 );
+		s.albedo = vec3f( 0.003, 0.009, 0.012 ); s.emissive = vec3f( 0.002, 0.005, 0.007 );
+		s.alpha = mat.density * edge * smoothstep( 0.15, 0.80, swirl ) * 0.65;
+		`,
+	} );
+	const mesh = new Mesh( kit.merged( 'ink' ), material );
+	mesh.name = '巨章喷墨'; mesh.visible = false; mesh.userData.late = true; mesh.layers.set( LAYERS.TRANSPARENT );
+	mesh.castShadow = false; mesh.receiveShadow = false;
+	return mesh;
+
+}
+
 export class DeepBeast {
 
-	constructor( { scene, terrain, onDiscover = null } ) {
+	constructor( { scene, terrain, colliders = null, onDiscover = null } ) {
 
 		this.position = WORLD.abyss.center.clone();
+		this.terrain = terrain; this.colliders = colliders;
 		this.position.y = terrain.heightAt( this.position.x, this.position.z );
 		const floor = ( x, z ) => terrain.heightAt( this.position.x + x, this.position.z + z ) - this.position.y;
 		this.group = new Group(); this.group.name = '沉睡古神 · 深渊巨章';
@@ -305,14 +366,24 @@ export class DeepBeast {
 		this.group.add( this.mesh );
 		this.patrolRadius = PATROL_RADIUS; this.patrolPhase = 0;
 		this.creaturePosition = this.position.clone();
-		this._patrolHeights = patrolHeights( terrain, this.position, this.model.geometry );
+		const patrol = patrolHeights( terrain, this.position, this.model.geometry );
+		this._patrolHeights = patrol.heights; this.guardLift = patrol.guardLift;
+		this.material.uniforms.guardLift.value = this.guardLift;
+		// x/y: eye yaw/pitch, z: beam response, w: defensive arm fold.
+		this.reaction = new Vector4( 0, 0, 0, 0 );
+		this._localVisitor = new Vector3(); this._focus = new Vector3(); this._direction = new Vector3(); this._linePoint = new Vector3(); this._inverse = new Quaternion();
+		this._closeTime = 0; this._inkArmed = true;
+		this.ink = { age: - 1, cooldown: 0, bursts: 0, density: 0, origin: new Vector3(), velocity: new Vector3() };
+		this.inkMesh = inkCloud(); scene.add( this.inkMesh );
 		// Broken megaliths stand on the actual seabed, beyond the creature's reach.
 		const ruins = new GeoKit();
 		for ( let i = 0; i < 9; i ++ ) {
 
 			const a = i / 9 * TAU, x = Math.sin( a ) * 19, z = Math.cos( a ) * 19;
 			const height = 1.5 + ( i % 4 ) * 0.8;
-			ruins.add( 'stone', roundedBox( 1.1, height, 1.0, 0.12, 2 ).rotateZ( Math.sin( i * 3 ) * 0.18 ).rotateY( a ).translate( x, floor( x, z ) + height / 2 - 0.15, z ), { color: 0x48544f } );
+			const geometry = roundedBox( 1.1, height, 1.0, 0.12, 2 ).rotateZ( Math.sin( i * 3 ) * 0.18 ).rotateY( a ).translate( x, floor( x, z ) + height / 2 - 0.15, z );
+			ruins.add( 'stone', geometry, { color: 0x48544f } );
+			colliders?.addMeshBounds( geometry, this.position, a, { tag: 'abyss-megalith' } );
 
 		}
 		const stones = new Mesh( ruins.merged( 'stone' ), new Material( { name: 'Abyssal ruins', vertexColors: true, roughness: 0.95 } ) );
@@ -320,6 +391,31 @@ export class DeepBeast {
 		scene.add( this.group );
 		this.time = 0; this.wake = 0; this.discovered = false; this.onDiscover = onDiscover;
 		this.ready = null; this.realistic = false;
+		this._collisionBodies = []; this._collisionArms = [];
+		if ( colliders ) {
+
+			// Mantle principal axes enclose its ridges and rearward shear. Rounded
+			// head/eye pieces leave the surrounding ruins and arm gaps navigable.
+			for ( const [ center, radii, tilt = 0 ] of [
+				[ V( 0, 6, - 1.7 ), V( 4.0, 5.04, 4.15 ), - 0.598 ],
+				[ V( 0, 3.5, 1.5 ), V( 3.16, 2.31, 2.96 ) ],
+				[ V( - 2.42, 4.65, 3.55 ), V( 0.86, 0.64, 0.68 ) ],
+				[ V( 2.42, 4.65, 3.55 ), V( 0.86, 0.64, 0.68 ) ],
+			] ) {
+
+				const rotation = new Quaternion().setFromAxisAngle( V( 1, 0, 0 ), tilt );
+				this._collisionBodies.push( { center, radii, rotation, shape: colliders.addEllipsoid( center, radii, rotation ) } );
+
+			}
+			this._collisionArms = this.model.arms.map( ( arm ) => {
+
+				const points = arm.collisionPoints.map( p => ( { ...p, world: new Vector3() } ) );
+				const segments = points.slice( 1 ).map( ( p, i ) => colliders.addCapsule( points[ i ].position, p.position, Math.max( points[ i ].radius, p.radius ) ) );
+				return { points, segments, angle: arm.angle };
+
+			} );
+
+		}
 		this._moveCreature();
 
 	}
@@ -335,6 +431,47 @@ export class DeepBeast {
 		this.mesh.position.set( pose.x, height - this.position.y + this.wake * 0.04 * ( 1 + Math.sin( this.time * 0.5 ) ), pose.z );
 		this.mesh.rotation.y = pose.yaw;
 		this.creaturePosition.copy( this.position ).add( this.mesh.position );
+		this._updateCollisions();
+
+	}
+
+	_updateCollisions() {
+
+		const breath = 1 + 0.008 * Math.sin( this.time * 0.48 );
+		for ( const { center, radii, rotation, shape } of this._collisionBodies ) {
+
+			shape.center.copy( center ).multiplyScalar( breath ); shape.center.y += this.wake * 0.28;
+			shape.center.applyQuaternion( this.mesh.quaternion ).add( this.creaturePosition );
+			shape.radii.copy( radii ).multiplyScalar( breath );
+			shape.rotation.copy( this.mesh.quaternion ).multiply( rotation );
+			shape.inverse.copy( shape.rotation ).conjugate();
+
+		}
+		for ( let id = 0; id < this._collisionArms.length; id ++ ) {
+
+			const { points, segments, angle } = this._collisionArms[ id ];
+			for ( const { position, t, world } of points ) {
+
+				// Same deformation as abyssPose in WGSL, including the squared
+				// vertical weight. Both original and textured skins share this pose.
+				const w = t * t * ( 0.15 + this.wake * 0.85 ), wave = Math.sin( this.time * 0.65 - t * 5 + id * 1.7 );
+				world.copy( position );
+				world.x += Math.cos( angle ) * wave * 0.65 * w;
+				world.y += ( Math.sin( this.time * 0.48 - t * 4 + id ) * 0.35 + this.wake * 0.65 ) * w * w;
+				world.z -= Math.sin( angle ) * wave * 0.65 * w;
+				const fold = this.reaction.w * t * t;
+				world.x *= 1 - fold * 0.22; world.z *= 1 - fold * 0.22; world.y += fold * this.guardLift;
+				world.applyQuaternion( this.mesh.quaternion ).add( this.creaturePosition );
+
+			}
+			for ( let i = 0; i < segments.length; i ++ ) {
+
+				segments[ i ].start.copy( points[ i ].world );
+				segments[ i ].end.copy( points[ i + 1 ].world );
+
+			}
+
+		}
 
 	}
 
@@ -357,7 +494,7 @@ export class DeepBeast {
 
 			}
 			const material = beastMaterial( bindings );
-			for ( const key of [ 'wake', 'previousWake', 'age', 'previousAge' ] ) material.uniforms[ key ].value = this.material.uniforms[ key ].value;
+			for ( const key of [ 'wake', 'previousWake', 'age', 'previousAge', 'reaction', 'previousReaction', 'guardLift' ] ) material.uniforms[ key ].value = this.material.uniforms[ key ].value;
 			this.mesh.geometry.dispose();
 			this.material = material; this.mesh.material = material; this.mesh.geometry = geometry;
 			this.realistic = true;
@@ -374,13 +511,131 @@ export class DeepBeast {
 
 	}
 
-	update( dt, camera, player = null ) {
+	_lineOfSight( from, to ) {
+
+		const dir = this._direction.subVectors( to, from ), distance = dir.length();
+		if ( distance < 0.01 ) return true;
+		dir.divideScalar( distance );
+		if ( this.colliders?.raycast( from, dir, distance ) < distance - 0.25 ) return false;
+		for ( let i = 1; i < 8; i ++ ) {
+
+			const p = this._linePoint.copy( from ).lerp( to, i / 8 );
+			if ( this.terrain.heightAt( p.x, p.z ) + 0.15 > p.y ) return false;
+
+		}
+		return true;
+
+	}
+
+	_updateReaction( dt, camera, player, lights ) {
+
+		const active = player?.mode === 'swim' && player.position.y < - 4;
+		const local = this._localVisitor;
+		let yaw = 0, pitch = 0, beam = 0, guard = 0, gap = Infinity;
+		if ( active && player.position.distanceToSquared( this.creaturePosition ) < 42 ** 2 ) {
+
+			local.copy( player.position ).sub( this.creaturePosition ).applyQuaternion( this._inverse.copy( this.mesh.quaternion ).conjugate() );
+			const skinGap = ( x, y, z, rx, ry, rz ) => {
+
+				const norm = Math.hypot( x / rx, y / ry, z / rz );
+				return norm > 1 ? Math.hypot( x, y, z ) * ( 1 - 1 / norm ) : 0;
+
+			};
+			gap = Math.min( skinGap( local.x, local.y - 3.5, local.z - 1.5, 3.1, 2.25, 2.9 ), skinGap( local.x, local.y - 6, local.z + 1.7 + ( local.y - 6 ) * 0.17, 3.65, 4.7, 4 ) );
+			this._focus.set( 0, 4.55, 3.3 ).applyQuaternion( this.mesh.quaternion ).add( this.creaturePosition );
+			const visible = this._lineOfSight( this._focus, player.position );
+			if ( visible && local.z > 3.3 ) {
+
+				yaw = MathUtils.clamp( Math.atan2( local.x, local.z - 3.3 ), - 0.45, 0.45 );
+				pitch = MathUtils.clamp( Math.atan2( local.y + 0.162 - 4.55, Math.hypot( local.x, local.z - 3.3 ) ), - 0.3, 0.3 );
+
+			}
+			const fl = lights?.flashlight;
+			if ( fl?.on && lights.enabled !== false ) {
+
+				const from = fl.primed ? fl.position : camera.position;
+				const direction = fl.primed ? fl.dir : camera.getWorldDirection( this._linePoint );
+				const toward = this._direction.subVectors( this._focus, from ), distance = toward.length();
+				const cosine = distance > 0.01 ? toward.divideScalar( distance ).dot( direction ) : 1;
+				if ( distance < ( fl.range ?? 30 ) && cosine > ( fl.cosOuter ?? 0.819 ) && this._lineOfSight( from, this._focus ) ) {
+
+					beam = MathUtils.smoothstep( cosine, fl.cosOuter ?? 0.819, fl.cosInner ?? 0.988 ) * ( 1 - MathUtils.smoothstep( distance, 18, fl.range ?? 30 ) );
+
+				}
+
+			}
+			guard = 1 - MathUtils.smoothstep( gap, 0.8, 3.5 );
+
+		}
+		this.ink.cooldown = Math.max( 0, this.ink.cooldown - dt );
+		if ( gap > 5 ) this._inkArmed = true;
+		this._closeTime = gap < 1.4 ? this._closeTime + dt : 0;
+		if ( this._closeTime >= 1.6 && this._inkArmed && this.ink.cooldown === 0 && this.ink.age < 0 ) {
+
+			this.ink.age = 0; this.ink.cooldown = 18; this.ink.bursts ++; this._inkArmed = false;
+			const side = local.x < 0 ? - 1 : 1;
+			this.ink.origin.set( side * 3.65, 3.6, 2.6 ).applyQuaternion( this.mesh.quaternion ).add( this.creaturePosition );
+			// The siphon jets forwards: aiming directly at a very close visitor
+			// would send the cloud backwards through the head before it emerges.
+			this.ink.velocity.set( MathUtils.clamp( local.x - side * 3.65, - 0.7, 0.7 ), MathUtils.clamp( local.y - 3.6, - 0.1, 0.5 ), 2 ).normalize().multiplyScalar( 2 ).applyQuaternion( this.mesh.quaternion );
+			this.inkMesh.quaternion.copy( this.mesh.quaternion );
+			this.inkMesh.resetVelocity = true;
+
+		}
+		if ( this.ink.age >= 0 && this.ink.age < 1.5 ) guard = Math.max( guard, 0.8 );
+		const gazeK = 1 - Math.exp( - dt * 4 ), bodyK = 1 - Math.exp( - dt * 2.5 );
+		this.reaction.x += ( yaw - this.reaction.x ) * gazeK;
+		this.reaction.y += ( pitch - this.reaction.y ) * gazeK;
+		this.reaction.z += ( beam - this.reaction.z ) * bodyK;
+		this.reaction.w += ( guard - this.reaction.w ) * bodyK;
+
+	}
+
+	_updateInk( dt, camera ) {
+
+		const ink = this.ink;
+		if ( ink.age >= 0 ) {
+
+			ink.age += dt;
+			if ( ink.age > 6 ) ink.age = - 1;
+
+		}
+		ink.density = ink.age < 0 ? 0 : MathUtils.smoothstep( ink.age, 0, 0.2 ) * ( 1 - MathUtils.smoothstep( ink.age, 2.8, 6 ) );
+		this.inkMesh.visible = ink.age >= 0 && camera.position.distanceToSquared( ink.origin ) < 100 ** 2;
+		if ( ink.age < 0 ) return;
+		this.inkMesh.position.copy( ink.origin ).addScaledVector( ink.velocity, Math.min( ink.age, 3 ) );
+		this.inkMesh.position.y += ink.age * 0.22;
+		this.inkMesh.scale.setScalar( 0.55 + ink.age * 0.55 );
+		this.inkMesh.material.uniforms.age.value = ink.age;
+		this.inkMesh.material.uniforms.density.value = ink.density;
+
+	}
+
+	inkOccludes( from, to ) {
+
+		// ponytail: a dense sphere approximates the puff cluster for sight checks;
+		// sample cloud density if photography at its wispy edges needs finer contact.
+		if ( this.ink.age < 0 || this.ink.density < 0.22 ) return false;
+		const delta = this._direction.subVectors( to, from ), length2 = delta.lengthSq();
+		if ( length2 < 0.0001 ) return false;
+		const p = this._linePoint.subVectors( this.inkMesh.position, from );
+		const t = MathUtils.clamp( p.dot( delta ) / length2, 0, 1 );
+		p.copy( from ).addScaledVector( delta, t );
+		const radius = this.inkMesh.geometry.boundingSphere.radius * this.inkMesh.scale.x * 0.72;
+		return p.distanceToSquared( this.inkMesh.position ) < radius * radius;
+
+	}
+
+	update( dt, camera, player = null, lights = null ) {
 
 		dt = Math.min( Math.max( Number.isFinite( dt ) ? dt : 0, 0 ), 0.1 );
 		const visitor = player?.position || camera.position;
 		const underwater = visitor.y < - 4;
 		const near = Math.hypot( visitor.x - this.creaturePosition.x, visitor.z - this.creaturePosition.z ) < 42 && Math.abs( visitor.y - this.creaturePosition.y - 5 ) < 24;
 		this.material.uniforms.previousWake.value = this.wake;
+		this.material.uniforms.previousReaction.value.copy( this.reaction );
+		this._updateReaction( dt, camera, player, lights );
+		this._updateInk( dt, camera );
 		this.wake += ( ( near && underwater ? 1 : 0 ) - this.wake ) * ( 1 - Math.exp( - dt * 1.5 ) );
 		this.material.uniforms.previousAge.value = this.time;
 		this.time += dt;
@@ -390,6 +645,7 @@ export class DeepBeast {
 		this._moveCreature();
 		this.material.uniforms.age.value = this.time;
 		this.material.uniforms.wake.value = this.wake;
+		this.material.uniforms.reaction.value.copy( this.reaction );
 		const visible = camera.position.distanceToSquared( this.position ) < 190 ** 2;
 		if ( visible && ! this.group.visible ) this.mesh.resetVelocity = true; // no stale model matrix after distant culling
 		this.group.visible = visible;

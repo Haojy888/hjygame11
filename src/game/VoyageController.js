@@ -168,11 +168,13 @@ export class VoyageController {
 		const g = this.game, a = g.app, v = g.state.voyage, stage = v.station;
 		if ( ! g.state.isGroundUnlocked( 'reef' ) || stage < 1 || stage > 3 ) return;
 		const point = this.world.targets[ [ '', 'buoy', 'record', 'repair' ][ stage ] ];
-		if ( stage === 2 ? a.player.mode !== 'swim' || a.camera.position.y > - 1 : ! this.aboard ) return;
+		const onStation = a.player.mode === 'walk' && Math.abs( a.player.position.y - this.world.stationDeckY ) < 0.4
+			&& Math.abs( a.player.position.x - STATION.x ) < 2.9 && Math.abs( a.player.position.z - STATION.z ) < 2.8;
+		if ( stage === 2 ? a.player.mode !== 'swim' || a.camera.position.y > - 1 : ! this.aboard && ! ( stage === 3 && onStation ) ) return;
 		if ( ! subjectVisible( a, point, stage === 2 ? 4 : 8, 0.55, stage === 2 ? a.camera.position : a.player.position ) ) return;
-		if ( stage === 3 && ( a.boatCtl.velocity.length() > 0.8 || a.weather?.thunderstorm ) ) {
+		if ( stage === 3 && ( this.aboard && a.boatCtl.velocity.length() > 0.8 || a.weather?.thunderstorm ) ) {
 
-			a.player.prompt = { key: '停船', text: '观测站控制台 · 降低船速，等雷暴过去再接通' }; return;
+			a.player.prompt = { key: onStation ? '等待' : '停船', text: onStation ? '观测站控制台 · 等雷暴过去再接通' : '观测站控制台 · 降低船速，等雷暴过去再接通' }; return;
 
 		}
 		a.player.prompt = { key: 'G', text: [ '', '读取编号浮标', '读取海床值班记录器', '修复海湾七号控制台' ][ stage ] };

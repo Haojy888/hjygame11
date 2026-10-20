@@ -561,7 +561,8 @@ export function buildPier( { B, terrain, colliders, rand, lights, inst, signB = 
 		for ( const y of rungTops ) {
 
 			if ( y < - 0.4 ) continue;
-			colliders.addBox( _v.set( lx + 0.25, y - 0.15, lz ), _h.set( 0.27, 0.15, 0.3 ), 0, { walkable: true, solid: false, tag: 'ladder' } );
+			colliders.addBox( _v.set( lx + 0.25, y - 0.15, lz ), _h.set( 0.27, 0.15, 0.3 ), 0,
+				{ walkable: true, solid: false, tag: 'ladder', climbTo: new Vector3( lx - 0.95, DK, lz ) } );
 
 		}
 

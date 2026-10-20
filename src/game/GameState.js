@@ -9,6 +9,7 @@ import { normalizeSurveyClaims, surveyProgress } from './MarineSurvey.js';
 import { freshVoyage, normalizeVoyage, EVENT_TYPES, EVENT_SITES, SALVAGE, RESTORATION_SITES, restorationReady } from './Voyage.js';
 import { DEFAULT_BOAT_ID, getBoatProfile } from './Boats.js';
 import { normalizeBoatCustomization, normalizeBoatCustomizations } from './BoatCustomization.js';
+import { NIGHT_TRAIL, freshSecrets, normalizeSecrets } from './Secrets.js';
 
 const SAVE_KEY = 'tidewater.save.v1';
 
@@ -39,6 +40,7 @@ export class GameState {
 		this.fieldPhotos = {};
 		this.surveyClaims = [];
 		this.voyage = freshVoyage();
+		this.secrets = freshSecrets();
 		this.listeners = new Set();
 
 	}
@@ -450,9 +452,30 @@ export class GameState {
 
 	}
 
+	secretEvent( event, payload = {} ) {
+
+		const s = this.secrets, before = structuredClone( s );
+		const environment = [ 'storm-start', 'storm-seen', 'storm-clear' ].includes( event );
+		if ( event === 'storm-start' && s.stormCleared ) s.stormCleared = false;
+		else if ( event === 'storm-seen' && ! s.stormSeen ) s.stormSeen = true;
+		else if ( event === 'storm-clear' && s.stormSeen && ! s.stormCleared ) s.stormCleared = true;
+		else if ( event === 'trail' && payload?.index === s.nightStep && s.nightStep < NIGHT_TRAIL.length && ! s.found.includes( 'night' ) ) {
+
+			s.nightStep ++;
+			if ( s.nightStep === NIGHT_TRAIL.length ) s.found.push( 'night' );
+
+		} else if ( event === 'record' && [ 'tide', 'storm' ].includes( payload?.id ) && ! s.found.includes( payload.id ) && ( payload.id !== 'storm' || s.stormCleared ) ) s.found.push( payload.id );
+		else return false;
+		// Weather still changes when storage is unavailable; collected discoveries
+		// and trail steps stay atomic so a failed save can be retried.
+		if ( ! this.save() && ! environment ) { this.secrets = before; return false; }
+		this.emit(); return true;
+
+	}
+
 	toJSON() {
 
-		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims, voyage: this.voyage };
+		return { v: 2, money: this.money, inventory: this.inventory, log: this.log, upgrades: this.upgrades, fuel: this.fuel, boatId: this.boatId, boatCustomizations: this.boatCustomizations, nextId: this._nextId, orderIndex: this.orderIndex, orderDelivered: this.orderDelivered, legacyAccess: this.legacyAccess, story: this.story, seaJournal: this.seaJournal, expedition: this.expedition, fieldPhotos: this.fieldPhotos, surveyClaims: this.surveyClaims, voyage: this.voyage, secrets: this.secrets };
 
 	}
 
@@ -486,6 +509,7 @@ export class GameState {
 		this.fieldPhotos = normalizeFieldPhotos( d.fieldPhotos );
 		this.surveyClaims = normalizeSurveyClaims( d.surveyClaims );
 		this.voyage = normalizeVoyage( d.voyage );
+		this.secrets = normalizeSecrets( d.secrets );
 		if ( ! Object.hasOwn( FIELD_SUBJECTS, this.voyage.photo ) || ! this.fieldPhotos[ this.voyage.photo ] ) this.voyage.photo = 'none';
 		for ( const chapter of CHAPTERS ) if ( this.orderIndex >= chapter.end ) this.awardChapter( chapter );
 		this._nextId = Math.max( d.nextId | 0, ...this.inventory.map( ( f ) => f.id + 1 ), 1 );
@@ -539,6 +563,7 @@ export class GameState {
 		this.fieldPhotos = {};
 		this.surveyClaims = [];
 		this.voyage = freshVoyage();
+		this.secrets = freshSecrets();
 		this.save();
 		this.emit();
 

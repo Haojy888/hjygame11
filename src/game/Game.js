@@ -21,6 +21,7 @@ import { seaJournalObjective, seaJournalDialogue } from './SeaJournal.js';
 import { expeditionObjective, expeditionDialogue, CAVE_SITE } from './Expedition.js';
 import { FieldCamera, subjectVisible } from './FieldCamera.js';
 import { VoyageController } from './VoyageController.js';
+import { SecretsController } from './SecretsController.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -62,6 +63,7 @@ export class Game {
 		this._seaDirection = new Vector3();
 		this.fieldCamera = new FieldCamera( this );
 		this.voyage = new VoyageController( this );
+		this.secrets = new SecretsController( this );
 		this._caveVisits = 0;
 		this.hud = null;
 		this.fight = null; // CatchMinigame while a fish is on
@@ -250,7 +252,7 @@ export class Game {
 	get canFish() {
 
 		const app = this.app, p = app.player;
-		return ! app.freeCam && ( p.mode === 'walk' || p.mode === 'deck' ) && ! ( app.ui && app.ui.ui && app.ui.ui._photo );
+		return ! app.freeCam && ! p.climbing && ( p.mode === 'walk' || p.mode === 'deck' ) && ! ( app.ui && app.ui.ui && app.ui.ui._photo );
 
 	}
 
@@ -432,7 +434,8 @@ export class Game {
 		const facing = toward.lengthSq() > 0.01 && direction.dot( toward.normalize() ) >= Math.cos( Math.PI / 6 );
 		const still = ( p.velocity?.length() ?? Infinity ) < 1.3;
 		// Terrain can hide the elder even at short range. A free camera or a surface visit never counts.
-		let visible = true;
+		const inkBlocked = !! app.deepBeast?.inkOccludes?.( camera.position, target );
+		let visible = ! inkBlocked;
 		if ( distance <= 18 && facing && app.terrainData ) for ( let i = 1; i < 5; i ++ ) {
 
 			const t = i / 5, from = camera.position;
@@ -446,6 +449,7 @@ export class Game {
 		observation.ready = observation.progress >= 1 - 1e-8;
 		p.prompt = { key: observation.ready ? 'G' : distance > 18 || ! facing ? 'L' : '观察', text: observation.ready ? '记录巨章见闻 · 不必带走任何东西'
 			: distance > 18 ? '按 L 开灯，再靠近巨章一些 · 保持距离即可观察'
+				: inkBlocked ? '墨雾遮住了视线 · 退开一些，等待墨雾散去'
 				: ! facing || ! visible ? '按 L 开灯，面向巨章观察 · ◎ 为巨章当前位置'
 					: ! still ? '松开移动键，停下来安静观察巨章'
 						: `安静观察 ${ Math.min( 6, Math.floor( observation.progress * 6 + 1e-8 ) ) } / 6 秒 · 保持注视` };
@@ -672,6 +676,7 @@ export class Game {
 		this.updateExpedition();
 		this.fieldCamera?.update( dt );
 		this.voyage?.update( dt );
+		this.secrets?.update();
 
 		// prompts when the player has nothing to say
 		if ( fishingPaused && can && rod.equipped ) p.prompt = this.prompt();

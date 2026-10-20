@@ -5,6 +5,10 @@ import { Player } from '../src/player/Player.js';
 import { FlyCamera } from '../src/player/FlyCamera.js';
 import { Input } from '../src/core/Input.js';
 import { AppUI } from '../src/ui/AppUI.js';
+import { App } from '../src/App.js';
+import { AdaptiveResolution } from '../src/core/RenderQuality.js';
+import { G } from '../src/core/Globals.js';
+import { Colliders } from '../src/world/Colliders.js';
 
 const pressed = new Set();
 const input = Object.assign( Object.create( Input.prototype ), {
@@ -23,9 +27,10 @@ const boat = {
 	forward( out ) { return out.set( 0, 0, 1 ); },
 };
 let groundHeight = 0;
+const cameraColliders = new Colliders(); cameraColliders.groundHeightAt = () => groundHeight;
 const player = new Player( {
 	camera, input, boat, terrain: { heightAt: () => groundHeight },
-	colliders: { groundHeightAt: () => groundHeight, resolveCapsule() {} }, query: { allocate: () => 0, setPoint() {} },
+	colliders: cameraColliders, query: { allocate: () => 0, setPoint() {} },
 } );
 player.takeHelm();
 const frame = () => { player.updateBoat( 1 / 60 ); pressed.clear(); };
@@ -90,7 +95,7 @@ for ( const method of [ 'addSelect', 'addSlider', 'addToggle', 'addButton', 'add
 		return control;
 	};
 }
-const ui = { addTab: () => folder, setStats() {}, setMode() {}, setPrompt() {}, setBoatGauges() {}, setDepth() {}, toast() {} };
+const ui = { addTab: () => folder, refresh() {}, setStats() {}, setMode() {}, setPrompt() {}, setBoatGauges() {}, setDepth() {}, toast() {} };
 const uniform = () => ( { value: 1 } );
 const app = {
 	player, camera, input, boatCtl: boat, freeCam: false,
@@ -103,6 +108,37 @@ const app = {
 player.mode = 'walk';
 input.setSensitivity( 0.65 );
 const appUI = new AppUI( app, ui );
+app.adaptiveResolution = new AdaptiveResolution();
+for ( const method of [ 'setQualityPreset', 'setTargetFPS', 'setRenderScale', 'persistRenderQuality' ] ) app[ method ] = App.prototype[ method ];
+app.post.setScale = function ( value ) { this.scale = value; };
+const qualityMode = controls.find( ( control ) => control.key === 'qualityPreset' );
+const renderRatio = controls.find( ( control ) => control.key === 'renderScale' );
+const fpsTarget = controls.find( ( control ) => control.key === 'targetFPS' );
+qualityMode.choose( 'native' ); appUI.update( 1 / 60 );
+assert.equal( app.post.scale, 1 ); assert.equal( fpsTarget.enabled, false );
+qualityMode.choose( 'smooth' ); appUI.update( 1 / 60 );
+assert.equal( app.post.scale, 0.8 ); assert.equal( fpsTarget.enabled, true );
+renderRatio.choose( 0.7 ); appUI.update( 1 / 60 );
+assert.equal( app.settings.qualityPreset, 'manual' ); assert.equal( qualityMode.value, 'manual' );
+assert.equal( app.post.scale, 0.7 ); assert.equal( fpsTarget.enabled, false );
+qualityMode.choose( 'balanced' ); appUI.update( 1 / 60 ); fpsTarget.choose( 30 );
+assert.equal( app.settings.targetFPS, 30, 'The UI writes the real automatic target' );
+let frameStats;
+ui.setStats = ( stats ) => { frameStats = stats; }; app.engine = { frameDelta: 0.25 }; app._renderStarted = true;
+appUI.update( 0.1 ); assert.equal( frameStats.frameMs, 250, 'HUD timings keep the raw frame interval' );
+app._renderStarted = false;
+let sailingGauges;
+ui.setBoatGauges = ( gauges ) => { sailingGauges = gauges; };
+app.game = { worldMap: { navigation: { bearing: 90, distance: 100, destination: { label: '珊瑚礁' } } } };
+app.weather = { rain: true, thunderstorm: true };
+player.mode = 'boat'; appUI.update( 1 / 60 );
+assert.equal( sailingGauges.navigation, app.game.worldMap.navigation, 'The helm uses the live chart selection' );
+assert.equal( sailingGauges.windVector, G.windDir.value, 'The helm uses the same wind as waves and flags' );
+assert.equal( sailingGauges.windSpeed, G.windSpeed.value );
+assert.equal( sailingGauges.thunderstorm, true );
+player.mode = 'walk'; appUI.update( 1 / 60 );
+assert.equal( sailingGauges.visible, false, 'The sailing instrument hides when leaving the helm' );
+delete app.game; delete app.weather;
 const sensitivityControl = controls.find( ( control ) => control.key === 'sensitivity' );
 assert.ok( sensitivityControl, 'camera settings expose sensitivity' );
 assert.equal( sensitivityControl.min, 0.1 );

@@ -8,6 +8,7 @@ import {
 	tyre, bottle, flipFlop, ropeScrap, netScrap, wheelbarrow, plankPile, floatBuoy,
 } from './DebrisShapes.js';
 import { SCAN, SCAN_SIZE } from './ScannedDebris.js';
+import { SECRET_CLEARINGS } from '../../game/Secrets.js';
 
 // Where the debris goes. Works on the CPU terrain (TerrainData) after the village, vegetation and
 // rocks exist, and keeps clear of everything the player walks on or through: boardwalks, the
@@ -240,6 +241,7 @@ export class DebrisPlacer {
 	_buildObstacles() {
 
 		const O = this.obs;
+		for ( const site of SECRET_CLEARINGS ) O.circle( site.x, site.z, site.r, 0, 'environment-secret' );
 		const col = this.colliders;
 		const stiltHuts = new Set();
 		if ( this.village ) for ( const b of this.village.buildings ) if ( b.stilts ) stiltHuts.add( b.name );

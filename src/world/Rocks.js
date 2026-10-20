@@ -5,6 +5,7 @@ import { WORLD } from './WorldLayout.js';
 import { buildRockGeometry, ROCK_STYLES } from './terrain/RockGeometry.js';
 import { rot2, srgb, terrainShadingModule } from './terrain/TerrainShading.js';
 import { lodFadeModule, bandFade } from '../materials/LODFade.js';
+import { nearSecret } from '../game/Secrets.js';
 
 // Scattered procedural rocks: boulders and blocks on the rocky shores (some half submerged),
 // talus below cliffs, outcrops breaking through the hillsides, rubble around the sea stacks and a
@@ -166,6 +167,7 @@ export class Rocks {
 
 		const blocked = ( x, z, r, h ) => {
 
+			if ( nearSecret( x, z, r * 1.3 ) ) return true;
 			for ( const f of foot ) if ( Math.hypot( x - f.x, z - f.z ) < f.r + r + 2 ) return true;
 			if ( segDist( walk, x, z ) < r + 4 ) return true;
 			if ( Math.abs( x - pier.x ) < r + 9 && z > pier.zStart - 8 && z < pier.zEnd + 12 ) return true;

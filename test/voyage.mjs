@@ -220,9 +220,13 @@ if ( process.argv.includes( '--render' ) ) {
 	const v = { ...freshVoyage(), station: 4, salvaged: [ 'bell' ], display: 'bell' };
 	const previewState = { boatId: 'offshore', fieldPhotos: {} };
 	const update = ( dt ) => preview.update( dt, v, previewState, 18 );
-	const out = resolve( '../voyage' ); mkdirSync( out, { recursive: true } );
+	const out = resolve( process.argv.find( arg => arg.startsWith( '--out=' ) )?.slice( 6 ) || '../voyage' ); mkdirSync( out, { recursive: true } );
 	L.camera.position.set( 119, 7, 247 ); L.camera.lookAt( 108, 2.0, 266 );
 	await L.run( 5, update ); await L.save( out + '/observatory-and-boat.png' );
+	L.camera.position.set( 118, 5.5, 258 ); L.camera.lookAt( 110.5, 3.2, 270 );
+	await L.run( 4, update ); await L.save( out + '/observatory-ladder.png' );
+	L.camera.position.set( 111.3, preview.stationDeckY + 1.62, 267.9 ); L.camera.lookAt( 109.4, 4, 270.45 );
+	await L.run( 4, update ); await L.save( out + '/platform-view.png' );
 	v.event = { type: 'supply', site: 0, remaining: 600, serial: 1, accepted: true };
 	L.water.visible = true; L.camera.position.set( 123, 2.8, 153 ); L.camera.lookAt( 120, 0.5, 160 );
 	await L.run( 4, update ); await L.save( out + '/radio-supply.png' );
@@ -236,8 +240,8 @@ if ( process.argv.includes( '--render' ) ) {
 	await L.run( 4, update ); await L.save( out + '/winch-and-rope.png' );
 	v.hooked = null; preview.haul = 0;
 	L.water.visible = false;
-	L.camera.position.copy( boat.group.position ).add( new Vector3( - 0.35, 1.9, 1.1 ) );
-	L.camera.lookAt( boat.group.position.clone().add( new Vector3( 0.85, 1.73, - 1.1 ) ) );
+	L.camera.position.copy( boat.group.position ).add( new Vector3( 0.05, 1.62, - 0.3 ) );
+	L.camera.lookAt( boat.group.position.clone().add( new Vector3( - 1.4, 1.25, 0.45 ) ) );
 	// Decoded RGBA fixture checks the real exhibit texture path. Browser JPEG decoding is separate.
 	for ( const [ width, height ] of [ [ 4, 2 ], [ 2, 4 ] ] ) {
 
@@ -257,7 +261,8 @@ if ( process.argv.includes( '--render' ) ) {
 		assert.equal( preview.stationFallback.visible, false ); assert.equal( preview.tenderFallback.visible, false );
 		assert.ok( preview.assets.models.has( 'crew' ), 'the real seated crew replaces the removed block figure' );
 		const bell = preview.assets.models.get( 'bell' );
-		assert.ok( Math.abs( bell.instanceMatrix.array[ 16 + 12 ] - ( boat.group.position.x + 0.65 * 1.35 ) ) < 0.001, 'real generated bell is attached to the moving cabin' );
+		const expected = preview.exhibits.get( 'bell' ).getWorldPosition( new Vector3() );
+		assert.ok( Math.abs( bell.instanceMatrix.array[ 16 + 12 ] - expected.x ) < 0.001, 'real generated bell is attached to the moving wall mount' );
 
 	}
 	const data = await readTexture( L.ldr.texture ); assert.ok( new Uint8Array( data.data ).some( ( value ) => value > 30 ) );

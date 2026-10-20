@@ -1,7 +1,7 @@
 import { Float32BufferAttribute, Group, Mesh, Vector3 } from '../engine/index.js';
 import { Material } from '../engine/render/Material.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
-import { GeoKit, mat4, roundedBox, sphere } from './boat/GeoKit.js';
+import { GeoKit, roundedBox, sphere } from './boat/GeoKit.js';
 import { createBarrel, createBlackCoral, createMound, createSeaRod, createSeagrass, createTubes } from './reef/ReefGeometry.js';
 import { mulberry32 } from '../util/Noise.js';
 import { WORLD } from './WorldLayout.js';
@@ -12,13 +12,13 @@ const DRAW_RANGE = 220;
 
 // The tall outcrops form two broken walls, with a broad approach from the north
 // and an exit to the south. No tall prop enters the creature's patrol clearing.
-export function buildAbyssScene( terrain ) {
+export function buildAbyssScene( terrain, colliders = null ) {
 
 	const center = WORLD.abyss.center;
 	const floor = ( x, z ) => terrain.heightAt( center.x + x, center.z + z );
 	const rng = mulberry32( 44083 ), kit = new GeoKit(), features = [];
 	const rand = ( a, b ) => a + ( b - a ) * rng();
-	const place = ( bucket, geometry, x, z, { yaw = 0, scale = 1, lift = 0, color = 0x66716b, part = 0 } = {} ) => {
+	const place = ( bucket, geometry, x, z, { yaw = 0, scale = 1, lift = 0, color = 0x66716b, part = 0, tag = 'abyss-ruin' } = {} ) => {
 
 		if ( bucket === 'life' ) {
 
@@ -33,6 +33,7 @@ export function buildAbyssScene( terrain ) {
 		for ( let i = 0; i < p.count; i ++ ) p.setY( i, p.getY( i ) + floor( p.getX( i ), p.getZ( i ) ) + lift );
 		geometry.computeVertexNormals();
 		kit.add( bucket, geometry, { color, rough: 0.9, pattern: part } );
+		if ( bucket === 'ruin' && colliders ) colliders.addMeshBounds( geometry, new Vector3( center.x, 0, center.z ), yaw, { tag } );
 		return geometry;
 
 	};
@@ -71,8 +72,7 @@ export function buildAbyssScene( terrain ) {
 
 		const addBlock = ( g ) => {
 
-			g.applyMatrix4( mat4( gate.x, 0, gate.z, 0, gate.yaw ) );
-			place( 'ruin', g, 0, 0, { lift: - 0.08, color: 0x8c9487 } );
+			place( 'ruin', g, gate.x, gate.z, { yaw: gate.yaw, lift: - 0.08, color: 0x8c9487, tag: 'abyss-gateway' } );
 
 		};
 		for ( const side of [ - 1, 1 ] ) for ( let j = 0; j < 4; j ++ ) addBlock( roundedBox( 1.7, 1.04, 2.35, 0.12, 1 ).translate( side * 5.5 + Math.sin( j * 3.1 ) * 0.08, 0.52 + j * 1.02, 0 ) );
@@ -92,8 +92,8 @@ export function buildAbyssScene( terrain ) {
 
 		const a = 0.70 + i / 7 * 1.65, r = 30 + i % 2 * 2.5, x = Math.sin( a ) * r, z = Math.cos( a ) * r;
 		const h = i % 3 === 0 ? 5.8 : rand( 2.1, 4.4 );
-		place( 'ruin', roundedBox( 1.35, h, 1.5, 0.15, 1 ).rotateZ( rand( - 0.18, 0.18 ) ).translate( 0, h / 2, 0 ), x, z, { yaw: a, lift: - 0.1, color: 0x7b887b } );
-		place( 'ruin', roundedBox( 3.7, 0.7, 1.25, 0.15, 1 ).rotateY( a + 0.7 ).translate( 0, 0.35, 0 ), x - 2.5, z + 2, { lift: - 0.04, color: 0x727c73 } );
+		place( 'ruin', roundedBox( 1.35, h, 1.5, 0.15, 1 ).rotateZ( rand( - 0.18, 0.18 ) ).translate( 0, h / 2, 0 ), x, z, { yaw: a, lift: - 0.1, color: 0x7b887b, tag: 'abyss-column' } );
+		place( 'ruin', roundedBox( 3.7, 0.7, 1.25, 0.15, 1 ).translate( 0, 0.35, 0 ), x - 2.5, z + 2, { yaw: a + 0.7, lift: - 0.04, color: 0x727c73, tag: 'abyss-lintel' } );
 		features.push( { type: 'column', x, z, height: h, radius: 1.5, floor: floor( x, z ) } );
 
 	}
@@ -162,7 +162,7 @@ export class AbyssScene {
 
 	constructor( { scene, terrain, colliders = null } ) {
 
-		const built = buildAbyssScene( terrain );
+		const built = buildAbyssScene( terrain, colliders );
 		this.group = new Group(); this.group.name = '深海遗迹 · 裂谷与海绵花园';
 		this.group.position.set( WORLD.abyss.center.x, 0, WORLD.abyss.center.z );
 		this.position = WORLD.abyss.center.clone(); this.position.y = terrain.heightAt( this.position.x, this.position.z );
@@ -172,7 +172,6 @@ export class AbyssScene {
 			// Tight cores keep the scattered rock edges forgiving while the large
 			// outcrops remain solid. Doorways and the central clearing stay open.
 			if ( f.type === 'wall' || f.type === 'rubble' && f.height > 1.5 ) colliders.addCylinder( WORLD.abyss.center.x + f.x, WORLD.abyss.center.z + f.z, f.radius * 0.53, f.floor - 0.2, f.floor + f.height * 0.80, { tag: 'abyssRock' } );
-			if ( f.type === 'column' ) colliders.addBox( new Vector3( WORLD.abyss.center.x + f.x, f.floor + f.height / 2, WORLD.abyss.center.z + f.z ), new Vector3( 0.61, f.height / 2, 0.68 ), f.yaw || Math.atan2( f.x, f.z ), { tag: 'abyssColumn' } );
 
 		}
 		this.time = 0;
