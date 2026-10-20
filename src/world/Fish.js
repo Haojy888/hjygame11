@@ -1523,7 +1523,7 @@ export class FishSchools {
 				// switch; faded out over the last tenth of the draw distance
 				const lod = px > LOD_PX[ 0 ] ? 0 : px > LOD_PX[ 1 ] ? 1 : px > LOD_PX[ 2 ] ? 2 : 3;
 				const k0 = this.kind[ i ] + lod;
-				const realistic = this.realistic.add( sp.model, D, o, d );
+				const realistic = this.realistic.add( sp.model, D, o, d, px );
 				if ( realistic > 0 ) {
 
 					if ( realistic < 1 ) batch.addFade( k0, i, realistic, true );

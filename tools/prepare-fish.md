@@ -15,6 +15,17 @@ $blenderExe = '<blender.exe>'
 
 `../fish-realism/blender/*.blend` 是可编辑的 Blender 工程，`public/models/fish-realistic/*.glb` 是游戏运行资源。导出后应以实际游戏渲染检查两侧轮廓、贴图、尾摆和钓获卡边界；仅有 Blender 导出成功不代表视觉验收通过。
 
+水下鱼群使用同一批钓获成品派生的静态 GLB（每种约 6000 三角面、两张 1024 PNG），通过原有群游着色器逐条摆尾。更新钓获资产后，用以下命令重新导出鱼群模型和透明图鉴图片；图鉴仅下载 PNG，不预载 18 个高精度模型：
+
+```powershell
+& $blenderExe -b --factory-startup --python-exit-code 1 --python tools/prepare-fish-schools.py -- --source public/models/fish-realistic --output public/models/fish-schools --work ../../work/fish-school-detail
+node test/actual-real-fish-render.mjs public/images/fish-realistic --thumbnail
+Move-Item -LiteralPath public/images/fish-realistic/manifest.json -Destination ../../work/fish-school-detail/guide-render-manifest.json -Force
+npm run test:fish-schools
+```
+
+鱼群在 6–12 米、屏幕体长 32–72 像素之间渐变到简化模型；最多同时显示 24 条精细鱼、每种 8 条，最多缓存 6 种鱼贴图且逐个下载。进入新海域时仅替换已离开视野至少 8 秒的贴图缓存。加载失败会保留简化鱼群。
+
 ## 第二批：拿骚石斑鱼、鬼头刀与鹦嘴鱼候选
 
 第二批源文件位于 `../fish-realism-batch2/lux3d-source/`，Blender 工程位于 `../fish-realism-batch2/blender/`。从仓库根目录运行：

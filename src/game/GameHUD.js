@@ -148,6 +148,11 @@ const CSS = WORKSHOP_CSS + /* css */`
 .gm-boat-info .gm-btn { margin-top: auto; width: 100%; white-space: normal; }
 @media (max-width: 600px) { .gm-boat-grid { grid-template-columns: minmax(0, 1fr); } }
 .gm-log { margin-top: var(--tw-3); color: var(--tw-ink-3); font-size: var(--tw-fs-sm); line-height: 1.5; }
+.gm-fish-log { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: var(--tw-2); margin-top: var(--tw-2); }
+.gm-fish-entry { min-width: 0; padding: var(--tw-2); border: 1px solid var(--tw-line); border-radius: var(--tw-r-md); background: var(--tw-fill); }
+.gm-fish-entry img { display: block; width: 100%; height: auto; aspect-ratio: 36 / 17; object-fit: contain; }
+.gm-fish-entry b { display: block; color: var(--tw-ink); }
+.gm-fish-entry span { display: block; }
 .gm-order-offer { padding: var(--tw-3); margin-bottom: var(--tw-2); border: 1px solid var(--tw-line-2); border-radius: var(--tw-r-md); background: var(--tw-fill); }
 .gm-order-offer .gm-order-head { color: var(--tw-ink-2); }
 .gm-order-offer .gm-order-line { margin-top: var(--tw-2); }
@@ -827,7 +832,8 @@ export class GameHUD {
 
 		const s = this.game.state;
 		const rows = s.inventory.map( ( f ) => `<div class="gm-row has-cm"><span>${ FISH[ f.species ].name }${ f.record ? '<small>纪录</small>' : '' }</span><span class="gm-cm">${ f.cm ?? Math.round( fishLengthCm( f.species, f.kg ) ) } cm</span><span class="gm-kg">${ f.kg.toFixed( 2 ) } kg</span><span class="gm-val">$${ f.value }</span><button class="gm-mini" data-release="${ f.id }">放生</button></div>` ).join( '' );
-		const logged = Object.entries( s.log ).filter( ( [ k ] ) => FISH[ k ] ).map( ( [ k, v ] ) => `${ FISH[ k ].name }: 已捕获 ${ v.count } 条，最大 ${ v.bestKg.toFixed( 2 ) } kg · ${ v.bestCm ?? Math.round( fishLengthCm( k, v.bestKg ) ) } cm` ).join( '<br>' );
+		const imageBase = ( ( import.meta.env && import.meta.env.BASE_URL ) || '/' ) + 'images/fish-realistic/';
+		const logged = Object.entries( s.log ).filter( ( [ k ] ) => Object.hasOwn( FISH, k ) ).map( ( [ k, v ] ) => `<article class="gm-fish-entry"><img src="${ imageBase + k }.png" alt="${ FISH[ k ].name }" width="360" height="170" loading="lazy" decoding="async"><b>${ FISH[ k ].name }</b><span>已捕获 ${ v.count } 条</span><span>最大 ${ v.bestKg.toFixed( 2 ) } kg · ${ v.bestCm ?? Math.round( fishLengthCm( k, v.bestKg ) ) } cm</span></article>` ).join( '' );
 		this.inv.innerHTML = `
 			<h2>${ s.upgrades.hold > 0 ? '鱼舱' : '保温箱' }</h2>
 			<p class="gm-sub">共 ${ s.inventory.length } 条鱼 · 已装 ${ s.holdKg.toFixed( 1 ) } / ${ s.stats.holdKg } kg · 总价值 $${ s.holdValue }</p>
@@ -843,7 +849,7 @@ export class GameHUD {
 				${ this.radioMarkup() }
 				${ this.cabinMarkup() }
 				${ rows || '<div class="gm-empty">还没有渔获。去码头、海滩或船上抛竿吧。</div>' }
-				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><br>${ logged }</div>` : '' }
+				${ logged ? `<div class="gm-log"><b>鱼类图鉴</b><div class="gm-fish-log">${ logged }</div></div>` : '' }
 			</div>
 			<div class="gm-foot"><span class="gm-sub">去码头旁的鱼摊出售渔获</span><button class="gm-btn is-ghost" data-close>关闭 (I)</button></div>`;
 		this.inv.querySelector( '[data-close]' ).onclick = () => this.toggleInventory( false );

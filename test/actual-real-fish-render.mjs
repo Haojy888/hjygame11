@@ -1,5 +1,5 @@
 // Explicit asset acceptance/render tool, not part of the synthetic npm test regression.
-// node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card]
+// node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card|--thumbnail]
 // Blender must embed 8-bit, non-interlaced PNGs. Reuse the engine tests' PNG decoder.
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ import { FISH, FISH_IDS } from '../src/game/FishTable.js';
 
 assert.ok( process.argv[ 2 ], 'Usage: node test/actual-real-fish-render.mjs <output-directory> [species ...] [--card]' );
 const folder = resolve( process.argv[ 2 ] );
-const requested = process.argv.slice( 3 ).filter( ( argument ) => argument !== '--card' );
+const requested = process.argv.slice( 3 ).filter( ( argument ) => ! [ '--card', '--thumbnail' ].includes( argument ) );
 const supported = FISH_IDS;
 const speciesIds = requested.length ? requested : supported;
 for ( const id of speciesIds ) assert.ok( supported.includes( id ), 'Unsupported asset: ' + id );
@@ -60,7 +60,8 @@ const gpuErrors = [];
 GPU.device.addEventListener( 'uncapturederror', ( event ) => gpuErrors.push( event.error.message ) );
 setShadowMap( new Texture( { width: 1, height: 1, depth: 1, dimension: '2d-array', format: 'depth32float', usage: [ 'sample', 'render' ] } ) );
 const card = process.argv.includes( '--card' );
-const W = card ? 1200 : 1000, H = card ? 500 : 600;
+const thumbnail = process.argv.includes( '--thumbnail' );
+const W = thumbnail ? 360 : card ? 1200 : 1000, H = thumbnail ? 170 : card ? 500 : 600;
 const portrait = new FishPortrait();
 const target = portrait._target( 'actual-fish', W * 2, H * 2 );
 const rgba = new Texture( { width: W, height: H, format: 'rgba8unorm', usage: [ 'render', 'sample', 'copySrc' ] } );
@@ -98,7 +99,8 @@ for ( const species of speciesIds ) {
 	} ) );
 	assert.ok( materials.some( ( material ) => material.albedo ), species + ' has no base color texture' );
 	const entry = { species, name: FISH[ species ].name, kg, bounds, width: W, height: H, joints: model.joints, clips: model.clipNames(), animated, materials, images: decoded.slice( imageStart ), views: [] };
-	for ( const [ view, yaw, time ] of [ [ 'side', 0, 0 ], [ 'three-quarter', - 0.58, 0 ], [ 'side-tail', 0, 0.5 ], [ 'opposite', Math.PI, 0 ] ] ) {
+	const views = thumbnail ? [ [ 'side', 0, 0 ] ] : [ [ 'side', 0, 0 ], [ 'three-quarter', - 0.58, 0 ], [ 'side-tail', 0, 0.5 ], [ 'opposite', Math.PI, 0 ] ];
+	for ( const [ view, yaw, time ] of views ) {
 
 		for ( const layer of model.layers ) layer.time = time;
 		model.update( 0 );
@@ -118,13 +120,20 @@ for ( const species of speciesIds ) {
 			await GPU.pipelinesReady();
 
 		}
-		const image = await readTexture( output );
+		const image = await readTexture( thumbnail ? rgba : output );
 		const pixels = new Uint8Array( ( await readTexture( rgba ) ).data );
 		const coverage = silhouette( pixels, W, H );
-		assert.ok( coverage.count > 3000, species + ' produced an empty/too-small portrait' );
+		assert.ok( coverage.count > ( thumbnail ? 500 : 3000 ), species + ' produced an empty/too-small portrait' );
 		assert.ok( coverage.min[ 0 ] > 0 && coverage.min[ 1 ] > 0 && coverage.max[ 0 ] < W - 1 && coverage.max[ 1 ] < H - 1, species + ' is cropped by the portrait frame' );
-		const path = join( folder, species + '-' + view + '.png' );
-		writePNG( path, W, H, new Uint8Array( image.data ) );
+		const path = join( folder, species + ( thumbnail ? '' : '-' + view ) + '.png' );
+		const png = new Uint8Array( image.data );
+		if ( thumbnail ) for ( let i = 0; i < png.length; i += 4 ) {
+
+			const alpha = png[ i + 3 ];
+			if ( alpha > 0 && alpha < 255 ) for ( let c = 0; c < 3; c ++ ) png[ i + c ] = Math.min( 255, Math.round( png[ i + c ] * 255 / alpha ) );
+
+		}
+		writePNG( path, W, H, png );
 		entry.views.push( { view, yaw, time, path, coverage, stats: { ...portrait.renderer.stats } } );
 		console.log( species, view, 'triangles', portrait.renderer.stats.triangles, 'coverage', coverage.count );
 
