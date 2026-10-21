@@ -147,7 +147,11 @@ export class Player {
 		const bp = this.boat.toWorld( this.boat.model.boardPoint, _v );
 		const d = Math.hypot( bp.x - this.position.x, bp.z - this.position.z );
 		const dy = Math.abs( bp.y - this.position.y );
-		return d < 4.2 && dy < 3.2;
+		if ( d >= 4.2 || dy >= 3.2 ) return false;
+		const eye = this.position.clone(); eye.y += this.mode === 'swim' ? SWIM_EYE : EYE;
+		bp.y += EYE; bp.sub( eye );
+		const distance = bp.length();
+		return distance < 0.00001 || this.colliders.raycast( eye, bp.divideScalar( distance ), distance ) >= distance - 0.01;
 
 	}
 
@@ -268,17 +272,17 @@ export class Player {
 		const old = p.clone();
 		this.colliders.moveCapsule( p, this.velocity.clone().multiplyScalar( dt ), RADIUS, HEIGHT, 0.4 );
 		if ( this.velocity.y > 0 && p.y < old.y + this.velocity.y * dt - 0.00001 ) this.velocity.y = 0;
-		const g = this.groundAt( p.x, p.z, p.y + 0.45 );
+		let g = this.groundAt( p.x, p.z, p.y + 0.45 );
+		if ( g > p.y + 0.00001 && ! this.canStandAt( p.clone().setY( g ), 0.4 ) ) {
+
+			// Treat this riser as a wall while retaining movement along its face.
+			p.copy( old ); this.colliders.moveCapsule( p, this.velocity.clone().multiplyScalar( dt ), RADIUS, HEIGHT, 0 );
+			g = this.groundAt( p.x, p.z, p.y + 0.00001 );
+
+		}
 		if ( p.y <= g ) {
 
-			const landing = p.clone().setY( g );
-			if ( g > p.y + 0.00001 && ! this.canStandAt( landing, 0.4 ) ) {
-
-				// A riser under a low ceiling is a wall, not a step into the ceiling.
-				p.copy( old ); this.velocity.set( 0, 0, 0 ); return;
-
-			}
-			p.copy( landing );
+			p.y = g;
 			if ( this.velocity.y < 0 ) this.velocity.y = 0;
 			this.grounded = true;
 
@@ -314,7 +318,12 @@ export class Player {
 
 			const wadedIn = this.grounded;
 			this.mode = 'swim';
-			if ( wadedIn ) p.y = Math.max( p.y, this.waterH - SWIM_EYE + 0.1 );
+			if ( wadedIn ) {
+
+				this.colliders.moveCapsule( p, _v.set( 0, Math.max( 0, this.waterH - SWIM_EYE + 0.1 - p.y ), 0 ), RADIUS, 1.0, 0 );
+				this.floating = true;
+
+			}
 			this.velocity.y = wadedIn ? 0 : Math.max( this.velocity.y * 0.3, - 2.5 );
 			if ( this.audio ) this.audio.splash( wadedIn ? 0.2 : 0.5, p );
 
@@ -429,7 +438,7 @@ export class Player {
 	updateLadder( dt ) {
 
 		const b = this.climbing, inp = this.input, p = this.position;
-		if ( ! b?.climbTo || this.busy || inp.down( 'KeyS' ) || inp.down( 'KeyC' ) ) {
+		if ( ! b?.climbTo || this.busy || inp.down( 'KeyS' ) || inp.down( 'KeyC' ) || inp.down( 'ControlLeft' ) ) {
 
 			this.climbing = null; this.velocity.set( 0, 0, 0 ); this.floating = p.y >= this.waterH - 0.45;
 			if ( p.y > this.waterH + 0.4 ) this.mode = 'walk';
@@ -559,7 +568,8 @@ export class Player {
 
 	}
 
-	// target: an ashoreTarget() spot; side: +1 / -1 jumps overboard on the starboard / port side
+	// target: a cached exit hint, refreshed in the current hull pose before landing.
+	// side: +1 / -1 jumps overboard on the starboard / port side.
 	exitBoat( target = null, side = 0 ) {
 
 		const b = this.boat;
@@ -569,7 +579,7 @@ export class Player {
 		b.driven = false;
 		b.throttle = 0;
 		// the exit point closest to something walkable (pier deck / sand)
-		let best = side ? null : this.ashoreTarget();
+		const best = side ? null : this.ashoreTarget( target?.ep );
 
 		const dock = ( b.dock || b.model.dock || WORLD.boatDock ).position;
 		if ( ! b.capsized && b.position.distanceTo( dock ) < 14 && b.speed < 1.5 ) {
@@ -580,8 +590,6 @@ export class Player {
 
 		}
 
-		if ( target && ! b.capsized && this.canStandAt( target.out.clone().setY( target.g ) )
-			&& Math.abs( this.groundAt( target.out.x, target.out.z, target.g + 0.1 ) - target.g ) < 0.1 ) best = target;
 		if ( best ) {
 
 			this.position.set( best.out.x, best.g, best.out.z );
@@ -591,7 +599,7 @@ export class Player {
 
 			// Use a level offset even when the hull is upside down; leave the person at the surface.
 			const yaw = b.getYaw();
-			const reach = 2.8 * ( b.model.visualScale?.x ?? 1 ) * ( side || 1 );
+			const reach = 2.8 * ( b.model.visualScale?.x ?? 1 ) * ( side || Math.sign( target?.ep?.x || 0 ) || 1 );
 			const w = new THREE.Vector3( b.position.x + Math.cos( yaw ) * reach, 0, b.position.z - Math.sin( yaw ) * reach );
 			// (the boat floats at the water line: the walker's water height is stale while aboard)
 			this.waterH = this.waterMean = b.sampleWaterAt( w );
@@ -645,7 +653,7 @@ export class Player {
 	// best walkable spot next to the boat (pier deck / sand / shallows), or null. Looks straight out
 	// from the rail at each exit point (square to the hull, a few reaches: the boat swings on its
 	// mooring) for ground from a little below the rail up to a pier deck a climb above it.
-	ashoreTarget() {
+	ashoreTarget( exitPoint = null ) {
 
 		const b = this.boat;
 		const water = this.query.cpuValid ? this.query.cpu[ 0 ] : 0;
@@ -655,6 +663,7 @@ export class Player {
 		let best = null, bestScore = Infinity;
 		for ( const ep of b.model.exitPoints ) {
 
+			if ( exitPoint && ep !== exitPoint ) continue;
 			const w = b.toWorld( ep, new THREE.Vector3() );
 			const sgn = Math.sign( ep.x ) || 1;
 			for ( const reach of [ 0.9, 1.4, 2.0 ] ) {

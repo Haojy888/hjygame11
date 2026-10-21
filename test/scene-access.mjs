@@ -182,10 +182,31 @@ for ( const fps of [ 12, 30, 60, 144 ] ) {
 		assert.ok( step.player.position.y + 1.75 <= 1.85001, fps + ' FPS: stepping requires standing headroom' );
 
 	}
+	step.input.keys.add( 'KeyD' );
+	for ( let n = 0; n < Math.ceil( fps * 1.2 ); n ++ ) step.frame( 1 / fps );
+	assert.ok( step.player.position.x > 1, fps + ' FPS: diagonal input slides along a blocked riser instead of sticking' );
+	assert.ok( step.player.position.y + 1.75 <= 1.85001 );
+	step.input.keys.delete( 'KeyD' ); step.player.position.set( 0, 0, 1.6 ); step.player.velocity.set( 0, 0, 0 ); step.player.grounded = true;
 	step.colliders.boxes.splice( step.colliders.boxes.indexOf( ceiling ), 1 );
 	let highest = 0;
 	for ( let n = 0; n < fps; n ++ ) { step.frame( 1 / fps ); highest = Math.max( highest, step.player.position.y ); }
 	assert.ok( highest >= 0.19, 'the same riser remains climbable with enough headroom' );
+
+	const wade = harness(); wade.player.terrain.heightAt = () => - 1.36;
+	const overhang = wade.colliders.addBox( V( 0, 0.7, 0 ), V( 3, 0.1, 3 ) );
+	wade.player.position.set( 0, - 1.36, 0 ); wade.player.mode = 'walk'; wade.player.grounded = true; wade.player.floating = false;
+	for ( let n = 0; n < fps; n ++ ) {
+
+		wade.frame( 1 / fps );
+		assert.equal( wade.player.mode, 'swim' );
+		assert.ok( wade.player.position.y + 1 <= overhang.bottom + 0.00001, fps + ' FPS: wading-to-swimming lift respects an overhang' );
+		assert.ok( Math.hypot( wade.player.position.x, wade.player.position.z ) < 0.001 );
+
+	}
+	assert.equal( wade.player.floating, true, 'entering the water resets an earlier diving state' );
+	wade.colliders.boxes.splice( wade.colliders.boxes.indexOf( overhang ), 1 );
+	for ( let n = 0; n < fps * 2; n ++ ) wade.frame( 1 / fps );
+	assert.ok( wade.player.position.y > - 0.15, 'a wading swimmer floats normally once the overhang clears' );
 
 	const climb = harness(), transfer = climb.colliders.addBox( V( 0, 1, 0 ), V( 0.3, 1, 0.1 ), 0,
 		{ solid: false, tag: 'ladder', climbTo: V( 0, 2, 1 ) } );
@@ -201,6 +222,8 @@ for ( const fps of [ 12, 30, 60, 144 ] ) {
 	for ( let n = 0; n < fps * 3; n ++ ) climb.frame( 1 / fps );
 	assert.ok( climb.player.position.y + 1.75 <= beam.bottom + 0.00001, 'the ladder ascent cannot pass through an overhead beam' );
 	assert.match( climb.player.prompt.text, /受阻/ );
+	climb.input.keys.clear(); climb.input.keys.add( 'ControlLeft' ); climb.frame( 1 / fps );
+	assert.equal( climb.player.climbing, null, 'Ctrl releases the ladder like the other diving key' );
 
 }
 
@@ -214,5 +237,24 @@ for ( const Model of [ BoatModel, OffshoreBoatModel ] ) {
 	assert.ok( exit.player.mode !== 'walk' || Math.hypot( exit.player.position.x - cached.out.x, exit.player.position.z - cached.out.z ) > 0.69,
 		'cached disembarkation targets are rechecked when occupied before E is pressed' );
 
+	const board = harness( Model ), point = board.app.boatCtl.toWorld( board.model.boardPoint, V() );
+	board.player.mode = 'walk'; board.player.position.copy( point ).add( V( 3, 0, 0 ) );
+	const partition = board.colliders.addBox( point.clone().add( V( 1.5, 1, 0 ) ), V( 0.02, 1.2, 2 ) );
+	assert.equal( board.player.nearBoat(), false, Model.name + ': a wall blocks boarding range' );
+	board.input.pressed.add( 'KeyE' ); board.frame(); assert.notEqual( board.player.mode, 'deck', 'E cannot board through a solid wall' );
+	board.colliders.boxes.splice( board.colliders.boxes.indexOf( partition ), 1 );
+	board.player.position.copy( point ).add( V( 3, 0, 0 ) ); board.player.velocity.set( 0, 0, 0 );
+	assert.equal( board.player.nearBoat(), true ); board.input.pressed.add( 'KeyE' ); board.frame();
+	assert.equal( board.player.mode, 'deck', 'the same approach boards normally once the wall clears' );
+
+	const drift = harness( Model );
+	drift.colliders.addBox( V( 205, 2.28, 200 ), V( 3, 0.12, 6 ), 0, { walkable: true } );
+	drift.player.boardBoat(); const previousLanding = drift.player.ashoreTarget(); assert.ok( previousLanding );
+	drift.app.boatCtl.position.x -= 20; drift.app.boatCtl.apply(); drift.player.deckToWorld();
+	drift.player.exitBoat( previousLanding );
+	assert.equal( drift.player.mode, 'swim', 'moving away from the pier invalidates the cached landing even when it remains clear' );
+	assert.ok( Math.hypot( drift.player.position.x - drift.app.boatCtl.position.x, drift.player.position.z - drift.app.boatCtl.position.z ) < 8,
+		'jumping overboard stays beside the current hull instead of teleporting back to the old pier' );
+
 }
-console.log( 'Scene access passed: 12/30/60/144 FPS station/harbor climbing, swept ladder ascent/transfer, buoyancy ceilings, step headroom, cached exits, both hulls, thin walls and floor/ceiling sweeps.' );
+console.log( 'Scene access passed: 12/30/60/144 FPS climbing/release, buoyancy and wading ceilings, step headroom and diagonal sliding, occupied/moved exits, boarding occlusion, both hulls and floor/ceiling sweeps.' );
