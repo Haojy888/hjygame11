@@ -58,9 +58,11 @@ for ( const fps of [ 12, 30, 60, 144 ] ) {
 }
 h.player.mode = 'swim'; h.player.position.copy( h.world.stationLadder ); h.input.keys.add( 'Space' );
 for ( let i = 0; i < 40; i ++ ) h.frame();
+assert.match( h.player.prompt.text, /\d+%.*Ctrl/, 'active climbing shows progress and release controls' );
 assert.ok( h.player.climbing ); const pausedY = h.player.position.y; h.input.keys.clear();
 for ( let i = 0; i < 20; i ++ ) h.frame();
 assert.equal( h.player.position.y, pausedY, 'releasing the climb key holds the ladder' );
+assert.match( h.player.prompt.text, /停在梯上.*继续/, 'a paused climb explains how to resume' );
 h.input.keys.add( 'KeyS' ); h.frame(); h.input.keys.clear();
 assert.equal( h.player.climbing, null, 'S releases the ladder' );
 h.player.climbing = ladder; h.player.rescueToHarbor(); assert.equal( h.player.climbing, null, 'rescue clears a pending climb' );

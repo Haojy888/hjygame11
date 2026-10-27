@@ -57,6 +57,9 @@ for ( const [ id, geometry ] of geometries ) actual.assets.models.set( id, new M
 camera.position.copy( actual.dolphins[ 0 ].pos );
 actual.updateAssets( 0.6 ); assert.equal( actual.views.get( 'dolphin' )[ 0 ].material.opacity, 0.5 );
 assert.equal( actual.dolphins[ 0 ].high.visible, true, 'Outgoing geometry covers a slow source handoff' );
+camera.position.copy( actual.morayPoint ); actual.updateAssets( 0 );
+actual.eel.traverse( object => { if ( object.material ) assert.equal( object.material.opacity, 0.5, 'Old eyes and jaw fade with the old body' ); } );
+camera.position.copy( actual.dolphins[ 0 ].pos );
 actual.updateAssets( 0.6 ); assert.equal( actual.dolphins[ 0 ].high.visible, false );
 assert.equal( actual.views.get( 'dolphin' ).length, 3 );
 assert.ok( actual.views.get( 'dolphin' ).every( view => ! view.staticVelocity ), 'Moving views preserve per-animal transform history' );
@@ -75,9 +78,43 @@ for ( const segment of actual.moraySolids ) {
 	assert.equal( colliders.resolveCapsule( inside, 0.3, 0.55, 0 ), true, 'The curved visible eel body excludes a diver' );
 
 }
-assert.equal( actual.assets.models.get( 'moray' ).material.uniforms.reaction.value, 1 );
-actual.app.localLights.flashlight.on = false; actual.updateAssets( 0.016 );
-assert.equal( actual.assets.models.get( 'moray' ).material.uniforms.reaction.value, 0 );
-assert.equal( actual.assets.models.get( 'moray' ).material.uniforms.previousReaction.value, 1 );
 assert.equal( colliders.capsules.length, count, 'Collision fitting runs once per source' );
-console.log( 'PASS: three actual PBR coastal GLBs; axes/budgets; deferred loading and offline dedup; loading/distance handoff, per-animal history, curved-body collision and flashlight response.' );
+
+// The reaction follows the held beam, rather than the flashlight toggle alone.
+const lights = actual.app.localLights, fl = lights.flashlight;
+actual.app.player = { mode: 'swim', position: new Vector3( 500, 0, 500 ) };
+for ( const fps of [ 12, 30, 60, 144 ] ) {
+
+	const tick = seconds => { for ( let n = 0; n < Math.round( seconds * fps ); n ++ ) actual.update( 1 / fps ); };
+	actual.morayReaction = 0; fl.on = true; fl.primed = false; lights.enabled = true;
+	camera.position.copy( actual.morayPoint ).add( new Vector3( 0, 0.1, 3 ) ); camera.lookAt( actual.morayPoint );
+	actual.update( 1 / fps );
+	assert.ok( actual.morayReaction > 0 && actual.morayReaction < 0.3, fps + ' FPS: reaction starts smoothly' );
+	tick( 1 ); assert.ok( actual.morayReaction > 0.97, 'aiming at the head produces a response' );
+	const material = actual.assets.models.get( 'moray' ).material;
+	assert.equal( material.uniforms.reaction.value, actual.morayReaction );
+	assert.equal( material.uniforms.previousReaction.value, actual.previousMorayReaction );
+	camera.lookAt( camera.position.clone().add( new Vector3( 0, 0, 1 ) ) );
+	tick( 2 ); assert.ok( actual.morayReaction < 0.001, 'a light aimed away lets the eel settle' );
+	fl.primed = true; fl.position = camera.position.clone(); fl.dir = actual.morayPoint.clone().sub( fl.position ).normalize();
+	tick( 1 ); assert.ok( actual.morayReaction > 0.97, 'the real held beam takes precedence over camera direction' );
+	const blocker = colliders.addBox( camera.position.clone().lerp( actual.morayPoint, 0.5 ), new Vector3( 1, 1, 0.1 ) );
+	tick( 2 ); assert.ok( actual.morayReaction < 0.001, 'a static obstruction stops the beam stimulus' );
+	colliders.boxes.splice( colliders.boxes.indexOf( blocker ), 1 );
+	for ( const [ object, key, value ] of [ [ lights, 'enabled', false ], [ actual.app, 'freeCam', true ], [ actual.app.player, 'mode', 'walk' ] ] ) {
+
+		const previous = object[ key ]; object[ key ] = value;
+		tick( 1 ); assert.ok( actual.morayReaction < 0.001, key + ': inactive observation does not provoke a reaction' );
+		object[ key ] = previous;
+
+	}
+	fl.position.copy( actual.morayPoint ).add( new Vector3( 0, 0, 9 ) );
+	tick( 1 ); assert.ok( actual.morayReaction < 0.001, 'a distant beam is outside reaction range' );
+	fl.position.copy( camera.position ); fl.on = false;
+	tick( 1 ); assert.ok( actual.morayReaction < 0.001, 'switching the torch off restores calm' );
+	fl.on = true; const originalFloor = actual.app.terrainData.heightAt; actual.app.terrainData.heightAt = () => 100;
+	tick( 1 ); assert.ok( actual.morayReaction < 0.001, 'terrain also blocks the beam' );
+	actual.app.terrainData.heightAt = originalFloor;
+
+}
+console.log( 'PASS: three actual PBR coastal GLBs; deferred loading/offline dedup; complete body/eye fades; per-animal history; curved collision; smooth directional, occluded and range-limited flashlight response at 12/30/60/144 FPS.' );

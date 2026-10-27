@@ -2184,7 +2184,7 @@ export class UI {
 						${ row( mouse, '环顾四周<small>点击画面锁定鼠标</small>' ) }
 						${ row( k( 'Shift' ), '奔跑、加速开船' ) }
 						${ row( k( '空格' ), '跳跃、上浮' ) }
-						${ row( k( 'W' ) + k( '空格' ), '攀爬梯子<small>水中靠近观测站或码头梯子，按住其中一键；S 松开</small>' ) }
+						${ row( k( 'W' ) + k( '空格' ), '攀爬梯子<small>水中靠近观测站或码头梯子，按住其中一键；松键停留，S / Ctrl 松开梯子</small>' ) }
 						${ row( k( 'C' ), '下蹲、下潜' ) }
 					</section>
 					<section>

@@ -29,7 +29,7 @@ const errors = []; GPU.device.addEventListener( 'uncapturederror', e => errors.p
 const terrain = new TerrainData(), colliders = new Colliders(), lights = new LocalLights();
 SceneLighting.set( 'localLights', localLightsModule );
 ocean.scene.add( groundMesh( terrain, - 40, 220, 610, 3 ) );
-const app = { scene: ocean.scene, camera: ocean.camera, terrainData: terrain, colliders, localLights: lights };
+const app = { scene: ocean.scene, camera: ocean.camera, terrainData: terrain, colliders, localLights: lights, player: { mode: 'swim' } };
 const world = new ExplorationWorld( app ), wreck = new WreckScene( { scene: ocean.scene, terrain, colliders } );
 for ( const id of wreck.assets.ids ) assert.equal( await wreck.assets.load( id ), true );
 assert.equal( await world.lighthouseAssets.load( 'lighthouse' ), true, 'Use the actual generated lighthouse' );
@@ -75,6 +75,7 @@ for ( const [ name, position, target ] of views ) {
 		else assert.ok( world.life.seahorses.every( fish => ! fish.visible ) );
 
 	}
+	if ( animal === 'moray' ) assert.ok( world.life.morayReaction > 0, 'The held flashlight drives the actual generated moray response' );
 	if ( animal ) {
 
 		const velocity = new Uint16Array( ( await readTexture( ocean.sr.velocityTexture ) ).data );

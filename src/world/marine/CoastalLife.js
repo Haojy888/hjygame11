@@ -1,4 +1,4 @@
-import { Group, Mesh, Vector3, Color } from '../../engine/index.js';
+import { Group, Mesh, Vector3, Color, MathUtils } from '../../engine/index.js';
 import { Material } from '../../engine/render/Material.js';
 import { GPU } from '../../engine/gpu/GPU.js';
 import { lodFadeModule } from '../../materials/LODFade.js';
@@ -85,6 +85,7 @@ export class CoastalLife {
 	constructor( app, parent ) {
 
 		this.app = app; this.time = 0; this.group = new Group(); this.group.name = '近海生命'; parent.add( this.group );
+		this.morayReaction = 0; this.previousMorayReaction = 0;
 		const near = dolphinGeometry(), far = dolphinGeometry( 10 );
 		this.dolphins = Array.from( { length: 3 }, ( _, i ) => {
 
@@ -120,6 +121,7 @@ export class CoastalLife {
 		this.eel = new Group(); this.eel.add( eel ); this.moray.add( this.eel );
 		const jaw = this.jaw = new Mesh( sphere( 0.13, 12, 8 ).scale( 1, 0.4, 2.2 ).translate( 0, 0, 0.18 ), material ); jaw.position.set( 0, - 0.08, 0.58 ); this.eel.add( jaw );
 		const eyes = new Material( { color: 0xd0c989, roughness: 0.2 } ), pupils = new Material( { color: 0x17251f, roughness: 0.2 } );
+		outgoingFade( eyes, 35, 43 ); outgoingFade( pupils, 35, 43 );
 		for ( const side of [ - 1, 1 ] ) {
 
 			const eye = new Mesh( sphere( 0.031, 10, 7 ), eyes ); eye.position.set( side * 0.163, 0.07, 0.71 ); this.eel.add( eye );
@@ -217,10 +219,41 @@ export class CoastalLife {
 		}
 		this.moray.visible = cp.distanceToSquared( this.moray.position ) < 65 ** 2;
 		this.garden.visible = cp.distanceToSquared( this.garden.position ) < 55 ** 2;
-		const near = cp.distanceToSquared( this.morayPoint ) < 8 ** 2, lit = !! app.localLights?.flashlight?.on && near;
-		this.eel.rotation.y = Math.sin( this.time * 0.4 ) * 0.06; this.jaw.rotation.x = 0.12 + ( lit ? 0.24 : 0.06 ) * ( 0.5 + 0.5 * Math.sin( this.time * 1.8 ) );
+		this.updateMorayReaction( dt );
+		this.eel.rotation.y = Math.sin( this.time * 0.4 ) * 0.06; this.jaw.rotation.x = 0.12 + ( 0.06 + this.morayReaction * 0.18 ) * ( 0.5 + 0.5 * Math.sin( this.time * 1.8 ) );
 		for ( let i = 0; i < this.seahorses.length; i ++ ) this.seahorses[ i ].rotation.z = Math.sin( this.time * 0.8 + i ) * 0.05;
 		this.updateAssets( dt );
+
+	}
+
+	updateMorayReaction( dt ) {
+
+		const app = this.app, lights = app.localLights, fl = lights?.flashlight;
+		let exposure = 0;
+		if ( ! app.freeCam && app.player?.mode === 'swim' && fl?.on && lights.enabled !== false ) {
+
+			const from = fl.primed ? fl.position : app.camera.position;
+			const direction = fl.primed ? fl.dir : app.camera.getWorldDirection( V() );
+			const toward = this.morayPoint.clone().sub( from ), distance = toward.length();
+			const range = Math.min( 8, fl.range ?? 30 ), outer = fl.cosOuter ?? 0.819, inner = fl.cosInner ?? 0.988;
+			const cosine = distance > 0.01 ? toward.divideScalar( distance ).dot( direction ) : 1;
+			if ( distance < range && cosine > outer ) {
+
+				exposure = MathUtils.smoothstep( cosine, outer, inner ) * ( 1 - MathUtils.smoothstep( distance, range * 0.7, range ) );
+				if ( app.colliders?.raycast( from, toward, distance ) < distance - 0.15 ) exposure = 0;
+				for ( let i = 1; exposure > 0 && i < 8; i ++ ) {
+
+					const p = from.clone().lerp( this.morayPoint, i / 8 );
+					const floor = Math.max( app.terrainData.heightAt( p.x, p.z ), app.reef?.floorHeightAt?.( p.x, p.z ) ?? - Infinity );
+					if ( floor + 0.1 > p.y ) exposure = 0;
+
+				}
+
+			}
+
+		}
+		this.previousMorayReaction = this.morayReaction;
+		this.morayReaction += ( exposure - this.morayReaction ) * ( 1 - Math.exp( - dt * 4 ) );
 
 	}
 
@@ -297,14 +330,15 @@ export class CoastalLife {
 			} else if ( id === 'moray' ) {
 
 				const distance = cp.distanceToSquared( this.morayPoint ), close = distance < 43 ** 2;
-				this.eel.children[ 0 ].material.opacity = close ? age : 0; this.eel.visible = ! close || age < 1 || distance > 35 ** 2;
+				this.eel.traverse( object => { if ( object.material ) object.material.opacity = close ? age : 0; } );
+				this.eel.visible = ! close || age < 1 || distance > 35 ** 2;
 				const view = this.views.get( id )?.[ 0 ]; if ( view ) view.visible = close;
 				if ( view && close ) {
 
 					view.position.copy( this.moray.position ).add( V( 0, - HEIGHTS.moray * 0.45, - 0.15 ) ); view.rotation.y = this.eel.rotation.y;
 					view.scale.set( HEIGHTS.moray, HEIGHTS.moray * ( 1 + Math.sin( this.time * 1.8 ) * 0.02 ), HEIGHTS.moray );
-					mesh.material.set( 'previousReaction', mesh.material.uniforms.reaction.value );
-					mesh.material.set( 'reaction', this.app.localLights?.flashlight?.on && cp.distanceToSquared( this.morayPoint ) < 8 ** 2 ? 1 : 0 );
+					mesh.material.set( 'previousReaction', this.previousMorayReaction );
+					mesh.material.set( 'reaction', this.morayReaction );
 					view.updateWorldMatrix( true, false );
 					for ( const segment of this.moraySolids || [] ) {
 

@@ -445,19 +445,24 @@ export class Player {
 			return;
 
 		}
-		this.prompt = { key: 'W / 空格', text: '攀爬梯子 · S 松开' };
 		this.velocity.set( 0, 0, 0 );
-		if ( ! inp.down( 'KeyW' ) && ! inp.down( 'Space' ) ) return;
+		if ( ! inp.down( 'KeyW' ) && ! inp.down( 'Space' ) ) {
+
+			this.prompt = { key: 'W / 空格', text: '停在梯上 · 按住继续 · S / Ctrl 松开' }; return;
+
+		}
 		const k = 1 - Math.exp( - dt * 8 );
 		const next = p.clone().set( p.x + ( b.center.x - p.x ) * k, Math.min( b.climbTo.y, p.y + dt * 1.6 ), p.z + ( b.center.z - p.z ) * k );
 		this.colliders.moveCapsule( p, next.clone().sub( p ), RADIUS, HEIGHT, 0 );
-		if ( p.distanceTo( next ) > 0.001 ) { this.prompt = { key: 'S', text: '梯道受阻 · S 松开' }; return; }
+		if ( p.distanceTo( next ) > 0.001 ) { this.prompt = { key: 'S / Ctrl', text: '梯道受阻 · 松开后重新靠近' }; return; }
+		const progress = Math.round( THREE.MathUtils.clamp( ( p.y - b.bottom ) / Math.max( 0.01, b.climbTo.y - b.bottom ), 0, 1 ) * 100 );
+		this.prompt = { key: 'W / 空格', text: `攀爬梯子 · ${ progress }% · S / Ctrl 松开` };
 		if ( p.y < b.climbTo.y ) return;
 		const landing = b.climbTo.clone();
 		const approach = p.clone(); this.colliders.moveCapsule( approach, landing.clone().sub( p ), RADIUS, HEIGHT, 0 );
 		if ( ! this.canStandAt( landing ) || approach.distanceTo( landing ) > 0.001 || Math.abs( this.groundAt( landing.x, landing.z, landing.y + 0.1 ) - landing.y ) > 0.1 ) {
 
-			this.prompt = { key: 'S', text: '梯口受阻 · 松开后换个位置' }; return;
+			this.prompt = { key: 'S / Ctrl', text: '梯口受阻 · 松开后换个位置' }; return;
 
 		}
 		p.copy( landing ); this.mode = 'walk'; this.climbing = null; this.grounded = true; this.floating = false;
