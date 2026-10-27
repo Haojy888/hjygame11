@@ -4,6 +4,7 @@ import { MAP_BOUNDS } from '../src/game/Minimap.js';
 import { GameState } from '../src/game/GameState.js';
 import { Input } from '../src/core/Input.js';
 import { UI } from '../src/ui/UI.js';
+import { Game } from '../src/game/Game.js';
 import { Vector3 } from '../src/engine/index.js';
 
 const calls = [];
@@ -144,6 +145,26 @@ try {
 	map.update( 1 );
 	assert.equal( list.innerHTML, beforeRefresh, 'Moving positions update metrics without rebuilding controls' );
 	assert.equal( map.navigation.destination.x, 2500 );
+	game.landmarks = { locations: () => [ 'dolphin', 'moray', 'seahorse', 'whalebones' ].map( ( id, i ) => ( {
+		id: 'coastal-' + id, label: id, x: - 50 + i * 20, y: - 5, z: 120 + i * 40, underwater: true, hint: 'P 取景，G 拍照',
+	} ) ) };
+	assert.equal( Game.prototype.navigateSurvey.call( game, 'missing' ), false );
+	assert.equal( Game.prototype.navigateSurvey.call( game, 'coastal-life' ), true );
+	assert.equal( map.selectedId, 'survey-route-coastal-life' );
+	assert.equal( map.navigation.destination.x, - 50 );
+	assert.equal( locationGroup( map.navigation.destination ), 'tasks' );
+	game.landmarks.locations = () => [ { id: 'coastal-dolphin', label: '伴游海豚', x: 90, y: - 2, z: 140 },
+		{ id: 'coastal-moray', label: '礁洞海鳗', x: - 124, y: - 8, z: 119 } ];
+	map.update( 1 ); assert.equal( map.navigation.destination.x, 90, 'the selected commission follows a moving dolphin target' );
+	state.fieldPhotos.dolphin = {}; map.update( 1 );
+	assert.equal( map.navigation.destination.x, - 124, 'photographing a subject advances the existing navigation' );
+	for ( const id of [ 'moray', 'seahorse', 'whalebones' ] ) state.fieldPhotos[ id ] = {};
+	map.update( 1 ); assert.match( map.navigation.destination.label, /回港交付/ );
+	assert.equal( map.navigation.destination.x, mapLocations( game ).find( entry => entry.id === 'marta' ).x );
+	state.surveyClaims.push( 'coastal-life' ); map.update( 1 );
+	assert.equal( map.selectedId, null, 'claiming clears the finished route' );
+	assert.equal( Game.prototype.navigateSurvey.call( game, 'coastal-life' ), false );
+	assert.equal( map.selectDestination( 'boat' ), true );
 	filter.value = 'tasks'; filter.onchange();
 	assert.doesNotMatch( list.innerHTML, /data-map-id="boat"/ );
 	assert.equal( map.selectedId, 'boat', 'Filtering does not cancel navigation' );

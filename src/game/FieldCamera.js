@@ -1,5 +1,6 @@
 import { Vector3 } from '../engine/index.js';
 import { FIELD_SUBJECTS } from './Expedition.js';
+import { MARINE_SURVEYS, surveyProgress } from './MarineSurvey.js';
 
 export function subjectVisible( app, point, range, cone = 0.7, reachFrom = app.camera?.position ) {
 
@@ -111,7 +112,10 @@ export class FieldCamera {
 			context.drawImage( canvas, 0, 0, thumbnail.width, thumbnail.height );
 			const image = thumbnail.toDataURL( 'image/jpeg', 0.65 );
 			const saved = g.state.recordFieldPhoto( id, { image, x: point.x, y: point.y, z: point.z, hour: g.hour } );
-			g.toast( saved ? `已收录：${ FIELD_SUBJECTS[ id ].name } · 按 P 返回，再按 I 查看摄影图鉴` : '照片未能保存 · 请允许网站存储数据，或释放浏览器站点空间后重试', 5000 );
+			const survey = MARINE_SURVEYS.find( item => item.subjects.includes( id ) && surveyProgress( g.state, item.id ).unlocked && ! g.state.surveyClaims?.includes( item.id ) );
+			const progress = survey && surveyProgress( g.state, survey.id );
+			const note = progress ? ` · ${ survey.title } ${ progress.count }/${ survey.subjects.length }${ progress.ready ? ' · 已集齐，回玛尔塔处交付' : '' }` : '';
+			g.toast( saved ? `已收录：${ FIELD_SUBJECTS[ id ].name }${ note } · 按 P 返回，再按 I 查看摄影图鉴` : '照片未能保存 · 请允许网站存储数据，或释放浏览器站点空间后重试', 5000 );
 			return saved;
 
 		} catch { g.toast( '本次照片未能保存，请稍后重试；探索进度仍保留', 4000 ); return false; }

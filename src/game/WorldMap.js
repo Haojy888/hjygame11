@@ -3,7 +3,7 @@ import { WORLD } from '../world/WorldLayout.js';
 import { STAND } from './FishStand.js';
 import { CHANDLERY } from './Chandlery.js';
 import { WRECK_SITE, CAVE_SITE, expeditionObjective } from './Expedition.js';
-import { SURVEY_SITES } from './MarineSurvey.js';
+import { SURVEY_SITES, MARINE_SURVEYS, surveyProgress, surveyDestination } from './MarineSurvey.js';
 import { STATION, STATION_STEPS, SALVAGE, EVENT_SITES, EVENT_TYPES, RESTORATION_SITES, restorationReady } from './Voyage.js';
 import { storyObjective } from './Story.js';
 import { seaJournalObjective } from './SeaJournal.js';
@@ -88,7 +88,7 @@ export function navigationInfo( destination, position ) {
 export function locationGroup( entry ) {
 
 	if ( [ 'harbor', 'joe', 'marta', 'boat', 'player' ].includes( entry.id ) ) return 'harbor';
-	if ( [ 'task', 'story', 'seaJournal', 'expedition', 'voyage', 'radio-event' ].includes( entry.id ) || entry.id.startsWith( 'restore-' ) ) return 'tasks';
+	if ( [ 'task', 'story', 'seaJournal', 'expedition', 'voyage', 'radio-event' ].includes( entry.id ) || entry.id.startsWith( 'restore-' ) || entry.id.startsWith( 'survey-route-' ) ) return 'tasks';
 	return 'explore';
 
 }
@@ -167,6 +167,17 @@ export function mapLocations( game ) {
 		...game.secrets.point( site.id ), underwater: site.id === 'storm', hint: game.secrets.hint( site.id ), color: '#b3e1c5',
 	} );
 	entries.push( ...( game.landmarks?.locations() || [] ) );
+	for ( const survey of MARINE_SURVEYS ) {
+
+		const destination = surveyDestination( game.state, survey.id ), target = entries.find( entry => entry.id === destination );
+		if ( ! target ) continue;
+		const progress = surveyProgress( game.state, survey.id );
+		entries.push( { ...target, id: 'survey-route-' + survey.id, icon: '▣', color: '#c4e6b0',
+			label: `${ survey.title } · ${ progress.count } / ${ survey.subjects.length }${ progress.ready ? ' · 回港交付' : '' }`,
+			hint: progress.ready ? `上岸靠近玛尔塔按 E，交付照片领取 $${ survey.reward }；旧照片保留，酬金只领取一次`
+				: `下一张：${ target.label } · ${ target.hint || '潜水后 P 取景、G 拍照' } · 拍摄后自动导航到下一处` } );
+
+	}
 	entries.push( { id: 'player', icon: '▲', label: '你的位置', ...game.app.player.position, color: '#fff' } );
 	return entries.map( ( entry ) => {
 
@@ -206,7 +217,7 @@ export class WorldMap {
 			<div class="gm-worldmap-search"><input type="search" aria-label="搜索地点或任务" placeholder="搜索地点、任务或操作提示" autocomplete="off" maxlength="80"><span class="gm-map-count" role="status"></span></div>
 			<p class="gm-worldmap-navigation">选择目的地后，关闭地图即可跟随小地图上的 ⌖ 前往。</p>
 			<div class="gm-worldmap-body"><div class="gm-worldmap-view"><canvas width="640" height="640" role="img" aria-label="岛屿、海湾与你的实时位置；地点和距离见右侧列表"></canvas></div><ul class="gm-worldmap-list"></ul></div>
-			<footer>数字 1–3 为已开放钓场；◇ 主线，☆ 剧情，◎ 航海见闻，⚓ 归潮号，◉ 生态潜点，♧ 海湾复苏，▤ 电台航程，钩为打捞物。重复点击可切换重叠标记。虚线为直线方位参考，航行需绕开陆地；边缘标记表示图外目标。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
+			<footer>数字 1–3 为已开放钓场；◇ 主线，☆ 剧情，◎ 航海见闻，⚓ 归潮号，◉ 生态潜点，▣ 摄影委托，♧ 海湾复苏，▤ 电台航程，钩为打捞物。重复点击可切换重叠标记。虚线为直线方位参考，航行需绕开陆地；边缘标记表示图外目标。查看地图时暂停钓鱼，安静观察会中断；海浪和船只漂流继续。</footer></section>`;
 		this.canvas = this.el.querySelector( 'canvas' );
 		this.ctx = this.canvas.getContext( '2d' );
 		this.list = this.el.querySelector( 'ul' );

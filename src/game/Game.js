@@ -23,6 +23,7 @@ import { FieldCamera, subjectVisible } from './FieldCamera.js';
 import { VoyageController } from './VoyageController.js';
 import { SecretsController } from './SecretsController.js';
 import { LandmarksController } from './LandmarksController.js';
+import { surveyDestination, surveyTitles } from './MarineSurvey.js';
 
 // how long the catch card stays up unless dismissed (ms)
 const CATCH_CARD_MS = 9000;
@@ -149,6 +150,13 @@ export class Game {
 
 	}
 
+	navigateSurvey( id ) {
+
+		if ( ! surveyDestination( this.state, id ) || ! this.worldMap?.toggle( true ) ) return false;
+		return this.worldMap.selectDestination( 'survey-route-' + id );
+
+	}
+
 	claimSurvey( id ) {
 
 		const app = this.app, ui = app.ui?.ui, vendor = this.hud?.vendor;
@@ -158,7 +166,8 @@ export class Game {
 			|| this.hud.invOpen || this.hud.catchOpen || this.fight || this.landing || this.rescueHold > 0
 			|| app.input.enabled === false || app.input.focused === false || app.input.interrupted ) return false;
 		if ( ! this.state.claimSurvey( id ) ) { this.toast( '尚未完成调查，或进度暂时无法保存', 3500 ); return false; }
-		this.toast( this.state.surveyClaims.length === 3 ? '三份调查已归档 · 获得「海湾观察员」纪念称号，照片仍保留在图鉴中' : '生态调查已归档 · 酬金已到账，照片仍保留在图鉴中', 5500 );
+		const titles = surveyTitles( this.state );
+		this.toast( `生态调查已归档 · 酬金已到账，照片仍保留在图鉴中${ titles.length ? ' · 纪念称号：' + titles.join( '、' ) : '' }`, 5500 );
 		return true;
 
 	}

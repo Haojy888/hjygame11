@@ -5,7 +5,7 @@ import { ORDERS, CHAPTERS, GROUNDS, matchesOrder } from './Orders.js';
 import { STORY_TITLE, storyObjective, storyDialogue, storyJournal } from './Story.js';
 import { SEA_JOURNAL_TITLE, seaJournalObjective, seaJournalEntries, seaJournalDialogue } from './SeaJournal.js';
 import { expeditionObjective, expeditionDialogue, expeditionEntries, FIELD_SUBJECTS } from './Expedition.js';
-import { MARINE_SURVEYS, surveyProgress } from './MarineSurvey.js';
+import { MARINE_SURVEYS, surveyProgress, surveyDestination, surveyTitles } from './MarineSurvey.js';
 import { STATION_STEPS, STATION_ENTRIES, EVENT_TYPES, SALVAGE, RESTORATION_SITES, restorationReady, radioLogText } from './Voyage.js';
 import { BOATS } from './Boats.js';
 import { BoatWorkshop, WORKSHOP_CSS } from './BoatWorkshop.js';
@@ -399,7 +399,7 @@ export class GameHUD {
 		const surveyOpen = panel?.querySelector( 'details.gm-marine-survey' )?.open || false;
 		const voyageOpen = [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-secrets' ].map( ( cls ) => [ cls, panel?.querySelector( `details.${ cls }` )?.open || false ] );
 		const focused = typeof document !== 'undefined' && panel?.contains?.( document.activeElement ) ? document.activeElement : null;
-		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey', 'data-radio', 'data-exhibit', 'data-cabin-photo', 'data-station-return', 'data-restoration' ].find( ( name ) => focused.hasAttribute( name ) );
+		const focusAttribute = focused && [ 'data-release', 'data-sell', 'data-all', 'data-buy', 'data-fuel', 'data-close', 'data-story', 'data-sea-journal', 'data-expedition', 'data-survey', 'data-survey-route', 'data-radio', 'data-exhibit', 'data-cabin-photo', 'data-station-return', 'data-restoration' ].find( ( name ) => focused.hasAttribute( name ) );
 		const focusSelector = focusAttribute ? `[${ focusAttribute }="${ focused.getAttribute( focusAttribute ) }"]`
 			: focused?.tagName === 'SUMMARY' ? [ 'gm-radio', 'gm-cabin', 'gm-station-dialogue', 'gm-restoration', 'gm-secrets', 'gm-marine-survey', 'gm-expedition-dialogue', 'gm-expedition-journal', 'gm-field-guide', 'gm-sea-dialogue', 'gm-sea-journal', 'gm-story-journal', 'gm-journey' ].find( ( cls ) => focused.parentElement?.classList.contains( cls ) ) : null;
 		if ( this.invOpen ) this.renderInventory();
@@ -421,7 +421,7 @@ export class GameHUD {
 		if ( focusSelector ) {
 
 			const nextFocus = panel.querySelector( focusSelector.startsWith( '[' ) ? focusSelector : `details.${ focusSelector } > summary` )
-				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : focusAttribute === 'data-survey' ? panel.querySelector( 'details.gm-marine-survey > summary' ) : focusAttribute === 'data-radio' ? panel.querySelector( 'details.gm-radio > summary' ) : focusAttribute === 'data-station-return' ? panel.querySelector( 'details.gm-station-dialogue > summary' ) : focusAttribute === 'data-restoration' ? panel.querySelector( 'details.gm-restoration > summary' ) : null );
+				|| ( focusAttribute === 'data-sea-journal' ? panel.querySelector( 'details.gm-sea-dialogue > summary' ) : focusAttribute === 'data-expedition' ? panel.querySelector( 'details.gm-expedition-dialogue > summary' ) : [ 'data-survey', 'data-survey-route' ].includes( focusAttribute ) ? panel.querySelector( 'details.gm-marine-survey > summary' ) : focusAttribute === 'data-radio' ? panel.querySelector( 'details.gm-radio > summary' ) : focusAttribute === 'data-station-return' ? panel.querySelector( 'details.gm-station-dialogue > summary' ) : focusAttribute === 'data-restoration' ? panel.querySelector( 'details.gm-restoration > summary' ) : null );
 			nextFocus?.focus( { preventScroll: true } );
 
 		}
@@ -496,8 +496,15 @@ export class GameHUD {
 		for ( const button of this.stand.querySelectorAll( '[data-sea-journal]' ) ) button.onclick = () => this.game.talkSeaJournal( button.dataset.seaJournal );
 		for ( const button of this.stand.querySelectorAll( '[data-expedition]' ) ) button.onclick = () => this.game.talkExpedition( button.dataset.expedition );
 		for ( const button of this.stand.querySelectorAll( '[data-survey]' ) ) button.onclick = () => this.game.claimSurvey( button.dataset.survey );
+		this.bindSurveyRoutes( this.stand );
 		for ( const button of this.stand.querySelectorAll( '[data-station-return]' ) ) button.onclick = () => this.game.returnStation();
 		for ( const button of this.stand.querySelectorAll( '[data-restoration]' ) ) button.onclick = () => this.game.talkRestoration( button.dataset.restoration );
+
+	}
+
+	bindSurveyRoutes( panel ) {
+
+		for ( const button of panel.querySelectorAll( '[data-survey-route]' ) ) button.onclick = () => this.game.navigateSurvey( button.dataset.surveyRoute );
 
 	}
 
@@ -576,10 +583,13 @@ export class GameHUD {
 		const state = this.game.state;
 		if ( ! state.isGroundUnlocked( 'reef' ) ) return '';
 		const count = state.surveyClaims?.length || 0;
-		return `<details class="gm-journey gm-marine-survey"><summary>◉ 海湾生态调查 · ${ count } / ${ MARINE_SURVEYS.length }${ count === MARINE_SURVEYS.length ? ' · 海湾观察员' : '' }</summary><p class="gm-sub">玛尔塔：“带照片回来就好，让海里的邻居留在原地。”旧照片也计入，交付后照片保留；每份酬金只领取一次。</p>${ MARINE_SURVEYS.map( ( survey ) => {
+		const titles = surveyTitles( state );
+		return `<details class="gm-journey gm-marine-survey"><summary>◉ 海湾生态调查 · ${ count } / ${ MARINE_SURVEYS.length }${ titles.length ? ' · ' + titles.join( '、' ) : '' }</summary><p class="gm-sub">玛尔塔：“带照片回来就好，让海里的邻居留在原地。”旧照片也计入，交付后照片保留；每份酬金只领取一次。选择导航后，拍完一项会自动指向下一处，集齐后指向船具店。</p>${ MARINE_SURVEYS.map( ( survey ) => {
 
 			const progress = surveyProgress( state, survey.id );
-			return `<article class="gm-field-card"><b>${ survey.title } · $${ survey.reward }</b><p>${ survey.text }</p><p>${ survey.subjects.map( ( id ) => `${ state.fieldPhotos?.[ id ] ? '✓' : '○' } ${ FIELD_SUBJECTS[ id ].name }` ).join( '　' ) }</p><p>${ progress.claimed ? '已归档 · 酬金已领取' : ! progress.unlocked ? '开放远海深水钓场后可交付' : `已拍摄 ${ progress.count } / ${ survey.subjects.length }` }</p>${ progress.ready ? shop ? `<button class="gm-mini" data-survey="${ survey.id }">交付调查 · +$${ survey.reward }</button>` : '<p>照片已齐全 · 到玛尔塔的船具店领取酬金</p>' : '' }</article>`;
+			const destination = surveyDestination( state, survey.id );
+			const route = destination ? `<button type="button" class="gm-mini" data-survey-route="${ survey.id }">${ progress.ready ? '导航回玛尔塔处交付' : '导航：' + FIELD_SUBJECTS[ progress.missing[ 0 ] ].name }</button>` : '';
+			return `<article class="gm-field-card"><b>${ survey.title } · $${ survey.reward }</b><p>${ survey.text }</p><p>${ survey.subjects.map( ( id ) => `${ state.fieldPhotos?.[ id ] ? '✓' : '○' } ${ FIELD_SUBJECTS[ id ].name }` ).join( '　' ) }</p><p>${ progress.claimed ? '已归档 · 酬金已领取' : ! progress.unlocked ? '开放远海深水钓场后可交付' : `已拍摄 ${ progress.count } / ${ survey.subjects.length }` }</p>${ route }${ progress.ready ? shop ? `<button class="gm-mini" data-survey="${ survey.id }">交付调查 · +$${ survey.reward }</button>` : '<p>照片已齐全 · 到玛尔塔的船具店领取酬金</p>' : '' }</article>`;
 
 		} ).join( '' ) }</details>`;
 
@@ -814,7 +824,9 @@ export class GameHUD {
 	landmarksMarkup() {
 
 		if ( ! this.game.landmarks ) return '';
-		return `<div class="gm-order-offer"><div class="gm-order-head">归航灯塔与海上见闻</div><p class="gm-sub">灯塔电源：${ this.game.state.landmarks.lighthouseLit ? '已修复 · 夜间自动亮灯' : '等待修复 · 南侧码头登梯，沿旋梯到顶部控制箱按 G' }。按 M 查找灯塔、海豚巡游水域、海鳗礁洞、海马草庭和鲸落骨廊；潜水后按 P 取景、G 收录照片。</p></div>`;
+		const progress = surveyProgress( this.game.state, 'coastal-life' );
+		const commission = progress.unlocked && ! progress.claimed ? `<p class="gm-order-hint">摄影委托 · 海岸新邻居：${ progress.count } / 4 · 集齐后回玛尔塔处领取 $120 与「海岸寻影者」称号。已有照片计入。</p><button type="button" class="gm-mini" data-survey-route="coastal-life">${ progress.ready ? '导航回港交付' : '开始摄影航线' }</button>` : '';
+		return `<div class="gm-order-offer"><div class="gm-order-head">归航灯塔与海上见闻</div><p class="gm-sub">灯塔电源：${ this.game.state.landmarks.lighthouseLit ? '已修复 · 夜间自动亮灯' : '等待修复 · 南侧码头登梯，沿旋梯到顶部控制箱按 G' }。按 M 查找灯塔、海豚巡游水域、海鳗礁洞、海马草庭和鲸落骨廊；潜水后按 P 取景、G 收录照片。</p>${ commission }</div>`;
 
 	}
 
@@ -865,6 +877,7 @@ export class GameHUD {
 		for ( const b of this.inv.querySelectorAll( '[data-radio]' ) ) b.onclick = () => this.game.voyage?.command( b.dataset.radio );
 		for ( const b of this.inv.querySelectorAll( '[data-exhibit]' ) ) b.onclick = () => this.game.voyage?.command( 'display', b.dataset.exhibit );
 		for ( const b of this.inv.querySelectorAll( '[data-cabin-photo]' ) ) b.onclick = () => this.game.voyage?.command( 'photo', b.dataset.cabinPhoto );
+		this.bindSurveyRoutes( this.inv );
 
 	}
 

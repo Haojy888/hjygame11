@@ -5,8 +5,8 @@ import { GameState } from '../src/game/GameState.js';
 import { Game } from '../src/game/Game.js';
 import { GameHUD } from '../src/game/GameHUD.js';
 import { FIELD_SUBJECTS } from '../src/game/Expedition.js';
-import { MARINE_SURVEYS, SURVEY_SITES, normalizeSurveyClaims, surveyProgress } from '../src/game/MarineSurvey.js';
-import { fieldSubjects, subjectVisible } from '../src/game/FieldCamera.js';
+import { MARINE_SURVEYS, SURVEY_SITES, normalizeSurveyClaims, surveyProgress, surveyDestination, surveyTitles } from '../src/game/MarineSurvey.js';
+import { FieldCamera, fieldSubjects, subjectVisible } from '../src/game/FieldCamera.js';
 import { Scene, Vector3, PerspectiveCamera } from '../src/engine/index.js';
 import { Reef } from '../src/world/Reef.js';
 import { TerrainData } from '../src/world/TerrainData.js';
@@ -14,6 +14,10 @@ import { WORLD } from '../src/world/WorldLayout.js';
 import { mulberry32, Noise2D } from '../src/util/Noise.js';
 import { Vendor } from '../src/game/Vendor.js';
 import { mapLocations } from '../src/game/WorldMap.js';
+import { Colliders } from '../src/world/Colliders.js';
+import { ExplorationWorld } from '../src/world/ExplorationWorld.js';
+import { LandmarksController } from '../src/game/LandmarksController.js';
+import { Input } from '../src/core/Input.js';
 
 const data = new Map(), storage = { getItem: ( key ) => data.get( key ), setItem: ( key, value ) => data.set( key, value ) };
 const state = new GameState( storage ), image = 'data:image/jpeg;base64,' + 'AAAA'.repeat( 32 );
@@ -82,8 +86,78 @@ for ( const site of SURVEY_SITES ) {
 }
 assert.equal( fieldSubjects( { reef } ).filter( ( s ) => SURVEY_SITES.some( ( site ) => site.id === s.id ) ).length, reef.surveySubjects.length );
 game.app.reef = reef;
-assert.equal( mapLocations( game ).filter( ( e ) => e.id.startsWith( 'survey-' ) ).length, 3 );
-console.log( 'Marine survey passed: three real habitats, visible photo targets, thirteen saved categories, ground gates, one-time rewards, quota rollback, merchant proximity and input guards.', Object.fromEntries( SURVEY_SITES.map( ( site ) => [ site.id, reef.surveySubjects.filter( ( s ) => s.id === site.id ).length ] ) ) );
+assert.equal( mapLocations( game ).filter( e => SURVEY_SITES.some( site => e.id === 'survey-' + site.id ) ).length, 3 );
+
+// A real coastal-photo journey: current world targets -> post-render capture ->
+// next map destination -> merchant claim -> reload. Existing photos count too.
+const archive = new Map(), coastalStorage = { getItem: key => archive.get( key ), setItem: ( key, value ) => archive.set( key, value ) };
+const coastalState = new GameState( coastalStorage );
+assert.equal( surveyDestination( coastalState, 'coastal-life' ), null );
+assert.equal( coastalState.claimSurvey( 'coastal-life' ), false );
+coastalState.orderIndex = 2;
+const coastalInput = Object.assign( Object.create( Input.prototype ), { enabled: true, focused: true, interrupted: false, keys: new Set(), pressed: new Set(), look: { x: 0, y: 0 } } );
+const coastalApp = { scene: new Scene(), camera, terrainData: terrain, colliders: new Colliders(), input: coastalInput,
+	player: { mode: 'swim', position: new Vector3() }, ui: { ui: { _photo: true } }, settings: { timeOfDay: 12 }, engine: { canvas: { width: 1366, height: 768 } } };
+const coastal = Object.assign( Object.create( Game.prototype ), { state: coastalState, app: coastalApp, rod: { equipped: false },
+	hud: { standOpen: false, invOpen: false, catchOpen: false, vendor: marta }, chandlery: { vendor: marta }, messages: [], toast( text ) { this.messages.push( text ); } } );
+coastal.landmarks = new LandmarksController( coastal, new ExplorationWorld( coastalApp ) );
+const fieldCamera = new FieldCamera( coastal ), routeId = 'survey-route-coastal-life';
+const route = () => mapLocations( coastal ).find( entry => entry.id === routeId );
+const reloadState = new GameState( coastalStorage );
+for ( const claimed of [ 'small-life', 'wreck-life', 'open-water' ] ) reloadState.surveyClaims.push( claimed );
+assert.deepEqual( surveyTitles( reloadState ), [ '海湾观察员' ], 'adding a new commission retains the old title' );
+const previousDocument = globalThis.document;
+globalThis.document = { createElement: () => ( { width: 0, height: 0, getContext: () => ( { drawImage() {} } ), toDataURL: () => image } ) };
+try {
+
+	for ( const [ index, id ] of [ 'dolphin', 'moray', 'seahorse', 'whalebones' ].entries() ) {
+
+		const target = fieldSubjects( coastalApp ).find( subject => subject.id === id ).point;
+		assert.equal( surveyDestination( coastalState, 'coastal-life' ), 'coastal-' + id );
+		assert.ok( Math.hypot( route().x - target.x, route().z - target.z ) < 0.001 );
+		assert.match( route().label, new RegExp( `${ index } / 4` ) );
+		camera.position.copy( target ).add( new Vector3( 0, id === 'dolphin' ? - 0.4 : 0.1, id === 'seahorse' ? 2 : 3 ) );
+		camera.lookAt( target ); camera.updateMatrixWorld(); coastalApp.player.position.copy( camera.position );
+		coastalInput.pressed.add( 'KeyG' ); fieldCamera.update( 1.1 ); coastalInput.endFrame();
+		assert.equal( fieldCamera.pending, id, 'the actual visible world target is photographable: ' + id );
+		assert.equal( fieldCamera.flush(), true );
+		assert.equal( surveyProgress( coastalState, 'coastal-life' ).count, index + 1 );
+		assert.match( coastal.messages.at( - 1 ), new RegExp( `海岸新邻居 ${ index + 1 }/4` ) );
+		if ( index < 3 ) assert.equal( coastalState.claimSurvey( 'coastal-life' ), false );
+
+	}
+	assert.match( coastal.messages.at( - 1 ), /已集齐/ );
+	assert.equal( surveyDestination( coastalState, 'coastal-life' ), 'marta' );
+	assert.equal( route().x, mapLocations( coastal ).find( entry => entry.id === 'marta' ).x );
+	assert.equal( route().underwater, undefined ); assert.match( route().label, /回港交付/ );
+	const resumed = GameState.load( coastalStorage );
+	assert.equal( surveyProgress( resumed, 'coastal-life' ).ready, true, 'saved photos count without photographing again' );
+	const quota = new GameState( { setItem() { throw Error( 'full' ); } } );
+	quota.orderIndex = 2; quota.fieldPhotos = { ...resumed.fieldPhotos }; quota.money = 9;
+	assert.equal( quota.claimSurvey( 'coastal-life' ), false ); assert.equal( quota.money, 9 ); assert.deepEqual( quota.surveyClaims, [] );
+	assert.equal( coastal.claimSurvey( 'coastal-life' ), false, 'photographs cannot claim rewards remotely' );
+	coastalApp.player.mode = 'walk'; coastalApp.player.position.copy( marta.position ); coastalApp.ui.ui._photo = false;
+	coastal.hud.standOpen = true;
+	assert.equal( coastal.claimSurvey( 'coastal-life' ), true ); assert.equal( coastalState.money, 120 );
+	assert.equal( route(), undefined, 'completed commission marker is removed' );
+	assert.equal( GameState.load( coastalStorage ).claimSurvey( 'coastal-life' ), false );
+	assert.equal( Object.keys( GameState.load( coastalStorage ).fieldPhotos ).length, 4 );
+	assert.deepEqual( surveyTitles( coastalState ), [ '海岸寻影者' ] );
+	assert.match( coastal.messages.at( - 1 ), /海岸寻影者/ );
+	const coastalHUD = Object.assign( Object.create( GameHUD.prototype ), { game: coastal } );
+	assert.match( coastalHUD.marineSurveyMarkup(), /海岸寻影者/ );
+	assert.doesNotMatch( coastalHUD.marineSurveyMarkup(), /data-survey-route="coastal-life"/ );
+	coastalState.surveyClaims = [];
+	assert.match( coastalHUD.marineSurveyMarkup(), /data-survey-route="coastal-life"/ );
+	assert.doesNotMatch( coastalHUD.marineSurveyMarkup(), /data-survey="coastal-life"/ );
+	assert.match( coastalHUD.marineSurveyMarkup( true ), /data-survey="coastal-life"/ );
+	const button = { dataset: { surveyRoute: 'coastal-life' } }; let clicked;
+	coastal.navigateSurvey = id => { clicked = id; };
+	coastalHUD.bindSurveyRoutes( { querySelectorAll: () => [ button ] } ); button.onclick();
+	assert.equal( clicked, 'coastal-life', 'the rendered navigation button is bound' );
+
+} finally { globalThis.document = previousDocument; }
+console.log( 'Marine survey passed: habitats, photo framing, four-photo coastal journey, automatic next/return destinations, saved-photo reuse, merchant-only reward, duplicate/quota guards and retained titles.' );
 
 if ( process.argv.includes( '--render' ) ) {
 
